@@ -266,11 +266,11 @@ public:
 			m_sDescription = *desc;
 		m_pDispatch->AddRef();
 		auto menuCaption = plugin.GetExtendedPropertyValue(funcname + _T(".MenuCaption"));
-		String caption = menuCaption.has_value() ? String{ menuCaption->data(), menuCaption->length() } : funcname;
+		String caption = menuCaption.has_value() ? strutils::to_str(*menuCaption) : funcname;
 		m_sExtendedProperties = ucr::toUTF16(strutils::format(_T("ProcessType=Editor script;MenuCaption=%s"), caption))
 			+ (plugin.GetExtendedPropertyValue(funcname + _T(".ArgumentsRequired")).has_value() ? L";ArgumentsRequired" : L"");
 		StringView args = plugin.GetExtendedPropertyValue(funcname + _T(".Arguments")).value_or(_T(""));
-		m_sArguments = { args.data(), args.length() };
+		m_sArguments = strutils::to_str(args);
 	}
 
 	virtual ~UnpackerGeneratedFromEditorScript()
@@ -407,7 +407,7 @@ protected:
 		strutils::replace(command, _T("${DST_FILE}"), fileDst);
 		std::vector<StringView> vars = strutils::split(m_sVariables, '\0');
 		for (size_t i = 0; i < vars.size(); ++i)
-			strutils::replace(command, strutils::format(_T("${%d}"), i), { vars[i].data(), vars[i].length() });
+			strutils::replace(command, strutils::format(_T("${%d}"), i), strutils::to_str(vars[i]));
 		strutils::replace(command, _T("${*}"), m_sArguments);
 		return command;
 	}
@@ -483,9 +483,16 @@ public:
 		: WinMergePluginBase(
 			L"EDITOR_SCRIPT",
 			plugin.m_description,
-			plugin.m_filtersTextDefault, L"", plugin.m_extendedProperties, plugin.m_arguments)
+			plugin.m_filtersTextDefault, L"", plugin.m_extendedProperties)
 		, m_pDispatch(plugin.m_lpDispatch)
 	{
+		auto menuCaption = plugin.GetExtendedPropertyValue(_T("MenuCaption"));
+		if (menuCaption.has_value())
+		{
+			String menuCaptionStr = strutils::to_str(*menuCaption);
+			m_sExtendedProperties = strutils::format(_T("%s;%s.MenuCaption=%s"),
+					plugin.m_extendedProperties, funcname, menuCaptionStr);
+		}
 		m_pDispatch->AddRef();
 		AddFunction(ucr::toUTF16(funcname), CallUnpackFile);
 	}
@@ -617,9 +624,7 @@ struct Loader
 					if (plugins.find(L"EDITOR_SCRIPT") == plugins.end())
 						plugins[L"EDITOR_SCRIPT"].reset(new PluginArray);
 					PluginInfoPtr pluginNew(new PluginInfo());
-					auto menuCaption =  plugin->GetExtendedPropertyValue(_T("MenuCaption"));
-					String funcname = menuCaption.has_value() ? String{menuCaption->data(), menuCaption->length() } : plugin->m_name;
-					IDispatch* pDispatch = new EditorScriptGeneratedFromUnpacker(*plugin, funcname);
+					IDispatch* pDispatch = new EditorScriptGeneratedFromUnpacker(*plugin, plugin->m_name);
 					pDispatch->AddRef();
 					pluginNew->MakeInfo(plugin->m_name, pDispatch);
 					plugins[L"EDITOR_SCRIPT"]->push_back(pluginNew);

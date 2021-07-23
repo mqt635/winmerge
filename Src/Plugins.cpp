@@ -337,8 +337,7 @@ static String GetCustomSetting(const String& name, const String& key, const Stri
 	if (customSettingsMap.find(name) != customSettingsMap.end()
 		&& customSettingsMap[name].find(key) != customSettingsMap[name].end())
 	{
-		StringView value = customSettingsMap[name][key];
-		return { value.data(), value.length() };
+		return strutils::to_str(customSettingsMap[name][key]);
 	}
 	return default;
 }
@@ -540,13 +539,11 @@ int PluginInfo::MakeInfo(const String & scriptletFilepath, IDispatch *lpDispatch
 			return -110; // error (Plugin had PluginExtendedProperties property, but error getting its value)
 		}
 		m_extendedProperties = ucr::toTString(ret.bstrVal);
-		m_argumentsRequired = GetExtendedPropertyValue(L"ArgumentsRequired").has_value();
 
 	}
 	else
 	{
 		m_extendedProperties.clear();
-		m_argumentsRequired = false;
 	}
 	VariantClear(&ret);
 

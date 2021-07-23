@@ -657,24 +657,25 @@ void COpenView::OnCompare(UINT nID)
 	bool recurse = pDoc->m_bRecurse;
 	if (nID == IDOK)
 	{
-		GetMainFrame()->DoFileOpen(
+		GetMainFrame()->DoFileOrFolderOpen(
 			&tmpPathContext, dwFlags.data(),
 			nullptr, _T(""), recurse, nullptr, &tmpPackingInfo, nullptr);
 	}
 	else if (ID_UNPACKERS_FIRST <= nID && nID <= ID_UNPACKERS_LAST)
 	{
 		tmpPackingInfo.SetPluginPipeline(CMainFrame::GetPluginPipelineByMenuId(nID, FileTransform::UnpackerEventNames, ID_UNPACKERS_FIRST));
-		GetMainFrame()->DoFileOpen(
+		GetMainFrame()->DoFileOrFolderOpen(
 			&tmpPathContext, dwFlags.data(),
 			nullptr, _T(""), recurse, nullptr, &tmpPackingInfo, nullptr);
 	}
 	else if (nID == ID_OPEN_WITH_UNPACKER)
 	{
-		CSelectPluginDlg dlg(pDoc->m_strUnpackerPipeline, tmpPathContext[0], true, false, this);
+		CSelectPluginDlg dlg(pDoc->m_strUnpackerPipeline, tmpPathContext[0], 
+			CSelectPluginDlg::PluginType::Unpacker, false, this);
 		if (dlg.DoModal() == IDOK)
 		{
 			tmpPackingInfo.SetPluginPipeline(dlg.GetPluginPipeline());
-			GetMainFrame()->DoFileOpen(
+			GetMainFrame()->DoFileOrFolderOpen(
 				&tmpPathContext, dwFlags.data(),
 				nullptr, _T(""), recurse, nullptr, &tmpPackingInfo, nullptr);
 		}
@@ -742,7 +743,6 @@ void COpenView::OnLoadProject()
 	PathContext paths;
 	ProjectFileItem& projItem = *project.Items().begin();
 	projItem.GetPaths(paths, m_bRecurse);
-	projItem.GetLeftReadOnly();
 	if (paths.GetSize() < 3)
 	{
 		m_strPath[0] = paths[0];
@@ -766,6 +766,7 @@ void COpenView::OnLoadProject()
 		m_strUnpackerPipeline = projItem.GetUnpacker();
 
 	UpdateData(FALSE);
+	UpdateButtonStates();
 	LangMessageBox(IDS_PROJFILE_LOAD_SUCCESS, MB_ICONINFORMATION);
 }
 
@@ -831,7 +832,7 @@ void COpenView::DropDown(NMHDR* pNMHDR, LRESULT* pResult, UINT nID, UINT nPopupI
 	CMenu* pPopup = menu.GetSubMenu(0);
 	if (pPopup != nullptr)
 	{
-		if (GetDlgItem(IDC_UNPACKER_COMBO)->IsWindowEnabled())
+		if (nID == IDOK && GetDlgItem(IDC_UNPACKER_COMBO)->IsWindowEnabled())
 		{
 			UpdateData(TRUE);
 			String tmpPath[3];
@@ -1165,7 +1166,8 @@ void COpenView::OnSelectUnpacker()
 		return;
 
 	// let the user select a handler
-	CSelectPluginDlg dlg(m_strUnpackerPipeline, m_files[0], true, false, this);
+	CSelectPluginDlg dlg(m_strUnpackerPipeline, m_files[0], 
+		CSelectPluginDlg::PluginType::Unpacker, false, this);
 	if (dlg.DoModal() == IDOK)
 	{
 		m_strUnpackerPipeline = dlg.GetPluginPipeline();

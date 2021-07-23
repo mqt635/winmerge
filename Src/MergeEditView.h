@@ -87,11 +87,8 @@ private:
 
 	bool m_bCurrentLineIsDiff; /**< `true` if cursor is in diff line */
 
-	bool m_bChangedSchemeManually;	/**< `true` if the syntax highlighting scheme is changed manually */
-
 // Attributes
 public:
-	void CopyProperties (CCrystalTextView* pSource) override;
 
 // Operations
 public:
@@ -103,7 +100,7 @@ public:
 	void SelectNone();
 	void SelectDiff(int nDiff, bool bScroll = true, bool bSelectText = true);
 	void DeselectDiffIfCursorNotInCurrentDiff();
-	virtual CCrystalTextBuffer *LocateTextBuffer ();
+	virtual CCrystalTextBuffer *LocateTextBuffer () override;
 	const CCrystalTextBuffer *LocateTextBuffer () const { return const_cast<CMergeEditView *>(this)->LocateTextBuffer(); };
 	void GetFullySelectedDiffs(int & firstDiff, int & lastDiff);
 	void GetFullySelectedDiffs(int & firstDiff, int & lastDiff, int & firstWordDiff,  int & lastWordDiff, const CPoint *pptStart = nullptr, const CPoint *ppEnd = nullptr);
@@ -121,7 +118,7 @@ public:
 	void SelectArea(const CPoint & ptStart, const CPoint & ptEnd) { SetSelection(ptStart, ptEnd); } // make public
 	using CGhostTextView::GetSelection;
 	virtual void UpdateSiblingScrollPos (bool bHorz) override;
-    virtual std::vector<CrystalLineParser::TEXTBLOCK> GetMarkerTextBlocks(int nLineIndex) const;
+    virtual std::vector<CrystalLineParser::TEXTBLOCK> GetMarkerTextBlocks(int nLineIndex) const override;
 	virtual std::vector<CrystalLineParser::TEXTBLOCK> GetAdditionalTextBlocks (int nLineIndex) override;
 	virtual COLORREF GetColor(int nColorIndex) const override;
 	virtual void GetLineColors (int nLineIndex, COLORREF & crBkgnd,
@@ -308,6 +305,7 @@ protected:
 	afx_msg void OnShellMenu();
 	afx_msg void OnUpdateShellMenu(CCmdUI* pCmdUI);
 	afx_msg void OnScripts(UINT nID );
+	afx_msg void OnTransformWithScript();
 	afx_msg void OnHScroll (UINT nSBCode, UINT nPos, CScrollBar * pScrollBar);
 	afx_msg void OnVScroll (UINT nSBCode, UINT nPos, CScrollBar * pScrollBar);
 	afx_msg void OnEditCopyLineNumbers();
@@ -326,9 +324,6 @@ protected:
 	afx_msg void OnOpenFileWith();
 	afx_msg void OnOpenFileWithEditor();
 	afx_msg void OnOpenParentFolder();
-	afx_msg void OnViewSwapPanes12();
-	afx_msg void OnViewSwapPanes23();
-	afx_msg void OnViewSwapPanes13();
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnHelp();
 	afx_msg void OnViewMargin();

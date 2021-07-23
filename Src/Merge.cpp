@@ -100,7 +100,7 @@ CMergeApp::CMergeApp() :
 , m_mainThreadScripts(nullptr)
 , m_nLastCompareResult(0)
 , m_bNonInteractive(false)
-, m_pOptions(CreateOptionManager())
+, m_pOptions(nullptr)
 , m_pGlobalFileFilter(new FileFilterHelper())
 , m_nActiveOperations(0)
 , m_pLangDlg(new CLanguageSelect())
@@ -121,17 +121,19 @@ CMergeApp::CMergeApp() :
  * @return IniOptionsMgr if initial config file exists,
  *   CRegOptionsMgr otherwise.
  */
-COptionsMgr *CreateOptionManager()
+COptionsMgr *CreateOptionManager(const MergeCmdLineInfo& cmdInfo)
 {
-	String iniFilePath = paths::ConcatPath(env::GetProgPath(), _T("winmerge.ini"));
+	String iniFilePath = cmdInfo.m_sIniFilepath;
+	if (!iniFilePath.empty())
+	{
+		iniFilePath = paths::GetLongPath(iniFilePath);
+		if (paths::CreateIfNeeded(paths::GetParentPath(iniFilePath)))
+			return new CIniOptionsMgr(iniFilePath);
+	}
+	iniFilePath = paths::ConcatPath(env::GetProgPath(), _T("winmerge.ini"));
 	if (paths::DoesPathExist(iniFilePath) == paths::IS_EXISTING_FILE)
-	{
 		return new CIniOptionsMgr(iniFilePath);
-	}
-	else
-	{
-		return new CRegOptionsMgr();
-	}
+	return new CRegOptionsMgr();
 }
 
 CMergeApp::~CMergeApp()
@@ -210,10 +212,13 @@ BOOL CMergeApp::InitInstance()
 #else
 	MergeCmdLineInfo cmdInfo(GetCommandLine());
 #endif
+	m_pOptions.reset(CreateOptionManager(cmdInfo));
 	if (cmdInfo.m_bNoPrefs)
 		m_pOptions->SetSerializing(false); // Turn off serializing to registry.
 
-	Options::CopyHKLMValues();
+	if (dynamic_cast<CRegOptionsMgr*>(m_pOptions.get()) != nullptr)
+		Options::CopyHKLMValues();
+
 	Options::Init(m_pOptions.get()); // Implementation in OptionsInit.cpp
 	ApplyCommandLineConfigOptions(cmdInfo);
 	if (cmdInfo.m_sErrorMessages.size() > 0)
@@ -502,6 +507,19 @@ int CMergeApp::ExitInstance()
 
 	delete m_mainThreadScripts;
 	CWinApp::ExitInstance();
+	
+#ifndef _DEBUG
+	// There is a problem that OleUninitialize() in mfc/oleinit.cpp, which is called just before the process exits,
+	// hangs in rare cases.
+	// To deal with this problem, force the process to exit
+	// if the process does not exit within 2 seconds after the call to CMergeApp::ExitInstance().
+	_beginthreadex(0, 0,
+		[](void*) -> unsigned int {
+			Sleep(2000);
+			ExitProcess(0);
+		}, nullptr, 0, nullptr);
+#endif
+
 	return 0;
 }
 
@@ -641,6 +659,8 @@ bool CMergeApp::ParseArgsAndDoOpen(MergeCmdLineInfo& cmdInfo, CMainFrame* pMainF
 	String strDesc[3];
 	std::unique_ptr<PackingInfo> infoUnpacker;
 	std::unique_ptr<PrediffingInfo> infoPrediffer;
+	unsigned nID = cmdInfo.m_nWindowType == MergeCmdLineInfo::AUTOMATIC ?
+		0 : static_cast<unsigned>(cmdInfo.m_nWindowType) + ID_MERGE_COMPARE_TEXT - 1;
 
 	m_bNonInteractive = cmdInfo.m_bNonInteractive;
 
@@ -692,22 +712,32 @@ bool CMergeApp::ParseArgsAndDoOpen(MergeCmdLineInfo& cmdInfo, CMainFrame* pMainF
 			strDesc[2] = cmdInfo.m_sRightDesc;
 		}
 
+		CMainFrame::OpenTextFileParams openParams;
+		openParams.m_line = cmdInfo.m_nLineIndex;
+		openParams.m_fileExt = cmdInfo.m_sFileExt;
+		if (cmdInfo.m_nWindowType == MergeCmdLineInfo::TABLE)
+		{
+			openParams.m_tableDelimiter = cmdInfo.m_cTableDelimiter;
+			openParams.m_tableQuote = cmdInfo.m_cTableQuote;
+			openParams.m_tableAllowNewlinesInQuotes = cmdInfo.m_bTableAllowNewlinesInQuotes;
+		}
+
 		if (cmdInfo.m_Files.GetSize() > 2)
 		{
 			cmdInfo.m_dwLeftFlags |= FFILEOPEN_CMDLINE;
 			cmdInfo.m_dwMiddleFlags |= FFILEOPEN_CMDLINE;
 			cmdInfo.m_dwRightFlags |= FFILEOPEN_CMDLINE;
 			DWORD dwFlags[3] = {cmdInfo.m_dwLeftFlags, cmdInfo.m_dwMiddleFlags, cmdInfo.m_dwRightFlags};
-			bCompared = pMainFrame->DoFileOpen(&cmdInfo.m_Files,
+			bCompared = pMainFrame->DoFileOrFolderOpen(&cmdInfo.m_Files,
 				dwFlags, strDesc, cmdInfo.m_sReportFile, cmdInfo.m_bRecurse, nullptr,
-				infoUnpacker.get(), infoPrediffer.get());
+				infoUnpacker.get(), infoPrediffer.get(), nID, &openParams);
 		}
 		else if (cmdInfo.m_Files.GetSize() > 1)
 		{
 			DWORD dwFlags[3] = {cmdInfo.m_dwLeftFlags, cmdInfo.m_dwRightFlags, FFILEOPEN_NONE};
-			bCompared = pMainFrame->DoFileOpen(&cmdInfo.m_Files,
+			bCompared = pMainFrame->DoFileOrFolderOpen(&cmdInfo.m_Files,
 				dwFlags, strDesc, cmdInfo.m_sReportFile, cmdInfo.m_bRecurse, nullptr,
-				infoUnpacker.get(), infoPrediffer.get());
+				infoUnpacker.get(), infoPrediffer.get(), nID, &openParams);
 		}
 		else if (cmdInfo.m_Files.GetSize() == 1)
 		{
@@ -716,7 +746,8 @@ bool CMergeApp::ParseArgsAndDoOpen(MergeCmdLineInfo& cmdInfo, CMainFrame* pMainF
 			{
 				strDesc[0] = cmdInfo.m_sLeftDesc;
 				strDesc[1] = cmdInfo.m_sRightDesc;
-				bCompared = pMainFrame->DoSelfCompare(IDOK, sFilepath, strDesc);
+				bCompared = pMainFrame->DoSelfCompare(nID, sFilepath, strDesc,
+					infoUnpacker.get(), infoPrediffer.get(), &openParams);
 			}
 			else if (IsProjectFile(sFilepath))
 			{
@@ -733,16 +764,23 @@ bool CMergeApp::ParseArgsAndDoOpen(MergeCmdLineInfo& cmdInfo, CMainFrame* pMainF
 			else
 			{
 				DWORD dwFlags[3] = {cmdInfo.m_dwLeftFlags, cmdInfo.m_dwRightFlags, FFILEOPEN_NONE};
-				bCompared = pMainFrame->DoFileOpen(&cmdInfo.m_Files,
+				bCompared = pMainFrame->DoFileOrFolderOpen(&cmdInfo.m_Files,
 					dwFlags, strDesc, cmdInfo.m_sReportFile, cmdInfo.m_bRecurse, nullptr,
-					infoUnpacker.get(), infoPrediffer.get());
+					infoUnpacker.get(), infoPrediffer.get(), nID, &openParams);
 			}
 		}
 		else if (cmdInfo.m_Files.GetSize() == 0) // if there are no input args, we can check the display file dialog flag
 		{
-			bool showFiles = m_pOptions->GetBool(OPT_SHOW_SELECT_FILES_AT_STARTUP);
-			if (showFiles)
-				pMainFrame->DoFileOpen();
+			if (!cmdInfo.m_bNewCompare)
+			{
+				bool showFiles = m_pOptions->GetBool(OPT_SHOW_SELECT_FILES_AT_STARTUP);
+				if (showFiles)
+					pMainFrame->DoFileOrFolderOpen();
+			}
+			else
+			{
+				bCompared = pMainFrame->DoFileNew(nID, 2, strDesc, infoPrediffer.get(), &openParams);
+			}
 		}
 	}
 	return bCompared;
@@ -973,7 +1011,7 @@ bool CMergeApp::CreateBackup(bool bFolder, const String& pszPath)
 			String msg = strutils::format_string1(
 				_("Unable to backup original file:\n%1\n\nContinue anyway?"),
 				pszPath);
-			if (AfxMessageBox(msg.c_str(), MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN) != IDYES)
+			if (AfxMessageBox(msg.c_str(), MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN, IDS_BACKUP_FAILED_PROMPT) != IDYES)
 				return false;
 		}
 		return true;
@@ -1225,7 +1263,7 @@ bool CMergeApp::LoadAndOpenProjectFile(const String& sProject, const String& sRe
 
 		GetOptionsMgr()->SaveOption(OPT_CMP_INCLUDE_SUBDIRS, bRecursive);
 
-		rtn &= GetMainFrame()->DoFileOpen(&tFiles, dwFlags, nullptr, sReportFile, bRecursive,
+		rtn &= GetMainFrame()->DoFileOrFolderOpen(&tFiles, dwFlags, nullptr, sReportFile, bRecursive,
 			nullptr, pInfoUnpacker.get(), pInfoPrediffer.get());
 	}
 
@@ -1348,7 +1386,7 @@ void CMergeApp::OnMergingMode()
 	bool bMergingMode = GetMergingMode();
 
 	if (!bMergingMode)
-		LangMessageBox(IDS_MERGE_MODE, MB_ICONINFORMATION | MB_DONT_DISPLAY_AGAIN);
+		LangMessageBox(IDS_MERGE_MODE, MB_ICONINFORMATION | MB_DONT_DISPLAY_AGAIN, IDS_MERGE_MODE);
 	SetMergingMode(!bMergingMode);
 }
 
