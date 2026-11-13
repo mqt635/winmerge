@@ -15,10 +15,13 @@
 /////////////////////////////////////////////////////////////////////////////
 // COpenView window
 #include "SuperComboBox.h"
-#include "FileTransform.h"
 #include "PathContext.h"
 #include "CMoveConstraint.h"
 #include "TrDialogs.h"
+#include "ValidatingEdit.h"
+#include "FileFilterHelperMenu.h"
+#include "ClipboardHistory.h"
+#include "MruHelper.h"
 #include <array>
 
 class ProjectFile;
@@ -45,14 +48,21 @@ public:
 	//{{AFX_DATA(COpenView)
 	enum { IDD = IDD_OPEN };
 	CSuperComboBox	m_ctlExt;
+	CValidatingEdit	m_ctlExtEdit;
 	CSuperComboBox	m_ctlPath[3];
 	CSuperComboBox	m_ctlUnpackerPipeline;
+	CSuperComboBox	m_ctlPredifferPipeline;
+	CValidatingEdit	m_ctlUnpackerPipelineEdit;
+	CValidatingEdit	m_ctlPredifferPipelineEdit;
+	CListCtrl	m_ctlRecentCompares; /**< Recent comparisons (MruHelper::GetRecentCompares), newest first */
+	CFileFilterHelperMenu m_menu;
 	String m_strPath[3];
 	bool m_bReadOnly[3];
 	PathContext m_files;
 	bool	m_bRecurse;
 	String	m_strExt;
 	String	m_strUnpackerPipeline;
+	String	m_strPredifferPipeline;
 	//}}AFX_DATA
 
 // other public data
@@ -88,7 +98,15 @@ private:
 	bool m_bIgnoreNumbers; /**< The value of the "Ignore numbers" setting */
 	bool m_bIgnoreCodepage; /**< The value of the "Ignore codepage differences" setting */
 	bool m_bFilterCommentsLines; /**< The value of the "Ignore comment differences" setting */
+	bool m_bIgnoreMissingTrailingEol; /**< The value of the "Ignore missing trailing EOL" setting */
+	bool m_bIgnoreLineBreaks; /**< The value of the "Ignore line breaks (treat as spaces)" setting */
 	int m_nCompareMethod; /**< The value of the "Compare method" setting */
+	UINT m_nLastDropDownButton; /**< ID of last browse button that showed dropdown */
+	HTHEME m_hTheme; /**< Theme used for size grip on Vista and greater */
+	std::vector<ClipboardHistory::Item> m_cachedClipboardItems; /**< Cached clipboard items for menu consistency */
+	std::vector<MruHelper::RecentCompare> m_recentCompares; /**< Entries shown in m_ctlRecentCompares, same order */
+	bool m_bRecentComparesShown; /**< The recent comparison list is expanded (OPT_SHOW_RECENT_COMPARES) */
+	int m_nRecentComparesHeight; /**< Height added to the view when the list is expanded */
 // Overrides
 	public:
 virtual BOOL PreCreateWindow(CREATESTRUCT& cs);
@@ -96,10 +114,12 @@ protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 	virtual void OnInitialUpdate(); // called first time after construct
 	virtual void OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint);
+	virtual void OnActivateView(BOOL bActivate, CView* pActivateView, CView* pDeactiveView);
 
 // Implementation
 public:
 	virtual ~COpenView();
+	int GetFormHeight() const;
 
 protected:
 	void SetStatus(UINT msgID);
@@ -109,11 +129,16 @@ protected:
 	void SaveComboboxStates();
 	String AskProjectFileName(bool bOpen);
 	void DropDown(NMHDR *pNMHDR, LRESULT *pResult, UINT nID, UINT nPopupID);
+	void ShowRecentCompares(bool bShow);
+	void UpdateRecentCompares();
+	void ResizeRecentComparesColumns();
+	void OpenRecentCompare(int nItem);
 
 // Generated message map functions
 protected:
 	//{{AFX_MSG(COpenView)
 	afx_msg void OnPathButton(UINT nID);
+	afx_msg void OnSelectClipboardItem(UINT nID);
 	afx_msg void OnOK();
 	afx_msg void OnCancel();
 	afx_msg void OnCompare(UINT nID);
@@ -122,7 +147,10 @@ protected:
 	afx_msg void OnSaveProject();
 	template<UINT id, UINT popupid>
 	afx_msg void OnDropDown(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnExtEditChange();
+	afx_msg void OnSelectFilterDropDown(NMHDR* pNMHDR, LRESULT* pResult);
 	afx_msg void OnSelchangePathCombo(UINT nID);
+	afx_msg void OnSelchangePlugin(UINT nID);
 	afx_msg void OnSetfocusPathCombo(UINT id, NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnDragBeginPathCombo(UINT id, NMHDR *pNMHDR, LRESULT *pResult);
 	afx_msg void OnSwapButton(int id1, int id2);
@@ -130,7 +158,7 @@ protected:
 	afx_msg void OnSwapButton();
 	afx_msg void OnEditEvent(UINT nID);
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
-	afx_msg void OnSelectUnpacker();
+	afx_msg void OnSelectPlugin(UINT nID);
 	afx_msg void OnSelectFilter();
 	afx_msg void OnOptions();
 	afx_msg void OnDiffWhitespace(UINT nID);
@@ -147,22 +175,32 @@ protected:
 	afx_msg void OnUpdateDiffIgnoreCP(CCmdUI* pCmdUI);
 	afx_msg void OnDiffIgnoreComments();
 	afx_msg void OnUpdateDiffIgnoreComments(CCmdUI* pCmdUI);
+	afx_msg void OnDiffIgnoreMissingTrailingEol();
+	afx_msg void OnUpdateDiffIgnoreMissingTrailingEol(CCmdUI* pCmdUI);
+	afx_msg void OnDiffIgnoreLineBreaks();
+	afx_msg void OnUpdateDiffIgnoreLineBreaks(CCmdUI* pCmdUI);
 	afx_msg void OnCompareMethod(UINT nID);
 	afx_msg void OnUpdateCompareMethod(CCmdUI* pCmdUI);
 	afx_msg void OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized);
 	afx_msg void OnEditAction(int msg, WPARAM wParam, LPARAM LPARAM);
 	template <int MSG, int WPARAM = 0, int LPARAM = 0>
-	afx_msg void OnEditAction();
+	afx_msg void OnEditAction() { OnEditAction(MSG, WPARAM, LPARAM); }
 	afx_msg void OnHelp();
 	afx_msg void OnDropFiles(const std::vector<String>& files);
 	afx_msg LRESULT OnUpdateStatus(WPARAM wParam, LPARAM lParam);
 	afx_msg void OnPaint();
+	afx_msg LRESULT OnThemeChanged();
+	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg LRESULT OnNcHitTest(CPoint point);
 	afx_msg void OnWindowPosChanging(WINDOWPOS* lpwndpos);
 	afx_msg void OnWindowPosChanged(WINDOWPOS* lpwndpos);
 	afx_msg void OnDestroy();
+	afx_msg void OnSize(UINT nType, int cx, int cy);
+	afx_msg void OnRecentComparesShow();
+	afx_msg void OnClickRecentCompares(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnDblclkRecentCompares(NMHDR *pNMHDR, LRESULT *pResult);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

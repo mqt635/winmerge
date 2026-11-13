@@ -17,13 +17,15 @@ static struct MessageBox
 {
 	int nID;
 	int nHelpID;
-	const TCHAR* key;
+	const tchar_t* key;
 	int type;
 } MessageBoxes[] =
 {
 	// folder compare window
 	{ IDS_CREATE_PAIR_FOLDER, IDS_CREATE_PAIR_FOLDER, nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
 	{ IDS_CONFIRM_SINGLE_COPY, 0, _T("FolderCopyConfirmDlgDontAskAgain"), MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
+	{ IDS_CONFIRM_CLOSE_WINDOW_LONG_COMPARISON, IDS_CONFIRM_CLOSE_WINDOW_LONG_COMPARISON, nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
+	{ IDS_SWITCH_FLAT_MODE, IDS_SWITCH_FLAT_MODE, nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
 	// file compare window
 	{ IDS_COMPARE_LARGE_FILES, 0, _T("CompareLargeFiles"), MB_YESNOCANCEL | MB_ICONQUESTION | MB_DONT_ASK_AGAIN},
 	{ IDS_FILESSAME, IDS_FILESSAME, nullptr, MB_ICONINFORMATION | MB_DONT_DISPLAY_AGAIN},
@@ -35,18 +37,25 @@ static struct MessageBox
 	{ IDS_FILECHANGED_RESCAN, IDS_FILECHANGED_RESCAN, nullptr, MB_YESNO | MB_ICONWARNING },
 	{ IDS_BACKUP_FAILED_PROMPT, IDS_BACKUP_FAILED_PROMPT,  nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
 	{ IDS_SUGGEST_IGNOREEOL, IDS_SUGGEST_IGNOREEOL, nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
+	{ IDS_CONFIRM_COPY_ALL_DIFFS, IDS_CONFIRM_COPY_ALL_DIFFS, nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
 	{ IDS_MOVE_TO_NEXTFILE, IDS_MOVE_TO_NEXTFILE, nullptr, MB_YESNO | MB_DONT_ASK_AGAIN },
 	{ IDS_MOVE_TO_PREVFILE, IDS_MOVE_TO_PREVFILE, nullptr, MB_YESNO | MB_DONT_ASK_AGAIN },
 	{ IDS_MOVE_TO_FIRSTFILE, IDS_MOVE_TO_FIRSTFILE, nullptr, MB_YESNO | MB_DONT_ASK_AGAIN },
 	{ IDS_MOVE_TO_LASTFILE, IDS_MOVE_TO_LASTFILE, nullptr, MB_YESNO | MB_DONT_ASK_AGAIN },
 	{ IDS_MOVE_TO_NEXTPAGE, IDS_MOVE_TO_NEXTPAGE, nullptr, MB_YESNO | MB_DONT_ASK_AGAIN },
 	{ IDS_MOVE_TO_PREVPAGE, IDS_MOVE_TO_PREVPAGE, nullptr, MB_YESNO | MB_DONT_ASK_AGAIN },
+	{ IDS_ONLYDIFFITEMS_CONFIRM, IDS_ONLYDIFFITEMS_CONFIRM, nullptr, MB_YESNOCANCEL | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
+	{ IDS_MERGE_SESSION_STARTED, IDS_MERGE_SESSION_STARTED, nullptr, MB_OK | MB_ICONINFORMATION | MB_DONT_DISPLAY_AGAIN },
 	// report dialog
 	{ IDS_REPORT_FILEOVERWRITE, IDS_REPORT_FILEOVERWRITE, nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
 	// patch dialog
 	{ IDS_CANNOT_CREATE_BINARYPATCH, IDS_CANNOT_CREATE_BINARYPATCH, nullptr, MB_ICONWARNING | MB_DONT_DISPLAY_AGAIN },
 	{ IDS_DIFF_FILEOVERWRITE, IDS_DIFF_FILEOVERWRITE, nullptr, MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN },
 	{ IDS_DIFF_SUCCEEDED, IDS_DIFF_SUCCEEDED, nullptr, MB_ICONINFORMATION | MB_DONT_DISPLAY_AGAIN },
+	// archive support
+	{ IDS_FAILED_EXTRACT_ARCHIVE_FILES, IDS_FAILED_EXTRACT_ARCHIVE_FILES, nullptr, MB_YESNO | MB_DONT_ASK_AGAIN | MB_ICONWARNING },
+	// project file
+	{ IDS_PROJFILE_CONTAIN_PLUGIN_ARGS, IDS_PROJFILE_CONTAIN_PLUGIN_ARGS, nullptr, MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON2 | MB_DONT_ASK_AGAIN },
 };
 
 static std::vector<String> Answers;
@@ -109,7 +118,7 @@ void PropMessageBoxes::DoDataExchange(CDataExchange* pDX)
 			{
 				int ans = m_answers[i];
 				m_list.SetCheck(i, ans != -1);
-				m_list.SetItemText(i, 1, (ans < 0 || ans >= Answers.size()) ? _T("") : Answers[ans].c_str());
+				m_list.SetItemText(i, 1, (ans < 0 || ans >= static_cast<int>(Answers.size())) ? _T("") : Answers[ans].c_str());
 			}
 		}
 		else
@@ -178,7 +187,7 @@ BOOL PropMessageBoxes::OnInitDialog()
 	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
 
 	String title = _("Message");
-	m_list.InsertColumn(0, title.c_str(), LVCFMT_LEFT, pointToPixel(170));
+	m_list.InsertColumn(0, title.c_str(), LVCFMT_LEFT, pointToPixel(250));
 	title = _("Answer");
 	m_list.InsertColumn(1, title.c_str(), LVCFMT_LEFT, pointToPixel(70));
 
@@ -187,7 +196,8 @@ BOOL PropMessageBoxes::OnInitDialog()
 
 	for (unsigned i = 0; i < static_cast<unsigned>(std::size(MessageBoxes)); i++)
 	{
-		String str = LoadResString(MessageBoxes[i].nID);
+		String str = I18n::LoadString(MessageBoxes[i].nID);
+		strutils::replace(str, _T("\n"), _T(" "));
 		m_list.InsertItem(i, str.c_str());
 		unsigned type = MessageBoxes[i].type & 0xf;
 		m_list.SetDropdownList(i, 1, (type >= DropdownList.size()) ? std::vector<String>{} : DropdownList[type]);

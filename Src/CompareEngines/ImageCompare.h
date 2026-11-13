@@ -5,12 +5,13 @@
  */
 #pragma once
 
-#include <memory>
 #include "UnicodeString.h"
 
+class CDiffContext;
 class DIFFITEM;
-class PathContext;
+class IAbortable;
 struct IImgMergeWindow;
+struct HINSTANCE__;
 
 namespace CompareEngines
 {
@@ -22,16 +23,17 @@ namespace CompareEngines
 class ImageCompare
 {
 public:
-	ImageCompare();
+	ImageCompare(CDiffContext& ctxt);
 	~ImageCompare();
-	int CompareFiles(const PathContext& files, const DIFFITEM &di) const;
+	void CompareFiles(DIFFITEM& di) const;
 
-    double GetColorDistanceThreshold() const { return m_colorDistanceThreshold; }
-    void SetColorDistanceThreshold(double colorDistanceThreshold) { m_colorDistanceThreshold = colorDistanceThreshold; };
 private:
-    int compare_files(const String& file1, const String& file2) const;
-    mutable IImgMergeWindow *m_pImgMergeWindow;
-    double m_colorDistanceThreshold;
+	int compare_files(const String& file1, const String& file2, const IAbortable *piAbortable) const;
+	mutable IImgMergeWindow *m_pImgMergeWindow;
+	double m_colorDistanceThreshold;
+	bool m_preferWICDecoder = false;
+	struct HINSTANCE__* m_hModule;
+	CDiffContext& m_ctxt;
 };
 
 } // namespace CompareEngines

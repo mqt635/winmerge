@@ -16,19 +16,17 @@
 #include "Poco/Exception.h"
 #include "Poco/ErrorHandler.h"
 #include <process.h>
-
-
-#if defined(POCO_WIN32_DEBUGGER_THREAD_NAMES)
+#include <limits>
 
 
 namespace
 {
-	/// See <http://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx> 
+	/// See <http://msdn.microsoft.com/en-us/library/xcb2z8hs.aspx>
 	/// and <http://blogs.msdn.com/b/stevejs/archive/2005/12/19/505815.aspx> for
 	/// more information on the code below.
 
 	const DWORD MS_VC_EXCEPTION = 0x406D1388;
-	
+
 	#pragma pack(push,8)
 	typedef struct tagTHREADNAME_INFO
 	{
@@ -39,26 +37,25 @@ namespace
 	} THREADNAME_INFO;
 	#pragma pack(pop)
 	
-	void setThreadName(DWORD dwThreadID, const char* threadName)
+	void setThreadName(DWORD dwThreadID, const std::string& threadName)
 	{
-        THREADNAME_INFO info;
-        info.dwType     = 0x1000;
-        info.szName     = threadName;
-        info.dwThreadID = dwThreadID;
-        info.dwFlags    = 0;
-    
-        __try
-        {
-            RaiseException(MS_VC_EXCEPTION, 0, sizeof(info)/sizeof(ULONG_PTR), (ULONG_PTR*)&info);
-        }
-        __except (EXCEPTION_CONTINUE_EXECUTION)
-        {
-        }
+		THREADNAME_INFO info;
+		info.dwType     = 0x1000;
+		info.szName     = threadName.c_str();
+		info.dwThreadID = dwThreadID;
+		info.dwFlags    = 0;
+
+#if !defined(POCO_COMPILER_MINGW)
+		__try
+		{
+			RaiseException(MS_VC_EXCEPTION, 0, sizeof(info)/sizeof(ULONG_PTR), (ULONG_PTR*)&info);
+		}
+		__except (EXCEPTION_CONTINUE_EXECUTION)
+		{
+		}
+#endif
 	}
 }
-
-
-#endif
 
 
 namespace Poco {
@@ -79,6 +76,37 @@ ThreadImpl::ThreadImpl():
 ThreadImpl::~ThreadImpl()
 {
 	if (_thread) CloseHandle(_thread);
+}
+
+
+void ThreadImpl::setNameImpl(const std::string& threadName)
+{
+	std::string realName = threadName;
+	if (threadName.size() > POCO_MAX_THREAD_NAME_LEN)
+	{
+		int half = (POCO_MAX_THREAD_NAME_LEN - 1) / 2;
+		std::string truncName(threadName, 0, half);
+		truncName.append("~");
+		truncName.append(threadName, threadName.size() - half);
+		realName = truncName;
+	}
+
+	if (realName != _name)
+	{
+		_name = realName;
+	}
+}
+
+
+std::string ThreadImpl::getNameImpl() const
+{
+	return _name;
+}
+
+std::string ThreadImpl::getOSThreadNameImpl()
+{
+	// return fake thread name
+	return isRunningImpl() ? _name : "";
 }
 
 
@@ -115,10 +143,10 @@ void ThreadImpl::startImpl(SharedPtr<Runnable> pTarget)
 void ThreadImpl::createImpl(Entry ent, void* pData)
 {
 #if defined(_DLL)
-	_thread = CreateThread(NULL, _stackSize, ent, pData, 0, &_threadId);
+	_thread = CreateThread(nullptr, _stackSize, ent, pData, 0, &_threadId);
 #else
 	unsigned threadId;
-	_thread = (HANDLE) _beginthreadex(NULL, _stackSize, ent, this, 0, &threadId);
+	_thread = (HANDLE) _beginthreadex(nullptr, _stackSize, ent, this, 0, &threadId);
 	_threadId = static_cast<DWORD>(threadId);
 #endif
 	if (!_thread)
@@ -189,6 +217,130 @@ ThreadImpl::TIDImpl ThreadImpl::currentTidImpl()
 	return GetCurrentThreadId();
 }
 
+long ThreadImpl::currentOsTidImpl()
+{
+	return GetCurrentThreadId();
+}
+
+
+namespace
+{
+	// SetThreadDescription/GetThreadDescription require Windows 10 version 1607+
+	// Use dynamic loading for compatibility with older Windows versions
+	using SetThreadDescriptionFunc = HRESULT (WINAPI *)(HANDLE, PCWSTR);
+	using GetThreadDescriptionFunc = HRESULT (WINAPI *)(HANDLE, PWSTR*);
+
+	SetThreadDescriptionFunc getSetThreadDescriptionFunc()
+	{
+		static SetThreadDescriptionFunc func = reinterpret_cast<SetThreadDescriptionFunc>(
+			GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "SetThreadDescription"));
+		return func;
+	}
+
+	GetThreadDescriptionFunc getGetThreadDescriptionFunc()
+	{
+		static GetThreadDescriptionFunc func = reinterpret_cast<GetThreadDescriptionFunc>(
+			GetProcAddress(GetModuleHandleW(L"kernel32.dll"), "GetThreadDescription"));
+		return func;
+	}
+}
+
+
+void ThreadImpl::setCurrentNameImpl(const std::string& threadName)
+{
+	// Try modern API first (Windows 10 1607+)
+	auto setDesc = getSetThreadDescriptionFunc();
+	if (setDesc)
+	{
+		int wideLen = MultiByteToWideChar(CP_UTF8, 0, threadName.c_str(), -1, NULL, 0);
+		if (wideLen > 0)
+		{
+			std::wstring wname(wideLen, L'\0');
+			MultiByteToWideChar(CP_UTF8, 0, threadName.c_str(), -1, &wname[0], wideLen);
+			if (SUCCEEDED(setDesc(GetCurrentThread(), wname.c_str())))
+				return;
+		}
+	}
+
+	// Fall back to legacy exception method for older Windows/debuggers
+	setThreadName(static_cast<DWORD>(-1), threadName);
+}
+
+
+std::string ThreadImpl::getCurrentNameImpl()
+{
+	auto getDesc = getGetThreadDescriptionFunc();
+	if (!getDesc) return std::string();
+
+	PWSTR data = nullptr;
+	HRESULT hr = getDesc(GetCurrentThread(), &data);
+	if (SUCCEEDED(hr) && data)
+	{
+		std::string result;
+		int convSize = WideCharToMultiByte(CP_UTF8, 0, data, -1, NULL, 0, NULL, NULL);
+		if (convSize > 0)
+		{
+			result.resize(convSize);
+			WideCharToMultiByte(CP_UTF8, 0, data, -1, &result[0], convSize, NULL, NULL);
+			// Remove null terminator from string
+			if (!result.empty() && result.back() == '\0')
+				result.pop_back();
+		}
+		LocalFree(data);
+		return result;
+	}
+	return std::string();
+}
+
+
+bool ThreadImpl::setAffinityImpl(int affinity)
+{
+	HANDLE hProcess = GetCurrentProcess();
+	DWORD_PTR procMask = 0, sysMask = 0;
+	if (GetProcessAffinityMask(hProcess, &procMask, &sysMask))
+	{
+		HANDLE hThread = GetCurrentThread();
+		DWORD_PTR threadMask = 0;
+		threadMask |= 1ULL << affinity;
+
+		// thread and process affinities must match
+		if (!(threadMask & procMask)) return false;
+
+		if (SetThreadAffinityMask(hThread, threadMask))
+			return true;
+	}
+	return false;
+}
+
+
+int ThreadImpl::getAffinityImpl() const
+{
+	// bit ugly, but there's no explicit API for this
+	// https://stackoverflow.com/a/6601917/205386
+	HANDLE hThread = GetCurrentThread();
+	DWORD_PTR mask = 1;
+	DWORD_PTR old = 0;
+
+	// try every CPU one by one until one works or none are left
+	while (mask)
+	{
+		old = SetThreadAffinityMask(hThread, mask);
+		if (old)
+		{	// this one worked
+			SetThreadAffinityMask(hThread, old); // restore original
+			if (old > std::numeric_limits<int>::max()) return -1;
+			return static_cast<int>(old);
+		}
+		else
+		{
+			if (GetLastError() != ERROR_INVALID_PARAMETER)
+				return -1;
+		}
+		mask <<= 1;
+	}
+	return -1;
+}
+
 
 #if defined(_DLL)
 DWORD WINAPI ThreadImpl::runnableEntry(LPVOID pThread)
@@ -196,10 +348,9 @@ DWORD WINAPI ThreadImpl::runnableEntry(LPVOID pThread)
 unsigned __stdcall ThreadImpl::runnableEntry(void* pThread)
 #endif
 {
-	_currentThreadHolder.set(reinterpret_cast<ThreadImpl*>(pThread));
-#if defined(POCO_WIN32_DEBUGGER_THREAD_NAMES)
-	setThreadName(-1, reinterpret_cast<Thread*>(pThread)->getName().c_str());
-#endif
+	auto * pThreadImpl = reinterpret_cast<ThreadImpl*>(pThread);
+	_currentThreadHolder.set(pThreadImpl);
+	setThreadName(-1, pThreadImpl->_name);
 	try
 	{
 		reinterpret_cast<ThreadImpl*>(pThread)->_pRunnableTarget->run();

@@ -174,7 +174,7 @@ bool CPropertyPageHost::SetActivePage(int nIndex, bool bAndFocus /*= true*/)
 		if (pCtrl != nullptr)
 			pCtrl->SetFocus();
 	}
-	else
+	else if (pFocus)
 		pFocus->SetFocus();
 
 	m_nSelIndex = nIndex;
@@ -186,7 +186,7 @@ bool CPropertyPageHost::SetActivePage(CPropertyPage* pPage, bool bAndFocus /*= t
 	return SetActivePage(FindPage(pPage));
 }
 
-bool CPropertyPageHost::AddPage(CPropertyPage* pPage, LPCTSTR szTitle /*= nullptr*/, DWORD dwItemData /*= 0*/)
+bool CPropertyPageHost::AddPage(CPropertyPage* pPage, const tchar_t* szTitle /*= nullptr*/, DWORD dwItemData /*= 0*/)
 {
 	if (pPage == nullptr || !pPage->IsKindOf(RUNTIME_CLASS(CPropertyPage)))
 		return false;

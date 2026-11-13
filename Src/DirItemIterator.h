@@ -3,8 +3,6 @@
  *
  *  @brief Declaration DirItemIterator classes.
  */ 
-// ID line follows -- this is updated by SVN
-// $Id$
 
 #pragma once
 
@@ -49,7 +47,12 @@ public:
 	{
 	}
 
-	~DirItemWithIndexIterator() {}
+	~DirItemWithIndexIterator() = default;
+
+	DirItemWithIndexIterator(const DirItemWithIndexIterator& it)
+		: m_pList(it.m_pList), m_sel(it.m_sel), m_selected(it.m_selected), m_reverse(it.m_reverse)
+	{
+	}
 
 	DirItemWithIndexIterator& operator=(const DirItemWithIndexIterator& it)
 	{
@@ -79,6 +82,11 @@ public:
 	bool operator!=(const DirItemWithIndexIterator& it) const
 	{
 		return m_sel != it.m_sel;
+	}
+
+	bool IsValid() const
+	{
+		return m_sel != -1;
 	}
 
 	bool m_selected;
@@ -132,7 +140,7 @@ public:
 	{
 	}
 
-	~DirItemIterator() {}
+	~DirItemIterator() = default;
 
 	DirItemIterator::DirItemIterator(const DirItemIterator& it)
 	{
@@ -188,6 +196,11 @@ public:
 	bool operator!=(const DirItemIterator& it) const
 	{
 		return m_sel != it.m_sel;
+	}
+
+	bool IsValid() const
+	{
+		return m_pdi != nullptr && m_pdi != reinterpret_cast<const DIFFITEM*>(-1L);
 	}
 
 	bool m_selected;

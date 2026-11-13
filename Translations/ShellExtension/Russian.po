@@ -1,15 +1,12 @@
-# This file is part from WinMerge <https://winmerge.org/>
+# This file is from WinMerge <https://winmerge.org/>
 # Released under the "GNU General Public License"
-#
-# ID line follows -- this is updated by SVN
-# $Id: $
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: WinMerge Shell Extension\n"
-"Report-Msgid-Bugs-To: https://bugs.winmerge.org/\n"
-"POT-Creation-Date: \n"
-"PO-Revision-Date: 20-02-25\n"
+"Report-Msgid-Bugs-To: https://github.com/WinMerge/winmerge/issues\n"
+"POT-Creation-Date: 2023-02-19 00:07+0000\n"
+"PO-Revision-Date: 2023-04-27\n"
 "Last-Translator: wvxwxvw\n"
 "Language-Team: Russian <winmerge-translate@lists.sourceforge.net>\n"
 "MIME-Version: 1.0\n"
@@ -33,43 +30,42 @@ msgstr "AFX_TARG_RUS"
 msgid "LANG_ENGLISH, SUBLANG_ENGLISH_US"
 msgstr "LANG_RUSSIAN, SUBLANG_DEFAULT"
 
-#. Codepage
-#: ShellExtension.rc:21
-#, c-format
-msgid "1252"
-msgstr ""
-
 #: ShellExtension.rc:111
 #, c-format
 msgid "ShellExtension"
-msgstr ""
+msgstr "Расширение оболочки"
 
 #: ShellExtension.rc:112
 #, c-format
-msgid "&WinMerge"
-msgstr ""
+msgid "Win&Merge"
+msgstr "&WinMerge"
 
 #: ShellExtension.rc:113
+#, c-format
+msgid "Compare &As"
+msgstr "Сравнить &как"
+
+#: ShellExtension.rc:114
 #, c-format
 msgid "&Compare"
 msgstr "&Сравнить"
 
-#: ShellExtension.rc:114
+#: ShellExtension.rc:115
 #, c-format
 msgid "Compare&..."
 msgstr "Сравнить&..."
 
-#: ShellExtension.rc:115
-#, c-format
-msgid "Select &Left"
-msgstr "&Выбрать левый"
-
 #: ShellExtension.rc:116
 #, c-format
-msgid "Select &Middle"
-msgstr "Выбр&ать средний"
+msgid "Select &Left"
+msgstr "Выбрать &левый"
 
 #: ShellExtension.rc:117
+#, c-format
+msgid "Select &Middle"
+msgstr "Выбрать &средний"
+
+#: ShellExtension.rc:118
 #, c-format
 msgid "Re-select &Left"
 msgstr "Перевыбрать &левый"

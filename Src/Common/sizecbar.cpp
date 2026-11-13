@@ -84,6 +84,7 @@ BEGIN_MESSAGE_MAP(CSizingControlBar, baseCSizingControlBar)
     ON_WM_WINDOWPOSCHANGING()
     ON_WM_CAPTURECHANGED()
     ON_WM_SETTINGCHANGE()
+    ON_WM_SYSCOLORCHANGE()
     ON_WM_LBUTTONUP()
     ON_WM_MOUSEMOVE()
     ON_WM_NCLBUTTONDOWN()
@@ -152,7 +153,7 @@ void CSizingControlBar::EnableDocking(DWORD dwDockStyle)
 
 int CSizingControlBar::OnCreate(LPCREATESTRUCT lpCreateStruct) 
 {
-    if (baseCSizingControlBar::OnCreate(lpCreateStruct) == -1)
+    if (__super::OnCreate(lpCreateStruct) == -1)
         return -1;
 
     // query SPI_GETDRAGFULLWINDOWS system parameter
@@ -263,7 +264,7 @@ CSize CSizingControlBar::CalcDynamicLayout(int nLength, DWORD dwMode)
         if (nLength == -1)
             m_bParentSizing = true;
 
-        return baseCSizingControlBar::CalcDynamicLayout(nLength, dwMode);
+        return __super::CalcDynamicLayout(nLength, dwMode);
     }
 
     if (dwMode & LM_MRUWIDTH) return m_szFloat;
@@ -313,12 +314,12 @@ CSize CSizingControlBar::CalcDynamicLayout(int nLength, DWORD dwMode)
     return m_szFloat;
 }
 
-void CSizingControlBar::OnWindowPosChanging(WINDOWPOS FAR* lpwndpos)
+void CSizingControlBar::OnWindowPosChanging(WINDOWPOS* lpwndpos)
 {
     // force non-client recalc if moved or resized
     lpwndpos->flags |= SWP_FRAMECHANGED;
 
-    baseCSizingControlBar::OnWindowPosChanging(lpwndpos);
+    __super::OnWindowPosChanging(lpwndpos);
 
     // find on which side are we docked
     m_nDockBarID = GetParent()->GetDlgCtrlID();
@@ -372,7 +373,7 @@ void CSizingControlBar::OnLButtonUp(UINT nFlags, CPoint point)
     if (m_bTracking)
         StopTracking();
 
-    baseCSizingControlBar::OnLButtonUp(nFlags, point);
+    __super::OnLButtonUp(nFlags, point);
 }
 
 void CSizingControlBar::OnRButtonDown(UINT nFlags, CPoint point)
@@ -380,7 +381,7 @@ void CSizingControlBar::OnRButtonDown(UINT nFlags, CPoint point)
     if (m_bTracking)
         StopTracking();
 
-    baseCSizingControlBar::OnRButtonDown(nFlags, point);
+    __super::OnRButtonDown(nFlags, point);
 }
 
 void CSizingControlBar::OnMouseMove(UINT nFlags, CPoint point)
@@ -393,7 +394,7 @@ void CSizingControlBar::OnMouseMove(UINT nFlags, CPoint point)
         OnTrackUpdateSize(ptScreen);
     }
 
-    baseCSizingControlBar::OnMouseMove(nFlags, point);
+    __super::OnMouseMove(nFlags, point);
 }
 
 void CSizingControlBar::OnCaptureChanged(CWnd *pWnd)
@@ -401,11 +402,11 @@ void CSizingControlBar::OnCaptureChanged(CWnd *pWnd)
     if (m_bTracking && (pWnd != this))
         StopTracking();
 
-    baseCSizingControlBar::OnCaptureChanged(pWnd);
+    __super::OnCaptureChanged(pWnd);
 }
 
 void CSizingControlBar::OnNcCalcSize(BOOL bCalcValidRects,
-                                     NCCALCSIZE_PARAMS FAR* lpncsp)
+                                     NCCALCSIZE_PARAMS* lpncsp)
 {
     UNUSED_ALWAYS(bCalcValidRects);
 
@@ -530,7 +531,7 @@ void CSizingControlBar::OnNcPaint()
     mdc.SelectObject(pOldBm);
 }
 
-void CSizingControlBar::NcPaintGripper(CDC* pDC, CRect rcClient)
+void CSizingControlBar::NcPaintGripper(CDC* pDC, const CRect& rcClient)
 {
     UNUSED_ALWAYS(pDC);
     UNUSED_ALWAYS(rcClient);
@@ -542,7 +543,7 @@ void CSizingControlBar::OnPaint()
     CPaintDC dc(this);
 }
 
-NCHITTEST_RESULT CSizingControlBar::OnNcHitTest(CPoint point)
+LRESULT CSizingControlBar::OnNcHitTest(CPoint point)
 {
     CRect rcBar, rcEdge;
     GetWindowRect(rcBar);
@@ -558,12 +559,17 @@ NCHITTEST_RESULT CSizingControlBar::OnNcHitTest(CPoint point)
 
 void CSizingControlBar::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
 {
-    baseCSizingControlBar::OnSettingChange(uFlags, lpszSection);
+    __super::OnSettingChange(uFlags, lpszSection);
 
     BOOL bDragShowContent = m_bDragShowContent = false;
     ::SystemParametersInfo(SPI_GETDRAGFULLWINDOWS, 0,
         &bDragShowContent, 0); // update
     m_bDragShowContent = !!bDragShowContent;
+}
+
+void CSizingControlBar::OnSysColorChange()
+{
+    ::SetClassLongPtr(m_hWnd, GCLP_HBRBACKGROUND, (LONG_PTR)GetSysColorBrush(COLOR_BTNFACE));
 }
 
 void CSizingControlBar::OnSize(UINT nType, int cx, int cy)
@@ -791,7 +797,7 @@ void CSizingControlBar::OnTrackInvertTracker()
     m_pDockSite->ReleaseDC(pDC);
 }
 
-bool CSizingControlBar::GetEdgeRect(CRect rcWnd, UINT nHitTest,
+bool CSizingControlBar::GetEdgeRect(const CRect& rcWnd, UINT nHitTest,
                                     CRect& rcEdge)
 {
     rcEdge = rcWnd;
@@ -1345,7 +1351,7 @@ void CSCBMiniDockFrameWnd::OnSize(UINT nType, int cx, int cy)
     baseCSCBMiniDockFrameWnd::OnSize(nType, cx, cy);
 }
 
-void CSCBMiniDockFrameWnd::OnGetMinMaxInfo(MINMAXINFO FAR* lpMMI)
+void CSCBMiniDockFrameWnd::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
     baseCSCBMiniDockFrameWnd::OnGetMinMaxInfo(lpMMI);
 
@@ -1363,7 +1369,7 @@ void CSCBMiniDockFrameWnd::OnGetMinMaxInfo(MINMAXINFO FAR* lpMMI)
     }
 }
 
-void CSCBMiniDockFrameWnd::OnWindowPosChanging(WINDOWPOS FAR* lpwndpos) 
+void CSCBMiniDockFrameWnd::OnWindowPosChanging(WINDOWPOS* lpwndpos) 
 {
     if ((GetStyle() & MFS_4THICKFRAME) != 0)
     {

@@ -3,7 +3,7 @@
 
 # The MIT License
 # 
-# Copyright (c) 2009-2018 Tim Gerundt <tim@gerundt.de>
+# Copyright (c) 2009-2022 Tim Gerundt <tim@gerundt.de>
 # 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
 # of this software and associated documentation files (the "Software"), to deal
@@ -23,8 +23,6 @@
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 # THE SOFTWARE.
 
-# $Id$
-
 # Python script to get the status of the translations
 
 import os
@@ -33,6 +31,46 @@ import string
 import re
 import time
 import codecs
+import math
+import argparse
+import subprocess
+from functools import lru_cache
+
+@lru_cache(maxsize=None)
+def getGitUpdateDate(filepath):
+    """Return the date of the latest commit affecting a translation file."""
+    repository = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    filepath = os.path.abspath(filepath)
+    if os.path.commonpath((repository, filepath)) != repository:
+        return ''
+    relativepath = os.path.relpath(filepath, repository).replace(os.sep, '/')
+    try:
+        result = subprocess.run(
+            ['git', '-c', 'safe.directory=' + repository, 'log', '-1',
+             '--format=%cs', '--', relativepath],
+            cwd=repository, capture_output=True, text=True, check=False)
+    except OSError:
+        return ''
+    return result.stdout.strip() if result.returncode == 0 else ''
+
+def readInnoMessages(filepath):
+    """Read message keys from a WinMerge Inno Setup language file."""
+    messages = {}
+    section = ''
+    with open(filepath, 'r', encoding='utf-8-sig', errors='replace') as languagefile:
+        for line in languagefile:
+            line = line.strip()
+            if line.startswith('[') and line.endswith(']'):
+                section = line[1:-1]
+            elif section in ('Messages', 'CustomMessages') and line and not line.startswith(';') and '=' in line:
+                key, value = line.split('=', 1)
+                messages[(section, key.strip())] = value.strip()
+    return messages
+
+def translatorLink(contact):
+    if contact.startswith(('https://', 'http://')):
+        return contact
+    return 'mailto:' + contact.replace(' ', '%20')
 
 class TranslationsStatus(object):
     def __init__(self):
@@ -110,8 +148,11 @@ class TranslationsStatus(object):
                             else: #If NOT maintainer...
                                 xmlfile.write('        <translator>\n')
                             xmlfile.write('          <name>%s</name>\n' % (translator.name))
-                            if (translator.mail): #If mail address exists...
-                                xmlfile.write('          <mail>%s</mail>\n' % (translator.mail))
+                            if (translator.mail): #If a contact exists...
+                                if translator.mail.startswith(('https://', 'http://')):
+                                    xmlfile.write('          <url>%s</url>\n' % (translator.mail))
+                                else:
+                                    xmlfile.write('          <mail>%s</mail>\n' % (translator.mail))
                             xmlfile.write('        </translator>\n')
                         xmlfile.write('      </translators>\n')
                     xmlfile.write('    </translation>\n')
@@ -228,12 +269,12 @@ class TranslationsStatus(object):
                         for translator in status1.translators: #For all translators...
                             if (translator.ismaintainer): #If maintainer...
                                 if (translator.mail): #If mail address exists...
-                                    htmlfile.write('<strong title="Maintainer"><a href="mailto:%s">%s</a></strong><br>' % (translator.mail, translator.name))
+                                    htmlfile.write('<strong title="Maintainer"><a href="%s">%s</a></strong><br>' % (translatorLink(translator.mail), translator.name))
                                 else: #If NO mail address exists...
                                     htmlfile.write('<strong title="Maintainer">%s</strong><br>' % (translator.name))
                             else: #If NOT maintainer...
                                 if (translator.mail): #If mail address exists...
-                                    htmlfile.write('<a href="mailto:%s">%s</a><br>' % (translator.mail, translator.name))
+                                    htmlfile.write('<a href="%s">%s</a><br>' % (translatorLink(translator.mail), translator.name))
                                 else: #If NO mail address exists...
                                     htmlfile.write('%s<br>' % (translator.name))
                     htmlfile.write('</td>\n')
@@ -251,8 +292,11 @@ class TranslationsStatus(object):
         
         mdfile.write('# Translations Status\n\n')
         mdfile.write('Status from **%s**:\n\n' % (time.strftime('%Y-%m-%d')))
+        mdfile.write('Last Update is the date of the latest Git commit affecting each file (or its PO metadata when Git history is unavailable).\n\n')
         for project in self._projects: #For all projects...
             mdfile.write('## %s\n\n' % (project.name))
+            if project.name == 'InnoSetup':
+                mdfile.write('Counts show populated keys in the WinMerge-specific `.islu` files compared with `English.islu`; they do not measure the bundled Inno Setup translations or translation quality.\n\n')
             mdfile.write('| Language             | Total | Translated | Fuzzy | Untranslated | Complete | Last Update |\n')
             mdfile.write('|:---------------------|------:|-----------:|------:|-------------:|---------:|:-----------:|\n')
             for language in project.languages: #For all (sorted) languages...
@@ -290,12 +334,12 @@ class TranslationsStatus(object):
                         for translator in status1.translators: #For all translators...
                             if (translator.ismaintainer): #If maintainer...
                                 if (translator.mail): #If mail address exists...
-                                    mdfile.write('   - [%s](mailto:%s) *Maintainer*\n' % (translator.name, translator.mail.replace(" ", "%20")))
+                                    mdfile.write('   - [%s](%s) *Maintainer*\n' % (translator.name, translatorLink(translator.mail)))
                                 else: #If NO mail address exists...
                                     mdfile.write('   - %s *Maintainer*\n' % (translator.name))
                             else: #If NOT maintainer...
                                 if (translator.mail): #If mail address exists...
-                                    mdfile.write('   - [%s](mailto:%s)\n' % (translator.name, translator.mail.replace(" ", "%20")))
+                                    mdfile.write('   - [%s](%s)\n' % (translator.name, translatorLink(translator.mail)))
                                 else: #If NO mail address exists...
                                     mdfile.write('   - %s\n' % (translator.name))
         
@@ -381,7 +425,7 @@ class Status(object):
     
     @property
     def updatedate(self):
-        return self._updatedate
+        return getGitUpdateDate(self._filepath) or self._updatedate
     
     @property
     def translators(self):
@@ -389,7 +433,7 @@ class Status(object):
     
     def calculateCompleteness(self):
         if self._count > 0:
-            self._complete = round(((self._translated + self._fuzzy) * 100 / self._count))
+            self._complete = math.floor(((self._translated + self._fuzzy) * 100 / self._count))
         else:
             self._complete = 0.0
 
@@ -434,13 +478,13 @@ class PoStatus(Status):
            return
         
         if os.access(filepath, os.R_OK): #If PO(T) file can read...
-          reMsgId = re.compile('^msgid "(.*)"$', re.IGNORECASE)
-          reMsgStr = re.compile('^msgstr "(.*)"$', re.IGNORECASE)
-          reMsgContinued = re.compile('^"(.*)"$', re.IGNORECASE)
-          reTranslator = re.compile('^# \* (.*)$', re.IGNORECASE)
-          rePoRevisionDate = re.compile('PO-Revision-Date: ([0-9 :\+\-]+)', re.IGNORECASE)
-          rePotCreationDate = re.compile('POT-Creation-Date: ([0-9 :\+\-]+)', re.IGNORECASE)
-          rePoeditLanguage = re.compile('X-Poedit-Language: ([A-Z \(\)\-_]+)', re.IGNORECASE)
+          reMsgId = re.compile(r'^msgid "(.*)"$', re.IGNORECASE)
+          reMsgStr = re.compile(r'^msgstr "(.*)"$', re.IGNORECASE)
+          reMsgContinued = re.compile(r'^"(.*)"$', re.IGNORECASE)
+          reTranslator = re.compile(r'^# \* (.*)$', re.IGNORECASE)
+          rePoRevisionDate = re.compile(r'PO-Revision-Date: ([0-9 :\+\-]+)', re.IGNORECASE)
+          rePotCreationDate = re.compile(r'POT-Creation-Date: ([0-9 :\+\-]+)', re.IGNORECASE)
+          rePoeditLanguage = re.compile(r'X-Poedit-Language: ([A-Z \(\)\-_]+)', re.IGNORECASE)
           
           iMsgStarted = 0
           sMsgId = ''
@@ -479,8 +523,8 @@ class PoStatus(Status):
                           bIsMaintainer = False
                       elif reTranslator.findall(line): #If translator/maintainer...
                           translator = reTranslator.findall(line)
-                          if re.findall('\<(.*)\>', translator[0]): #If mail address exists...
-                              tmp = re.findall('(.*) \<(.*)\>', translator[0])
+                          if re.findall(r'\<(.*)\>', translator[0]): #If mail address exists...
+                              tmp = re.findall(r'(.*) \<(.*)\>', translator[0])
                               sName = tmp[0][0]
                               sMail = tmp[0][1]
                           else: #If mail address NOT exists...
@@ -504,23 +548,36 @@ class PoStatus(Status):
                       tmp = rePoRevisionDate.findall(sMsgStr)
                       if tmp: #If "PO-Revision-Date"...
                           #TODO: Convert to date!
-                          self._porevisiondate = tmp[0]
+                          self._porevisiondate = tmp[0].strip()
                       tmp = rePotCreationDate.findall(sMsgStr)
                       if tmp: #If "POT-Creation-Date"...
                           #TODO: Convert to date!
-                          self._potcreationdate = tmp[0]
+                          self._potcreationdate = tmp[0].strip()
                       tmp = rePoeditLanguage.findall(sMsgStr)
                       if tmp: #If "X-Poedit-Language"...
-                          self._poeditlanguage = tmp[0]
+                          self._poeditlanguage = tmp[0].strip()
                   sMsgId = ''
                   sMsgStr = ''
                   bIsFuzzy = False
           pofile.close()
           
+          if sMsgId != '': #If a translation remained...
+              self._count += 1
+              if bIsFuzzy == False: #If NOT a fuzzy translation...
+                  if sMsgStr != '':
+                      self._translated += 1
+                  else:
+                      self._untranslated += 1
+              else: #If a fuzzy translation...
+                  self._fuzzy += 1
+          
           self.calculateCompleteness()
     
     @property
     def updatedate(self):
+        gitdate = getGitUpdateDate(self._filepath)
+        if gitdate:
+            return gitdate
         if self._template: #if template...
             return self._potcreationdate
         else: #if NOT template...
@@ -529,8 +586,8 @@ class PoStatus(Status):
     def _getCharsetFromPoFile(self, filepath):
         charset = ''
         if os.access(filepath, os.R_OK): #If PO(T) file can read...
-            reContentTypeCharset = re.compile('charset=([A-Z0-9\-]+)', re.IGNORECASE)
-            rePoeditSourceCharset = re.compile('X-Poedit-SourceCharset: ([A-Z0-9\-]+)', re.IGNORECASE)
+            reContentTypeCharset = re.compile(r'charset=([A-Z0-9\-]+)', re.IGNORECASE)
+            rePoeditSourceCharset = re.compile(r'X-Poedit-SourceCharset: ([A-Z0-9\-]+)', re.IGNORECASE)
             
             pofile = open(filepath, 'r', errors='ignore')
             
@@ -552,29 +609,34 @@ class InnoSetupProject(Project):
     def __init__(self, name, templatefile, translationsdir):
         self._name = name
         self._status = []
+
+        templatepath = os.path.abspath(templatefile)
+        templatemessages = readInnoMessages(templatepath)
         
         #Translations files...
         for itemname in os.listdir(translationsdir): #For all dir items...
             fullitempath = os.path.abspath(os.path.join(translationsdir, itemname))
             if os.path.isfile(fullitempath): #If a file...
                 filename = os.path.splitext(itemname)
-                if str.lower(filename[1]) == '.isl': #If a ISL file...
+                if str.lower(filename[1]) == '.islu': #If a ISLU file...
                     if filename[0] != 'English': #If NOT the English file...
-                        self._status.append(InnoSetupStatus(fullitempath, False))
+                        self._status.append(InnoSetupStatus(fullitempath, False, templatemessages))
         
         #Template file...
-        self._status.append(InnoSetupStatus(os.path.abspath(templatefile), True))
+        self._status.append(InnoSetupStatus(templatepath, True, templatemessages))
 
 class InnoSetupStatus(Status):
-    def __init__(self, filepath, template):
+    def __init__(self, filepath, template, templatemessages):
         self._filepath = filepath
         self._template = template
-        self._count = 0
-        self._translated = 0
-        self._untranslated = 0
+        self._count = len(templatemessages)
+        messages = readInnoMessages(filepath)
+        self._translated = sum(1 for key in templatemessages if messages.get(key))
+        self._untranslated = self._count - self._translated
         self._fuzzy = 0
         self._updatedate = ''
         self._translators = []
+        self.calculateCompleteness()
     
     @property
     def language(self):
@@ -620,14 +682,21 @@ class ReadmeStatus(Status):
             return filename[0].replace('ReadMe-', '')
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f', '--format', nargs='*', default='md', type=str.lower, choices=['xml', 'html', 'md'])
+    args = parser.parse_args()
+
     status = TranslationsStatus()
     status.addProject(PoProject('WinMerge', 'WinMerge/English.pot', 'WinMerge'))
     status.addProject(PoProject('ShellExtension', 'ShellExtension/English.pot', 'ShellExtension'))
-    status.addProject(InnoSetupProject('InnoSetup', 'InnoSetup/English.isl', 'InnoSetup'))
-    status.addProject(ReadmeProject('Docs/Readme', 'Docs/ReadMe.txt', 'Docs/Readme'))
-    status.writeToXmlFile('TranslationsStatus.xml')
-    status.writeToHtmlFile('TranslationsStatus.html')
-    status.writeToMdFile('TranslationsStatus.md')
+    status.addProject(InnoSetupProject('InnoSetup', 'InnoSetup/English.islu', 'InnoSetup'))
+    status.addProject(ReadmeProject('Docs/Readme', '../Docs/Users/ReadMe.txt', 'Docs/Readme'))
+    if 'xml' in args.format:
+      status.writeToXmlFile('TranslationsStatus.xml')
+    if 'html' in args.format:
+      status.writeToHtmlFile('TranslationsStatus.html')
+    if 'md' in args.format:
+      status.writeToMdFile('TranslationsStatus.md')
 
 # MAIN #
 if __name__ == "__main__":

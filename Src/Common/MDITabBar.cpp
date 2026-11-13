@@ -6,18 +6,26 @@
 
 #include "StdAfx.h"
 #include "MDITabBar.h"
+#include "IMDITab.h"
+#include "cecolor.h"
+#include "RoundedRectWithShadow.h"
+#include "DarkModeLib.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
+constexpr int RR_RADIUS = 3;
+constexpr int RR_PADDING = 3;
+constexpr int RR_SHADOWWIDTH = 3;
+
 /////////////////////////////////////////////////////////////////////////////
 // CMDITabBar
 
-IMPLEMENT_DYNAMIC(CMDITabBar, CControlBar)
+IMPLEMENT_DYNAMIC(CMyTabCtrl, CTabCtrl)
 
-BEGIN_MESSAGE_MAP(CMDITabBar, CControlBar)
-	//{{AFX_MSG_MAP(CMDITabBar)
+BEGIN_MESSAGE_MAP(CMyTabCtrl, CTabCtrl)
+	//{{AFX_MSG_MAP(CMyTabCtrl)
 	ON_WM_MBUTTONDOWN()
 	ON_WM_CONTEXTMENU()
 	ON_WM_PAINT()
@@ -28,6 +36,25 @@ BEGIN_MESSAGE_MAP(CMDITabBar, CControlBar)
 	ON_WM_MOUSELEAVE()
 	ON_WM_LBUTTONDOWN()
 	ON_WM_LBUTTONUP()
+	ON_WM_MOUSEWHEEL()
+	//}}AFX_MSG_MAP
+END_MESSAGE_MAP()
+
+IMPLEMENT_DYNAMIC(CMDITabBar, CControlBar)
+
+BEGIN_MESSAGE_MAP(CMDITabBar, CControlBar)
+	//{{AFX_MSG_MAP(CMDITabBar)
+	ON_WM_SIZE()
+	ON_WM_NCHITTEST()
+	ON_WM_ERASEBKGND()
+	ON_WM_PAINT()
+	ON_WM_NCMOUSEMOVE()
+	ON_WM_NCMOUSELEAVE()
+	ON_WM_NCLBUTTONDBLCLK()
+	ON_WM_NCLBUTTONDOWN()
+	ON_WM_NCLBUTTONUP()
+	ON_WM_NCRBUTTONDOWN()
+	ON_WM_NCRBUTTONUP()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -36,72 +63,82 @@ static int determineIconSize()
 	return GetSystemMetrics(SM_CXSMICON);
 }
 
-/** 
- * @brief Create tab bar.
- * @param pParentWnd [in] main frame window pointer
- */
-BOOL CMDITabBar::Create(CMDIFrameWnd* pMainFrame)
+BOOL CMyTabCtrl::Create(CMDIFrameWnd* pMainFrame, CWnd* pParent)
 {
-	m_pMainFrame = pMainFrame;
-	m_dwStyle = CBRS_TOP;
-
-	if (!CWnd::Create(WC_TABCONTROL, nullptr, WS_CHILD | WS_VISIBLE | TCS_OWNERDRAWFIXED, CRect(0, 0, 0, 0), pMainFrame, AFX_IDW_CONTROLBAR_FIRST+30))
+	if (!CTabCtrl::Create(WS_CHILD | WS_VISIBLE | TCS_OWNERDRAWFIXED, CRect(0, 0, 0, 0), pParent, 0))
 		return FALSE;
 
-	TabCtrl_SetPadding(m_hWnd, determineIconSize(), 4);
-
-	NONCLIENTMETRICS ncm = { sizeof NONCLIENTMETRICS };
-	SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof NONCLIENTMETRICS, &ncm, 0);
-	m_font.CreateFontIndirect(&ncm.lfMenuFont);
-	SetFont(&m_font);
-
-	m_tooltips.Create(m_pMainFrame);
+	m_pMainFrame = pMainFrame;
+	m_tooltips.Create(m_pMainFrame, TTS_NOPREFIX);
 	m_tooltips.AddTool(this, _T(""));
+	if (HWND hSelf = GetSafeHwnd())
+		DarkMode::setTabCtrlUpDownSubclass(hSelf);
+
+	if (HWND hTip = m_tooltips.GetSafeHwnd())
+		DarkMode::setDarkTooltips(hTip, static_cast<int>(DarkMode::ToolTipsType::tooltip));
 
 	return TRUE;
 }
-
 
 /**
  * @brief Called before messages are translated.
  * Passes a mouse message to the ToolTip control for processing.
  * @param [in] pMsg Points to an MSG structure that contains the message to be chcecked
  */
-BOOL CMDITabBar::PreTranslateMessage(MSG* pMsg)
+BOOL CMyTabCtrl::PreTranslateMessage(MSG* pMsg)
 {
 	if (pMsg->message == WM_MOUSEMOVE)
 		m_tooltips.RelayEvent(pMsg);
 
 	// Call the parent method.
-	return CControlBar::PreTranslateMessage(pMsg);
+	return __super::PreTranslateMessage(pMsg);
 }
 
-/** 
- * @brief This method calculates the horizontal size of a control bar.
+void CMyTabCtrl::SetActive(bool bActive)
+{
+	CTitleBarHelper::ReloadAccentColor();
+	m_bActive = bActive;
+}
+
+/**
+ * @brief Activate the specific tab by index.
+ * @param nTabIndex [in] Tab index to activate
  */
-CSize CMDITabBar::CalcFixedLayout(BOOL bStretch, BOOL bHorz)
+void CMyTabCtrl::ActivateTab(int nTabIndex)
 {
-	if (GetItemCount() == 0)
-		return CSize(SHRT_MAX, 0);
-	
-	TEXTMETRIC tm;
-	CClientDC dc(this);
-	CFont *pOldFont = dc.SelectObject(&m_font);
-	dc.GetTextMetrics(&tm);
-	dc.SelectObject(pOldFont);
+	if (nTabIndex < 0 || nTabIndex >= GetItemCount())
+		return;
 
-	return CSize(SHRT_MAX, tm.tmHeight + 10);
+	SetCurSel(nTabIndex);
+
+	// Notify tab selection changed
+	NMHDR nmhdr = {0};
+	nmhdr.hwndFrom = GetSafeHwnd();
+	nmhdr.idFrom = GetDlgCtrlID();
+	nmhdr.code = TCN_SELCHANGE;
+	GetParent()->SendMessage(WM_NOTIFY, nmhdr.idFrom, reinterpret_cast<LPARAM>(&nmhdr));
 }
 
-static COLORREF GetIntermediateColor(COLORREF a, COLORREF b, float ratio)
+static inline COLORREF getTextColor()
 {
-	const int R = static_cast<int>((GetRValue(a) - GetRValue(b)) * ratio) + GetRValue(b);
-	const int G = static_cast<int>((GetGValue(a) - GetGValue(b)) * ratio) + GetGValue(b);
-	const int B = static_cast<int>((GetBValue(a) - GetBValue(b)) * ratio) + GetBValue(b);
-	return RGB(R, G, B);
+	return GetSysColor(COLOR_WINDOWTEXT);
 }
 
-void CMDITabBar::OnPaint() 
+COLORREF CMyTabCtrl::GetBackColor() const
+{
+	if (!m_bOnTitleBar)
+		return GetSysColor(COLOR_3DFACE);
+	return CTitleBarHelper::GetBackColor(m_bActive);
+}
+
+static inline bool IsHighContrastEnabled()
+{
+	HIGHCONTRAST hc = { sizeof(HIGHCONTRAST) };
+	SystemParametersInfo(SPI_GETHIGHCONTRAST, sizeof(hc), &hc, 0);
+	return (hc.dwFlags & HCF_HIGHCONTRASTON) != 0;
+}
+
+void CMyTabCtrl::OnPaint() 
 {
 	CPaintDC dc(this);
 	dc.SelectObject(GetFont());
@@ -109,68 +146,44 @@ void CMDITabBar::OnPaint()
 	DRAWITEMSTRUCT dis;
 	dis.hDC = dc.GetSafeHdc();
 
+	CRect rcClient;
+	GetClientRect(&rcClient);
+
+	const int nCount = GetItemCount();
+	if (nCount == 0)
+	{
+		const COLORREF winTitleTextColor = m_bOnTitleBar ?
+			CTitleBarHelper::GetTextColor(m_bActive) : getTextColor();
+		dc.SetTextColor(winTitleTextColor);
+		TCHAR szBuf[256];
+		AfxGetMainWnd()->GetWindowText(szBuf, sizeof(szBuf) / sizeof(szBuf[0]));
+		dc.DrawText(szBuf, -1, &rcClient, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+	}
+
 	int nCurSel = GetCurSel();
-	for (int i = GetItemCount() - 1; i >= 0; --i)
+	for (int i = nCount - 1; i >= 0; --i)
 	{
 		GetItemRect(i, &dis.rcItem);
-		RECT rcItem = dis.rcItem;
 		dis.itemID = i;
-		if (i != nCurSel)
-		{
-			dis.itemState = 0;
-			dis.rcItem.left += 2;
-			dis.rcItem.right -= 2;
-			dis.rcItem.bottom -= 2;
-		}
-		else
-		{
-			dis.itemState = ODS_SELECTED;
-			dis.rcItem.left -= 2;
-			dis.rcItem.right += 2;
-			dis.rcItem.bottom += 2;
-			dis.rcItem.top -= 2;
-		}
+		dis.rcItem.top = rcClient.top;
+		dis.rcItem.bottom = rcClient.bottom;
+		dis.itemState = (i != nCurSel) ? 0 : ODS_SELECTED;
 		DrawItem(&dis);
-		if (i == nCurSel)
-		{
-			for (int x = 0; x < 6; x++)
-			{
-				COLORREF clr = GetIntermediateColor(GetSysColor(COLOR_3DSHADOW), GetSysColor(COLOR_3DFACE),
-					1.0f - sqrtf(1.0f - powf(x / 6.0f - 1.0f, 2.0f)));
-				dc.FillSolidRect(CRect(rcItem.right - 1 + x, rcItem.top - 2, rcItem.right + x, rcItem.bottom + 4),
-					clr);
-			}
-		}
-		else if (i == nCurSel - 1)
-		{
-			for (int x = 0; x < 4; x++)
-			{
-				COLORREF clr = GetIntermediateColor(GetSysColor(COLOR_3DSHADOW), GetSysColor(COLOR_3DFACE),
-					1.0f - sqrtf(1.0f - powf(x / 4.0f - 1.0f, 2.0f)));
-				dc.FillSolidRect(CRect(rcItem.right - 1 - x, rcItem.top - 2, rcItem.right - x, rcItem.bottom + 4),
-					clr);
-			}
-		}
-		else
-		{
-			dc.FillSolidRect(CRect(rcItem.right - 1, rcItem.top - 2, rcItem.right, rcItem.bottom + 4),
-				GetSysColor(COLOR_3DLIGHT));
-		}
 	}
 }
 
-BOOL CMDITabBar::OnEraseBkgnd(CDC* pDC)
+BOOL CMyTabCtrl::OnEraseBkgnd(CDC* pDC)
 {
 	CRect rClient;
 	GetClientRect(rClient);
-	pDC->FillSolidRect(rClient, GetSysColor(COLOR_3DFACE));
+	pDC->FillSolidRect(rClient, GetBackColor());
 	return TRUE;
 }
 
 /** 
  * @brief Called when tab selection is changed.
  */
-BOOL CMDITabBar::OnSelchange(NMHDR* pNMHDR, LRESULT* pResult)
+BOOL CMyTabCtrl::OnSelchange(NMHDR* pNMHDR, LRESULT* pResult)
 {
 	TC_ITEM tci;
 	tci.mask = TCIF_PARAM;
@@ -185,12 +198,13 @@ BOOL CMDITabBar::OnSelchange(NMHDR* pNMHDR, LRESULT* pResult)
 /**
  * @brief Show context menu and handle user selection.
  */
-void CMDITabBar::OnContextMenu(CWnd *pWnd, CPoint point)
+void CMyTabCtrl::OnContextMenu(CWnd *pWnd, CPoint point)
 {
 	CPoint ptClient = point;
 	ScreenToClient(&ptClient);
 	int index = GetItemIndexFromPoint(ptClient);
-	if (index < 0) return;
+	if (index < 0)
+		return;
 
 	TCITEM tci;
 	tci.mask = TCIF_PARAM;
@@ -251,7 +265,7 @@ void CMDITabBar::OnContextMenu(CWnd *pWnd, CPoint point)
 /**
  * @brief synchronize the tabs with all mdi client windows.
  */
-void CMDITabBar::UpdateTabs()
+void CMyTabCtrl::UpdateTabs()
 {
 	Invalidate();
 
@@ -304,6 +318,9 @@ void CMDITabBar::UpdateTabs()
 		if (strTitle.GetLength() > nMaxTitleLength)
 			strTitle = strTitle.Left(nMaxTitleLength - 3) + _T("...");
 
+		// Escape the '&' to prevent it from being removed and underlining the next character in the string.
+		strTitle.Replace(_T("&"), _T("&&"));
+
 		if (item == -1)
 		{
 			tci.mask = TCIF_PARAM | TCIF_TEXT;
@@ -352,7 +369,7 @@ void CMDITabBar::UpdateTabs()
  * @brief Called when middle mouse button is pressed.
  * This function closes the tab when the middle mouse button is pressed.
  */
-void CMDITabBar::OnMButtonDown(UINT nFlags, CPoint point)
+void CMyTabCtrl::OnMButtonDown(UINT nFlags, CPoint point)
 {
 	int index = GetItemIndexFromPoint(point);
 	if (index < 0)
@@ -365,7 +382,7 @@ void CMDITabBar::OnMButtonDown(UINT nFlags, CPoint point)
 	pMDIChild->SendMessage(WM_SYSCOMMAND, SC_CLOSE);
 }
 
-void CMDITabBar::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
+void CMyTabCtrl::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 {
 	TCHAR            szBuf[256];
 	TCITEM           item;
@@ -374,32 +391,39 @@ void CMDITabBar::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 	item.mask       = TCIF_TEXT | TCIF_PARAM;
 	item.pszText    = szBuf;
 	item.cchTextMax = sizeof(szBuf) / sizeof(TCHAR);
-	TabCtrl_GetItem(this->m_hWnd, lpDraw->itemID, &item);
+	GetItem(lpDraw->itemID, &item);
 
-	RECT rc = lpDraw->rcItem;
+	const int lpx = ::GetDeviceCaps(lpDraw->hDC, LOGPIXELSX);
+	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
+	const int r = pointToPixel(RR_RADIUS);
+	const int pd = pointToPixel(RR_PADDING);
+	const int sw = pointToPixel(RR_SHADOWWIDTH);
+
+	CRect rc = lpDraw->rcItem;
 	if (lpDraw->itemState & ODS_SELECTED)
 	{
-		rc.left += 9;
-		rc.top += 2;
-		if (GetSysColor(COLOR_3DFACE) == GetSysColor(COLOR_WINDOW))
+		const COLORREF clrShadow = CEColor::GetIntermediateColor(GetSysColor(COLOR_3DSHADOW), GetBackColor(), 0.5f);
+		if (IsHighContrastEnabled())
 		{
-			FillRect(lpDraw->hDC, &lpDraw->rcItem, (HBRUSH)GetSysColorBrush(COLOR_HIGHLIGHT));
+			DrawRoundedRectWithShadow(lpDraw->hDC, rc.left + sw, rc.top + sw - 1, rc.Width() - sw * 2, rc.Height() - rc.top - sw * 2 + 2, r, sw,
+				GetSysColor(COLOR_HIGHLIGHT), clrShadow, GetBackColor());
 			SetTextColor(lpDraw->hDC, GetSysColor(COLOR_HIGHLIGHTTEXT));
 		}
 		else
 		{
-			FillRect(lpDraw->hDC, &lpDraw->rcItem, (HBRUSH)GetSysColorBrush(COLOR_WINDOW));
-			SetTextColor(lpDraw->hDC, GetSysColor(COLOR_WINDOWTEXT));
+			DrawRoundedRectWithShadow(lpDraw->hDC, rc.left + sw, rc.top + sw - 1, rc.Width() - sw * 2, rc.Height() - sw * 2 + 2, r, sw,
+				GetSysColor(COLOR_3DHIGHLIGHT), clrShadow, GetBackColor());
+			SetTextColor(lpDraw->hDC, getTextColor());
 		}
 	}
 	else
 	{
-		rc.left += 5;
-		rc.top += 3;
-		SetTextColor(lpDraw->hDC, GetSysColor(COLOR_BTNTEXT));
+		const COLORREF txtclr = m_bOnTitleBar ?
+			CTitleBarHelper::GetTextColor(m_bActive) : GetSysColor(COLOR_BTNTEXT);
+		SetTextColor(lpDraw->hDC, txtclr);
 	}
 	CSize iconsize(determineIconSize(), determineIconSize());
-	rc.left += iconsize.cx;
+	rc.left += sw + pd + iconsize.cx;
 	SetBkMode(lpDraw->hDC, TRANSPARENT);
 	HWND hwndFrame = reinterpret_cast<HWND>(item.lParam);
 	if (::IsWindow(hwndFrame))
@@ -408,8 +432,10 @@ void CMDITabBar::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 		if (hIcon == nullptr)
 			hIcon = (HICON)GetClassLongPtr(hwndFrame, GCLP_HICONSM);
 		if (hIcon != nullptr)
-			DrawIconEx(lpDraw->hDC, rc.left - iconsize.cx - 2, rc.top + (rc.bottom - rc.top - iconsize.cy) / 2, hIcon, iconsize.cx, iconsize.cy, 0, nullptr, DI_NORMAL);
+			DrawIconEx(lpDraw->hDC, rc.left - iconsize.cx, rc.top + (rc.Height() - iconsize.cy) / 2, hIcon, iconsize.cx, iconsize.cy, 0, nullptr, DI_NORMAL);
 	}
+	rc.left += pd;
+	rc.right -= pd;
 	DrawText(lpDraw->hDC, szBuf, -1, &rc, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
 
 	int nItem = GetItemIndexFromPoint(m_rcCurrentCloseButtom.CenterPoint());
@@ -425,7 +451,7 @@ void CMDITabBar::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
 	}
 }
 
-void CMDITabBar::OnMouseMove(UINT nFlags, CPoint point)
+void CMyTabCtrl::OnMouseMove(UINT nFlags, CPoint point)
 {
 	int nTabItemIndex = GetItemIndexFromPoint(point);
 	CRect rc = GetCloseButtonRect(nTabItemIndex);
@@ -462,7 +488,7 @@ void CMDITabBar::OnMouseMove(UINT nFlags, CPoint point)
 		UpdateToolTips(nTabItemIndex);
 }
 
-void CMDITabBar::OnMouseLeave()
+void CMyTabCtrl::OnMouseLeave()
 {
 	TRACKMOUSEEVENT tme = { sizeof(TRACKMOUSEEVENT) };
 	tme.dwFlags = TME_LEAVE | TME_CANCEL;
@@ -474,13 +500,13 @@ void CMDITabBar::OnMouseLeave()
 	m_bCloseButtonDown = false;
 }
 
-void CMDITabBar::OnLButtonDown(UINT nFlags, CPoint point)
+void CMyTabCtrl::OnLButtonDown(UINT nFlags, CPoint point)
 {
 	m_bCloseButtonDown = !!m_rcCurrentCloseButtom.PtInRect(point);
 	InvalidateRect(m_rcCurrentCloseButtom);
 	if (!m_bCloseButtonDown)
 	{
-        if (DragDetect(point))
+		if (DragDetect(point))
 		{
 			m_nDraggingTabItemIndex = GetItemIndexFromPoint(point);
 			SetCapture();
@@ -489,7 +515,7 @@ void CMDITabBar::OnLButtonDown(UINT nFlags, CPoint point)
 	}
 }
 
-void CMDITabBar::OnLButtonUp(UINT nFlags, CPoint point)
+void CMyTabCtrl::OnLButtonUp(UINT nFlags, CPoint point)
 {
 	if (m_nDraggingTabItemIndex >= 0)
 	{
@@ -506,27 +532,93 @@ void CMDITabBar::OnLButtonUp(UINT nFlags, CPoint point)
 	CWnd::OnLButtonUp(nFlags, point);
 }
 
-CRect CMDITabBar::GetCloseButtonRect(int nItem) const
+BOOL CMyTabCtrl::OnMouseWheel(UINT nFlags, short zDelta, CPoint point)
 {
-	CRect rc;
+	// Rotating the mouse wheel while dragging: No action performed
+	if (m_nDraggingTabItemIndex >= 0)
+		return TRUE;
+
+	// "Scroll forward" is wheel rotation towards the user
+	const bool bIsScrollForward = zDelta < 0;
+
+	const int nLastTabIndex = GetItemCount() - 1;
+
+	// SHIFT + MOUSEWHEEL (UP/DOWN): Switches to the previous/next tab WITHOUT wraparound
+	if (nFlags & MK_SHIFT)
+	{
+		int nSwitchToTabIndex = GetCurSel() + (bIsScrollForward ? 1 : -1);
+		if (nSwitchToTabIndex < 0 || nSwitchToTabIndex > nLastTabIndex)
+			return TRUE;
+
+		ActivateTab(nSwitchToTabIndex);
+	}
+
+	// Otherwise, scroll the tab bar
+	else
+	{
+		CRect rectTabCtrl, rectLastTab;
+		GetClientRect(&rectTabCtrl);
+		GetItemRect(nLastTabIndex, &rectLastTab);
+
+		// Get index of the first visible tab
+		CPoint pt(rectTabCtrl.left + 10, rectTabCtrl.Height() / 2);
+		int nFirstVisibleTabIndex = GetItemIndexFromPoint(pt);
+
+		if (nFirstVisibleTabIndex < 1 && rectLastTab.right < rectTabCtrl.right)  // No overflow
+			return TRUE;
+
+		// Get the width of the up/down control
+		// This area may hide parts of the last tab and needs to be excluded
+		CWnd* pUpDownCtrl = FindWindowEx(GetSafeHwnd(), nullptr, L"msctls_updown32", nullptr);
+		if (!pUpDownCtrl)	// No up/down control also means no overflow
+			return TRUE;
+
+		CRect rectUpDownCtrl;
+		pUpDownCtrl->GetWindowRect(&rectUpDownCtrl);
+
+		// Scroll forward as long as the last tab is hidden; scroll backward till the first tab
+		int nScrollTabIndex = nFirstVisibleTabIndex;
+		if ((rectTabCtrl.right - rectLastTab.right) < rectUpDownCtrl.Width() || !bIsScrollForward)
+		{
+			nScrollTabIndex += (bIsScrollForward ? 1 : -1);
+			if (nScrollTabIndex < 0 || nScrollTabIndex > nLastTabIndex)
+				return TRUE;
+
+			// Scroll tabs
+			SendMessage(WM_HSCROLL, MAKEWPARAM(SB_THUMBPOSITION, nScrollTabIndex), 0);
+		}
+	}
+
+	return TRUE;
+}
+
+CRect CMyTabCtrl::GetCloseButtonRect(int nItem)
+{
+	CClientDC dc(this);
+	const int lpx = dc.GetDeviceCaps(LOGPIXELSX);
+	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
+	const int pd = pointToPixel(RR_PADDING);
+	const int sw = pointToPixel(RR_SHADOWWIDTH);
+	CRect rc, rcClient;
 	CSize size(determineIconSize(), determineIconSize());
+	GetClientRect(&rcClient);
 	GetItemRect(nItem, &rc);
-	rc.left = rc.right - size.cx - 4;
+	rc.left = rc.right - size.cx - sw - pd;
 	rc.right = rc.left + size.cx;
-	int y = (rc.top + rc.bottom) / 2;
+	int y = (rcClient.top + rcClient.bottom) / 2;
 	rc.top = y - size.cy / 2 + 1;
 	rc.bottom = rc.top + size.cy;
 	return rc;
 }
 
-int CMDITabBar::GetItemIndexFromPoint(CPoint point) const
+int CMyTabCtrl::GetItemIndexFromPoint(CPoint point) const
 {
 	TCHITTESTINFO hit;
 	hit.pt = point;
 	return HitTest(&hit);
 }
 
-void CMDITabBar::SwapTabs(int nIndexA, int nIndexB)
+void CMyTabCtrl::SwapTabs(int nIndexA, int nIndexB)
 {
 	TC_ITEM tciA = {0}, tciB = {0};
 	TCHAR szTextA[256], szTextB[256];
@@ -555,7 +647,7 @@ void CMDITabBar::SwapTabs(int nIndexA, int nIndexB)
 /**
  * @brief Get the maximum length of the title.
  */
-int CMDITabBar::GetMaxTitleLength() const
+int CMyTabCtrl::GetMaxTitleLength() const
 {
 	int nMaxTitleLength = m_bAutoMaxWidth ? static_cast<int>(MDITABBAR_MAXTITLELENGTH - (GetItemCount() - 1) * 6) : MDITABBAR_MAXTITLELENGTH;
 	if (nMaxTitleLength < MDITABBAR_MINTITLELENGTH)
@@ -568,7 +660,7 @@ int CMDITabBar::GetMaxTitleLength() const
  * @brief Update tooltip text.
  * @param [in] nTabItemIndex Index of the tab displaying tooltip.
  */
-void CMDITabBar::UpdateToolTips(int nTabItemIndex)
+void CMyTabCtrl::UpdateToolTips(int nTabItemIndex)
 {
 	TC_ITEM tci;
 	tci.mask = TCIF_PARAM;
@@ -584,21 +676,246 @@ void CMDITabBar::UpdateToolTips(int nTabItemIndex)
 		return;
 
 	for (CWnd* pFrame = pParentWnd->GetTopWindow(); pFrame; pFrame = pFrame->GetNextWindow())
+	{
 		if (reinterpret_cast<HWND>(tci.lParam) == pFrame->m_hWnd)
 		{
 			HWND hFrameWnd = pFrame->m_hWnd;
-			CString strTitle;
-			CDocument* pDoc = ((CFrameWnd*)FromHandle(hFrameWnd))->GetActiveDocument();
+			CString strTitle, strTooltip;
+			CFrameWnd* pFrameWnd = (CFrameWnd*)FromHandle(hFrameWnd);
+			CDocument* pDoc = pFrameWnd->GetActiveDocument();
+			IMDITab* pITabBar = nullptr;
 			if (pDoc != nullptr)
+			{
 				strTitle = pDoc->GetTitle();
+				pITabBar = dynamic_cast<IMDITab*>(pDoc);
+			}
 			else
-				FromHandle(hFrameWnd)->GetWindowText(strTitle);
+			{
+				pFrameWnd->GetWindowText(strTitle);
+				pITabBar = dynamic_cast<IMDITab*>(pFrameWnd);
+			}
+			strTooltip = pITabBar ? pITabBar->GetTooltipString() : _T("");
 
-			if (strTitle.GetLength() <= GetMaxTitleLength())
-				strTitle = "";
+			if (strTooltip == strTitle && strTitle.GetLength() <= GetMaxTitleLength())
+				strTooltip.Empty();
 
-			m_tooltips.UpdateTipText(strTitle, this);
+			constexpr size_t MAX_TIP_TEXT_LENGTH = 1024;
+			if (strTooltip.GetLength() > MAX_TIP_TEXT_LENGTH)
+				strTooltip.Truncate(MAX_TIP_TEXT_LENGTH);
+
+			m_tooltips.UpdateTipText(strTooltip, this);
+			CRect rc;
+			GetClientRect(&rc);
+			m_tooltips.SetMaxTipWidth(rc.Width() * 60 / 100);
 			m_nTooltipTabItemIndex = nTabItemIndex;
 			return;
 		}
+	}
+}
+
+BOOL CMDITabBar::Update(bool bOnTitleBar, bool bMaximized)
+{
+	m_bOnTitleBar = bOnTitleBar;
+	m_titleBar.SetMaximized(bMaximized);
+	m_tabCtrl.SetOnTitleBar(bOnTitleBar);
+	return true;
+}
+
+void CMDITabBar::UpdateActive(bool bActive)
+{
+	if (m_tabCtrl.GetActive() != bActive)
+	{
+		m_tabCtrl.SetActive(bActive);
+		Invalidate();
+	}
+}
+
+/** 
+ * @brief Create tab bar.
+ * @param pParentWnd [in] main frame window pointer
+ */
+BOOL CMDITabBar::Create(CMDIFrameWnd* pMainFrame)
+{
+	m_dwStyle = CBRS_TOP;
+
+	m_titleBar.Init(this);
+
+	CWnd::Create(nullptr, nullptr, WS_CHILD | WS_VISIBLE, CRect(0, 0, 0, 0), pMainFrame, AFX_IDW_CONTROLBAR_LAST - 1);
+
+	if (!m_tabCtrl.Create(pMainFrame, this))
+		return FALSE;
+
+	CClientDC dc(this);
+	const int lpx = dc.GetDeviceCaps(LOGPIXELSX);
+	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
+	const int pd = pointToPixel(RR_PADDING);
+	const int sw = pointToPixel(RR_SHADOWWIDTH);
+	m_tabCtrl.SetPadding(CSize(sw + pd * 2 + determineIconSize() / 2, sw + pd));
+
+	NONCLIENTMETRICS ncm = { sizeof NONCLIENTMETRICS };
+	SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof NONCLIENTMETRICS, &ncm, 0);
+	m_font.CreateFontIndirect(&ncm.lfMenuFont);
+	m_tabCtrl.SetFont(&m_font);
+
+	return TRUE;
+}
+
+/**
+ * @brief Get tab item index from point
+ */
+int CMDITabBar::GetItemIndexFromPoint(CPoint point, bool bRelatively) const
+{
+	if (bRelatively)
+	{
+		CRect rcTabCtrl;
+		m_tabCtrl.GetClientRect(&rcTabCtrl);
+
+		m_tabCtrl.ScreenToClient(&point);
+		point.y = rcTabCtrl.Height() / 2;
+	}
+
+	TCHITTESTINFO hit;
+	hit.pt = point;
+	return m_tabCtrl.HitTest(&hit);
+}
+
+/**
+ * @brief Forward mouse events to the tab control if needed.
+ */
+bool CMDITabBar::ForwardMouseEventToTabCtrlIfNeeded(CPoint& point, UINT message)
+{
+	if (!(m_bOnTitleBar && m_titleBar.GetMaximized()))
+		return false;
+
+	int nItemHitTest = GetItemIndexFromPoint(point, true);
+	if (nItemHitTest == -1)
+		return false;
+
+	CRect rcHitItem;
+	m_tabCtrl.GetItemRect(nItemHitTest, &rcHitItem);
+	m_tabCtrl.ScreenToClient(&point);
+
+	if (point.y <= rcHitItem.top)
+		point.y = rcHitItem.top + 1;
+	else if (point.y >= rcHitItem.bottom)
+		point.y = rcHitItem.bottom - 1;
+
+	switch (message)
+	{
+	case WM_LBUTTONDOWN:
+	case WM_LBUTTONUP:
+		m_tabCtrl.SendMessage(message, MK_LBUTTON, MAKELPARAM(point.x, point.y));
+		break;
+	case WM_CONTEXTMENU:
+		m_tabCtrl.SendMessage(WM_CONTEXTMENU, (WPARAM)m_tabCtrl.m_hWnd, MAKELPARAM(point.x, point.y));
+		break;
+	default:
+		break;
+	}
+
+	return true;
+}
+
+/** 
+ * @brief This method calculates the horizontal size of a control bar.
+ */
+CSize CMDITabBar::CalcFixedLayout(BOOL bStretch, BOOL bHorz)
+{
+	if (!m_bOnTitleBar && m_tabCtrl.GetItemCount() == 0)
+		return CSize(SHRT_MAX, 0);
+	
+	TEXTMETRIC tm;
+	CClientDC dc(this);
+	CFont *pOldFont = dc.SelectObject(&m_font);
+	dc.GetTextMetrics(&tm);
+	dc.SelectObject(pOldFont);
+
+	const int lpx = dc.GetDeviceCaps(LOGPIXELSX);
+	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
+	const int pd = pointToPixel(RR_PADDING);
+	const int sw = pointToPixel(RR_SHADOWWIDTH);
+	int my = m_bOnTitleBar ? (m_titleBar.GetTopMargin() + 2) : 0;
+	CSize size(SHRT_MAX, my + tm.tmHeight + (sw + pd) * 2);
+	return size;
+}
+
+LRESULT CMDITabBar::OnNcHitTest(CPoint point)
+{
+	if (!m_bOnTitleBar)
+		return __super::OnNcHitTest(point);
+	return m_titleBar.OnNcHitTest(point);
+}
+
+void CMDITabBar::OnNcMouseMove(UINT nHitTest, CPoint point)
+{
+	m_titleBar.OnNcMouseMove(nHitTest, point);
+}
+
+void CMDITabBar::OnNcMouseLeave()
+{
+	m_titleBar.OnNcMouseLeave();
+}
+
+void CMDITabBar::OnNcLButtonDblClk(UINT nHitTest, CPoint point)
+{
+	m_titleBar.OnNcLButtonDblClk(nHitTest, point);
+}
+
+void CMDITabBar::OnNcLButtonDown(UINT nHitTest, CPoint point)
+{
+	if (ForwardMouseEventToTabCtrlIfNeeded(point, WM_LBUTTONDOWN))
+		return;
+	m_titleBar.OnNcLButtonDown(nHitTest, point);
+}
+
+void CMDITabBar::OnNcLButtonUp(UINT nHitTest, CPoint point)
+{
+	if (ForwardMouseEventToTabCtrlIfNeeded(point, WM_LBUTTONUP))
+		return;
+	m_titleBar.OnNcLButtonUp(nHitTest, point);
+}
+
+void CMDITabBar::OnNcRButtonDown(UINT nHitTest, CPoint point)
+{
+	m_titleBar.OnNcRButtonDown(nHitTest, point);
+}
+
+void CMDITabBar::OnNcRButtonUp(UINT nHitTest, CPoint point)
+{
+	if (ForwardMouseEventToTabCtrlIfNeeded(point, WM_CONTEXTMENU))
+		return;
+	m_titleBar.OnNcRButtonUp(nHitTest, point);
+}
+
+void CMDITabBar::OnSize(UINT nType, int cx, int cy)
+{
+	__super::OnSize(nType, cx, cy);
+	m_titleBar.SetSize(cx, cy);
+	if (m_tabCtrl.m_hWnd)
+	{
+		const int leftMargin = m_bOnTitleBar ? m_titleBar.GetLeftMargin() : 0;
+		const int rightMargin = m_bOnTitleBar ? m_titleBar.GetRightMargin() : 0;
+		const int topMargin = ((m_titleBar.GetMaximized() && m_bOnTitleBar) ? m_titleBar.GetTopMargin() : 0) + (m_bOnTitleBar ? 1 : 0);
+		const int bottomMargin = m_bOnTitleBar ? 1 : 0;
+		CSize size{ 0, cy - topMargin - bottomMargin };
+		m_tabCtrl.MoveWindow(leftMargin, topMargin, cx - leftMargin - rightMargin, cy - topMargin - bottomMargin, true);
+		m_tabCtrl.SetItemSize(size);
+	}
+}
+
+BOOL CMDITabBar::OnEraseBkgnd(CDC* pDC)
+{
+	CRect rClient;
+	GetClientRect(rClient);
+	pDC->FillSolidRect(rClient, m_tabCtrl.GetBackColor());
+	return TRUE;
+}
+
+void CMDITabBar::OnPaint()
+{
+	if (!m_bOnTitleBar)
+		return __super::OnPaint();
+	CPaintDC dc(this);
+	m_titleBar.DrawIcon(AfxGetMainWnd(), dc, m_tabCtrl.GetActive());
+	m_titleBar.DrawButtons(dc, CTitleBarHelper::GetTextColor(m_tabCtrl.GetActive()), m_tabCtrl.GetBackColor());
 }

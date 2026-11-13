@@ -13,9 +13,10 @@
 
 #include "SplitterWndEx.h"
 #include "EditorFilepathBar.h"
+#include "BasicFlatStatusBar.h"
 #include "MergeFrameCommon.h"
 
-#define HEKSEDIT_INTERFACE_VERSION 2
+#define HEKSEDIT_INTERFACE_VERSION 3
 #include "heksedit.h"
 
 class CHexMergeDoc;
@@ -32,19 +33,22 @@ public:
 // Operations
 public:
 	void UpdateResources();
-	IHeaderBar * GetHeaderInterface();
+	IHeaderBar * GetHeaderInterface() override;
 	CHexMergeDoc * GetMergeDoc() { return m_pMergeDoc; }
 
 	void UpdateAutoPaneResize();
 	void UpdateSplitter();
+	void LoadOptions();
+	void SaveOptions();
 	int GetActivePane();
 	void SetActivePane(int nPane);
+	CWnd* GetView(int nPane);
 
 // Attributes
 protected:
 	CSplitterWndEx m_wndSplitter;
 	CEditorFilePathBar m_wndFilePathBar;
-	CStatusBar m_wndStatusBar[3];
+	CBasicFlatStatusBar m_wndStatusBar[3];
 	SCROLLINFO m_HScrollInfo[3];
 	SCROLLINFO m_VScrollInfo[3];
 // Overrides
@@ -73,6 +77,10 @@ private:
 	afx_msg void OnMDIActivate(BOOL bActivate, CWnd* pActivateWnd, CWnd* pDeactivateWnd);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnIdleUpdateCmdUI();
+	afx_msg void OnViewSplitVertically();
+	afx_msg void OnUpdateViewSplitVertically(CCmdUI* pCmdUI);
+	afx_msg void OnWindowPreserveSplitterPosition();
+	afx_msg void OnUpdateWindowPreserveSplitterPosition(CCmdUI* pCmdUI);
 	afx_msg LRESULT OnStorePaneSizes(WPARAM wParam, LPARAM lParam);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()

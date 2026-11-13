@@ -14,7 +14,6 @@
 #include "TFile.h"
 #include "UnicodeString.h"
 #include "DirItem.h"
-#include "unicoder.h"
 #include "paths.h"
 #include "Win_VersionHelper.h"
 #include "DebugNew.h"
@@ -22,13 +21,15 @@
 using Poco::DirectoryIterator;
 using Poco::Timestamp;
 
-static void LoadFiles(const String& sDir, DirItemArray * dirs, DirItemArray * files);
 static void Sort(DirItemArray * dirs, bool casesensitive);
+
+namespace DirTravel
+{
 
 /**
  * @brief Load arrays with all directories & files in specified dir
  */
-void LoadAndSortFiles(const String& sDir, DirItemArray * dirs, DirItemArray * files, bool casesensitive)
+void LoadAndSortFiles(const String& sDir, DirItemArray* dirs, DirItemArray* files, bool casesensitive)
 {
 	LoadFiles(sDir, dirs, files);
 	Sort(dirs, casesensitive);
@@ -46,36 +47,12 @@ void LoadAndSortFiles(const String& sDir, DirItemArray * dirs, DirItemArray * fi
  * @param [in] sDir Base folder for files and subfolders.
  * @param [in, out] dirs Array where subfolder names are stored.
  * @param [in, out] files Array where file names are stored.
+ * @param [in] pattern Pattern for files to load, default is "*.*".
  */
-static void LoadFiles(const String& sDir, DirItemArray * dirs, DirItemArray * files)
+void LoadFiles(const String& sDir, DirItemArray* dirs, DirItemArray* files, const String& pattern)
 {
 	boost::flyweight<String> dir(sDir);
-#if 0
-	DirectoryIterator it(ucr::toUTF8(sDir));
-	DirectoryIterator end;
-
-	for (; it != end; ++it)
-	{
-		bool bIsDirectory = it->isDirectory();
-		if (bIsDirectory)
-			continue;
-
-		DirItem ent;
-		ent.ctime = it->created();
-		if (ent.ctime < 0)
-			ent.ctime = 0;
-		ent.mtime = it->getLastModified();
-		if (ent.mtime < 0)
-			ent.mtime = 0;
-		ent.size = it->getSize();
-		ent.path = dir;
-		ent.filename = ucr::toTString(it.name());
-		ent.flags.attributes = GetFileAttributes(ucr::toTString(it.name()).c_str());		
-		(bIsDirectory ? dirs : files)->push_back(ent);
-	}
-
-#else
-	String sPattern = paths::ConcatPath(sDir, _T("*.*"));
+	String sPattern = paths::ConcatPath(sDir, pattern);
 
 	WIN32_FIND_DATA ff;
 	HANDLE h;
@@ -88,7 +65,7 @@ static void LoadFiles(const String& sDir, DirItemArray * dirs, DirItemArray * fi
 		do
 		{
 			bool bIsDirectory = (ff.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) > 0;
-			if (bIsDirectory && _tcsstr(_T(".."), ff.cFileName))
+			if (bIsDirectory && tc::tcsstr(_T(".."), ff.cFileName))
 				continue;
 
 			DirItem ent;
@@ -98,11 +75,7 @@ static void LoadFiles(const String& sDir, DirItemArray * dirs, DirItemArray * fi
 			// Anyway that is not sensible case for normal files so we can
 			// just use zero for their time.
 			ent.ctime = Timestamp::fromFileTimeNP(ff.ftCreationTime.dwLowDateTime, ff.ftCreationTime.dwHighDateTime);
-			if (ent.ctime < 0)
-				ent.ctime = 0;
 			ent.mtime = Timestamp::fromFileTimeNP(ff.ftLastWriteTime.dwLowDateTime, ff.ftLastWriteTime.dwHighDateTime);
-			if (ent.mtime < 0)
-				ent.mtime = 0;
 
 			if (ff.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 				ent.size = DirItem::FILE_SIZE_NONE;  // No size for directories
@@ -114,27 +87,26 @@ static void LoadFiles(const String& sDir, DirItemArray * dirs, DirItemArray * fi
 			ent.path = dir;
 			ent.filename = ff.cFileName;
 			ent.flags.attributes = ff.dwFileAttributes;
-			
+
 			(bIsDirectory ? dirs : files)->push_back(ent);
 		} while (FindNextFile(h, &ff));
 		FindClose(h);
 	}
-
-#endif
+}
 }
 
 static inline int collate(const String &str1, const String &str2)
 {
-	return _tcscoll(str1.c_str(), str2.c_str());
+	return tc::tcscoll(str1.c_str(), str2.c_str());
 }
 
 static inline int collate_ignore_case(const String &str1, const String &str2)
 {
-	return _tcsicoll(str1.c_str(), str2.c_str());
+	return tc::tcsicoll(str1.c_str(), str2.c_str());
 }
 
 
-template<int (*compfunc)(const TCHAR *, const TCHAR *)>
+template<int (*compfunc)(const tchar_t *, const tchar_t *)>
 struct StringComparer
 {
 	bool operator()(const DirItem &elem1, const DirItem &elem2)
@@ -149,9 +121,9 @@ struct StringComparer
 static void Sort(DirItemArray * dirs, bool casesensitive)
 {
 	if (casesensitive)
-        std::sort(dirs->begin(), dirs->end(), StringComparer<_tcscoll>());
+		std::sort(dirs->begin(), dirs->end(), StringComparer<tc::tcscoll>());
 	else
-		std::sort(dirs->begin(), dirs->end(), StringComparer<_tcsicoll>());
+		std::sort(dirs->begin(), dirs->end(), StringComparer<tc::tcsicoll>());
 }
 
 /**

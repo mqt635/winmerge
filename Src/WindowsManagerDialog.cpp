@@ -2,8 +2,8 @@
 //
 
 #include "stdafx.h"
-#include "Merge.h"
 #include "WindowsManagerDialog.h"
+#include "WindowsManager.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -14,8 +14,9 @@ static char THIS_FILE[] = __FILE__;
 /////////////////////////////////////////////////////////////////////////////
 // CWindowsManagerDialog dialog
 
-CWindowsManagerDialog::CWindowsManagerDialog(CWnd* pParent/* = NULL*/)
+CWindowsManagerDialog::CWindowsManagerDialog(CWindowsManager& manager, CWnd* pParent/* = NULL*/)
 	: CDialog(CWindowsManagerDialog::IDD, pParent)
+	,m_manager(manager)
 	,m_bAutoCleanup(FALSE)
 	,m_pFrame(NULL)
 	,m_pIL(NULL)
@@ -112,25 +113,25 @@ void CWindowsManagerDialog::PopulateList()
 	m_List.DeleteAllItems();
 
 	CString sText;
-	const CTypedPtrArray<CPtrArray, CMDIChildWnd*>* pArrChild = m_pFrame->GetChildArray();
-	for (int i = 0; i < pArrChild->GetSize(); ++i)
+	const CTypedPtrArray<CPtrArray, CMDIChildWnd*>& arrChild = m_manager.GetChildArray();
+	for (int i = 0; i < arrChild.GetSize(); ++i)
 	{
 		sText.Empty();
-		HICON hIcon = pArrChild->GetAt(i)->GetIcon(FALSE);
+		HICON hIcon = arrChild.GetAt(i)->GetIcon(FALSE);
 		if (NULL == hIcon)
 		{
-			hIcon = pArrChild->GetAt(i)->GetIcon(TRUE);
+			hIcon = arrChild.GetAt(i)->GetIcon(TRUE);
 			if (NULL == hIcon)
 				hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 		}
 		m_pIL->Add(hIcon);
-		const CDocument* pDoc = pArrChild->GetAt(i)->GetActiveDocument();
+		const CDocument* pDoc = arrChild.GetAt(i)->GetActiveDocument();
 		if (nullptr != pDoc)
 			sText = pDoc->GetPathName();
 		if (sText.IsEmpty())
-			pArrChild->GetAt(i)->GetWindowText(sText);
+			arrChild.GetAt(i)->GetWindowText(sText);
 		m_List.InsertItem(i, sText, m_pIL->GetImageCount() - 1);
-		m_List.SetItemData(i, reinterpret_cast<DWORD_PTR>(pArrChild->GetAt(i)));
+		m_List.SetItemData(i, reinterpret_cast<DWORD_PTR>(arrChild.GetAt(i)));
 	}
 }
 // adjust size to listctrl column and dialog
@@ -173,7 +174,7 @@ void CWindowsManagerDialog::AdjustSize()
 void CWindowsManagerDialog::SetParentWnd(CWnd* pWnd)
 {
 	ASSERT(NULL != pWnd);
-	m_pFrame = DYNAMIC_DOWNCAST(CMainFrame, pWnd);
+	m_pFrame = DYNAMIC_DOWNCAST(CMDIFrameWnd, pWnd);
 }
 
 void CWindowsManagerDialog::OnSize(UINT nType, int cx, int cy)
@@ -230,7 +231,7 @@ void CWindowsManagerDialog::OnDestroy()
 
 	const int nIndex = m_List.GetNextItem(-1, LVNI_SELECTED);
 	if (nIndex >= 0 && nIndex < m_List.GetItemCount())
-		::PostMessage(AfxGetMainWnd()->GetSafeHwnd(), WMU_CHILDFRAMEACTIVATE, 0, static_cast<LPARAM>(m_List.GetItemData(nIndex)));
+		m_manager.ActivateChildFrame(reinterpret_cast<CMDIChildWnd*>(m_List.GetItemData(nIndex)));
 }
 
 LRESULT CWindowsManagerDialog::OnIsOpen(WPARAM wParam, LPARAM lParam)

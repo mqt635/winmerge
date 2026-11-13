@@ -4,6 +4,7 @@
 #include "Unpacker.h"
 #include "unicheck.h"
 #include "Setting.h"
+#include "Common.h"
 
 using namespace std;
 
@@ -40,7 +41,7 @@ class Packer
 public:
 	static int HexValue(TCHAR uch);
 public:
-	Packer(LPCWSTR srcFilepath, LPCWSTR destFilepath);
+	Packer(LPCWSTR srcFilepath, LPCWSTR destFilepath, IDispatch* pDispatch);
 
 	bool Unpack();
 	bool Pack();
@@ -57,20 +58,21 @@ private:
 	StdFile m_out;
 	unicodingInfo m_uninfo;
 	unsigned char m_escape;
+	IDispatch* m_pMergeApp;
 };
 
-bool Unpack(LPCWSTR srcFilepath, LPCWSTR destFilepath)
+bool Unpack(LPCWSTR srcFilepath, LPCWSTR destFilepath, IDispatch* pDispatch)
 {
-	Packer pack(srcFilepath, destFilepath);
+	Packer pack(srcFilepath, destFilepath, pDispatch);
 	if (!pack.Unpack()) return false;
 	return true;
 }
 
 
 
-bool Pack(LPCWSTR srcFilepath, LPCWSTR destFilepath)
+bool Pack(LPCWSTR srcFilepath, LPCWSTR destFilepath, IDispatch* pMergeApp)
 {
-	Packer pack(srcFilepath, destFilepath);
+	Packer pack(srcFilepath, destFilepath, pMergeApp);
 	if (!pack.Pack()) return false;
 	return true;
 }
@@ -86,13 +88,15 @@ ValidEscape(TCHAR ch)
 	return true;
 }
 
-Packer::Packer(LPCWSTR srcFilepath, LPCWSTR destFilepath)
+Packer::Packer(LPCWSTR srcFilepath, LPCWSTR destFilepath, IDispatch* pDispatch)
 : m_srcFilepath(srcFilepath)
 , m_destFilepath(destFilepath)
+, m_pMergeApp(pDispatch)
 {
 	m_escape = '#';
 	TCHAR buff[2] = _T("#");
 	LPCTSTR settings = _T("Software\\Thingamahoochie\\WinMerge_Plugins\\EditBinaryFiles");
+
 	if (ReadSetting(settings, _T("EscapeChar"), buff, sizeof(buff)/sizeof(buff[0])))
 	{
 		if (buff[1] == 0 && ValidEscape(buff[0]))
@@ -104,17 +108,15 @@ bool Packer::Unpack()
 {
 	USES_CONVERSION;
 
-	LPCTSTR szSrcFile = CW2T(m_srcFilepath);
-	if (!m_in.Open(szSrcFile, _T("rb")))
+	if (!m_in.Open(CW2T(m_srcFilepath), _T("rb")))
 	{
-		LogError(_T("Error opening Unpack src file [%s]"), szSrcFile);
+		LogError(_T("Error opening Unpack src file [%s]"), LPTSTR(CW2T(m_srcFilepath)));
 		return false;
 	}
 
-	LPCTSTR szDestFile = CW2T(m_destFilepath);
-	if (!m_out.Open(szDestFile, _T("wb")))
+	if (!m_out.Open(CW2T(m_destFilepath), _T("wb")))
 	{
-		LogError(_T("Error opening Unpack dest file [%s]"), szDestFile);
+		LogError(_T("Error opening Unpack dest file [%s]"), LPTSTR(CW2T(m_destFilepath)));
 		return false;
 	}
 
@@ -128,7 +130,7 @@ bool Packer::Unpack()
 	if (!curlen)
 		return false; // do not support empty files
 
-	int rtn = fread(buffer, 1, curlen, m_in);
+	size_t rtn = fread(buffer, 1, curlen, m_in);
 	if (rtn != curlen) return false;
 	len -= curlen;
 	CheckForBom(&buffer[0], curlen, &m_uninfo);
@@ -155,7 +157,7 @@ bool Packer::Unpack()
 			curlen = 65536;
 		if (!curlen)
 			break;
-		int rtn = fread(buffer, 1, curlen, m_in);
+		size_t rtn = fread(buffer, 1, curlen, m_in);
 		len -= curlen;
 		if (rtn != curlen)
 			return false;
@@ -182,17 +184,15 @@ bool Packer::Pack()
 {
 	USES_CONVERSION;
 
-	LPCTSTR szSrcFile = CW2T(m_srcFilepath);
-	if (!m_in.Open(szSrcFile, _T("rb")))
+	if (!m_in.Open(CW2T(m_srcFilepath), _T("rb")))
 	{
-		LogError(_T("Error opening Pack src file [%s]"), szSrcFile);
+		LogError(_T("Error opening Pack src file [%s]"), LPTSTR(CW2T(m_srcFilepath)));
 		return false;
 	}
 
-	LPCTSTR szDestFile = CW2T(m_destFilepath);
-	if (!m_out.Open(szDestFile, _T("wb")))
+	if (!m_out.Open(CW2T(m_destFilepath), _T("wb")))
 	{
-		LogError(_T("Error opening Pack dest file [%s]"), szDestFile);
+		LogError(_T("Error opening Pack dest file [%s]"), LPTSTR(CW2T(m_destFilepath)));
 		return false;
 	}
 
@@ -206,7 +206,7 @@ bool Packer::Pack()
 	if (!curlen)
 		return false; // do not support empty files
 
-	int rtn = fread(buffer, 1, curlen, m_in);
+	size_t rtn = fread(buffer, 1, curlen, m_in);
 	if (rtn != curlen) return false;
 	len -= curlen;
 	CheckForBom(&buffer[0], curlen, &m_uninfo);
@@ -273,7 +273,7 @@ bool Packer::Pack()
 			curlen = 65536;
 		if (!curlen)
 			break;
-		int rtn = fread(buffer, 1, curlen, m_in);
+		size_t rtn = fread(buffer, 1, curlen, m_in);
 		len -= curlen;
 		if (rtn != curlen)
 			return false;
@@ -301,10 +301,15 @@ Packer::UnpackChar(unsigned int ch)
 	if (ch == m_escape)
 	{
 		WriteChar(m_escape);
-		WriteChar(m_escape);
+		TCHAR code[5];
+		_stprintf(code, _T("%02x"), ch);
+		for (int j=0; code[j] != 0; ++j)
+		{
+			WriteChar(code[j]);
+		}
 		return;
 	}
-	else if (ch < 0x20)
+	else if (ch < 0x20 || ch >= 0x7f)
 	{
 		if (ch != '\n'
 			&& ch != '\r'
@@ -332,7 +337,7 @@ Packer::WriteChar(unsigned int ch)
 	unsigned char oval = '?';
 	if (ch < 0x100)
 		oval = (unsigned char)ch;
-	int rtn = fwrite(&oval, 1, 1, m_out);
+	size_t rtn = fwrite(&oval, 1, 1, m_out);
 }
 
 // Log error to log file if available
@@ -346,6 +351,8 @@ Packer::LogError(LPCTSTR fmt, ...)
 	// so we can see error even tho logging not yet implemented
 	_vsntprintf(buffer, sizeof(buffer)/sizeof(buffer[0]), fmt, args);
 	va_end(args);
+
+	MergeApp_LogError(m_pMergeApp, buffer);
 
 	if (0)
 	{

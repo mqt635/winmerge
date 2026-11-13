@@ -9,7 +9,6 @@
 #include "ExConverter.h"
 #include "OptionsDef.h"
 #include "OptionsMgr.h"
-#include <cassert>
 
 namespace Options { namespace Font {
 
@@ -17,7 +16,7 @@ namespace Options { namespace Font {
  * @brief Initialize basic default values in a LOGFONT structure. 
  * A helper function for SetDefaults(); it should not be used otherwise.
  */
-void InitializeLogFont(LOGFONT &logfont, int lfHeight, int lfCharSet, int lfPitchAndFamily, String lfFaceName)
+void InitializeLogFont(LOGFONT &logfont, int lfHeight, int lfCharSet, int lfPitchAndFamily, const String& lfFaceName)
 {
 	logfont.lfHeight = lfHeight;
 	logfont.lfWidth = 0;
@@ -68,8 +67,7 @@ void Init(COptionsMgr *pOptionsMgr)
 	// that cannot be determined (why?), 9-point "Segoe UI" is used (typical since Win7).
 	LOGFONT fontDir = {0};
 	const int pointsDir = 9;
-	NONCLIENTMETRICS ncm = { 0 };
-	ncm.cbSize = sizeof(NONCLIENTMETRICS);
+	NONCLIENTMETRICS ncm{ sizeof(NONCLIENTMETRICS) };
 	if (SystemParametersInfo(SPI_GETNONCLIENTMETRICS, sizeof(NONCLIENTMETRICS), &ncm, 0))
 	{
 		const int lfHeight = -::MulDiv(pointsDir, logPixelsY, 72);

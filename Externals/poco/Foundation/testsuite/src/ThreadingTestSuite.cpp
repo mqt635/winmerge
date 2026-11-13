@@ -19,6 +19,8 @@
 #include "ActiveMethodTest.h"
 #include "ActiveDispatcherTest.h"
 #include "ConditionTest.h"
+#include "ActiveThreadPoolTest.h"
+#include "SpinlockMutexTest.h"
 
 
 CppUnit::Test* ThreadingTestSuite::suite()
@@ -35,6 +37,8 @@ CppUnit::Test* ThreadingTestSuite::suite()
 	pSuite->addTest(ActiveMethodTest::suite());
 	pSuite->addTest(ActiveDispatcherTest::suite());
 	pSuite->addTest(ConditionTest::suite());
+	pSuite->addTest(ActiveThreadPoolTest::suite());
+	pSuite->addTest(SpinlockMutexTest::suite());
 
 	return pSuite;
 }

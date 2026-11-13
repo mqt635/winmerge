@@ -1,0 +1,94 @@
+﻿[Messages]
+
+WizardInfoBefore=Acuerdo de licencia
+InfoBeforeLabel=GNU General Public License
+
+[CustomMessages]
+
+;Things we can also localize
+OptionalFeatures=Características opcionales:
+CompanyName=Thingamahoochie Software
+
+;Types
+TypicalInstallation=Instalación típica
+FullInstallation=Instalación completa
+CompactInstallation=Instalación compacta
+CustomInstallation=Instalación personalizada
+
+;Components
+AppCoreFiles=Ficheros básicos de WinMerge
+Filters=Filtros
+Plugins=Complementos
+ShellExtension32bit=Extensión del Explorador de 32-bit para WinMerge
+
+;Localization Components
+Languages=Idiomas
+ArabicLanguage=Menús y diálogos en árabe
+AzerbaijaniLanguage=Menús y diálogos en azerbaiyano
+BasqueLanguage=Menús y diálogos en vasco
+BulgarianLanguage=Menús y diálogos en búlgaro
+CatalanLanguage=Menús y diálogos en catalán
+ChineseSimplifiedLanguage=Menús y diálogos en chino (simplificado)
+ChineseTraditionalLanguage=Menús y diálogos en chino (tradicional)
+CorsicanLanguage=Menús y diálogos en corso
+CroatianLanguage=Menús y diálogos en croata
+CzechLanguage=Menús y diálogos en checo
+DanishLanguage=Menús y diálogos en danés
+DutchLanguage=Menús y diálogos en holandés
+FinnishLanguage=Menús y diálogos en finés
+FrenchLanguage=Menús y diálogos en francés
+GalicianLanguage=Menús y diálogos en gallego
+GermanLanguage=Menús y diálogos en alemán
+GreekLanguage=Menús y diálogos en griego
+HebrewLanguage=Menús y diálogos en hebreo
+HungarianLanguage=Menús y diálogos en húngaro
+ItalianLanguage=Menús y diálogos en italiano
+IndonesianLanguage=Indonesian menus and dialogs
+JapaneseLanguage=Menús y diálogos en japonés
+KoreanLanguage=Menús y diálogos en coreano
+LithuanianLanguage=Menús y diálogos en lituano
+NorwegianLanguage=Menús y diálogos en noruego
+PersianLanguage=Menús y diálogos en persa
+PolishLanguage=Menús y diálogos en polaco
+PortugueseBrazilLanguage=Menús y diálogos en portugués (Brasil)
+PortugueseLanguage=Menús y diálogos en portugués
+RomanianLanguage=Menús y diálogos en rumano
+RussianLanguage=Menús y diálogos en ruso
+SerbianLanguage=Menús y diálogos en serbio
+SinhalaLanguage=Menús y diálogos en cingalés
+SlovakLanguage=Menús y diálogos en eslovaco
+SlovenianLanguage=Menús y diálogos en esloveno
+SpanishLanguage=Menús y diálogos en español
+SwedishLanguage=Menús y diálogos en sueco
+TamilLanguage=Menús y diálogos en tamil
+TurkishLanguage=Menús y diálogos en turco
+UkrainianLanguage=Menús y diálogos en ucraniano
+VietnameseLanguage=Menús y diálogos en vietnamita
+
+;Tasks
+ExplorerContextMenu=Habilitar la integración con el menú contextual del &Explorador
+IntegrateTortoiseCVS=Integrar con &TortoiseCVS
+IntegrateTortoiseGit=Integrar con To&rtoiseGit
+IntegrateTortoiseSVN=Integrar con T&ortoiseSVN
+AddToPath=&Añadir la carpeta de WinMerge a la ruta del sistema
+
+; 3-way merge wizard page
+ThreeWayMergeWizardPageCaption=Combinación a 3 bandas
+ThreeWayMergeWizardPageDescription=¿Usa WinMerge como herramienta de combinación a 3 bandas para TortoiseSVN/Git?
+RegisterWinMergeAs3WayMergeTool=Registrar WinMerge como herramienta de combinación a 3 bandas
+MergeAtRightPane=Combinar en el panel derecho
+MergeAtCenterPane=Combinar en el panel central
+MergeAtLeftPane=Combinar en el panel izquierdo
+AutoMergeAtStartup=Combinar automáticamente al iniciar el sistema
+
+;Icon Labels
+ReadMe=Léame
+UsersGuide=Manual de usuario
+ViewStartMenuFolder=&Vea la carpeta de WinMerge del menú Inicio
+
+;Code Dialogs
+DeletePreviousStartMenu=El instalador ha detectado que se cambió la ubicación del menú Inicio de "%s" a "%s". ¿Quiere eliminar la anterior carpeta del menú Inicio?
+ExplorerNeedsRestart=La extensión del intérprete de órdenes de Winmerge necesita reiniciar el Explorador para actualizarse. ¿Desea reiniciarlo?
+
+; Project file description
+ProjectFileDesc=Fichero del proyecto de WinMerge

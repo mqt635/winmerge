@@ -9,8 +9,10 @@
 #include "stdafx.h"
 #include "AboutDlg.h"
 #include "TrDialogs.h"
-#include "Bitmap.h"
+#include "paths.h"
+#include "Environment.h"
 #include "resource.h" // IDD_ABOUTBOX
+#include "DarkModeLib.h"
 
  // https://www.gnu.org/graphics/gnu-ascii.html
  // Copyright (c) 2001 Free Software Foundation, Inc.
@@ -80,7 +82,7 @@ CAboutDlg::Impl::Impl(CAboutDlg *p, CWnd* pParent /*= nullptr*/)
 	: CTrDialog(CAboutDlg::Impl::IDD)
 	, m_p(p)
 {
-	m_font.CreatePointFont(10 * 10, _T("Tahoma"));
+	m_font.CreatePointFont(9 * 10, _T("Tahoma"));
 	LOGFONT lf = { 0 };
 	lf.lfHeight = 14 * 10;
 	lf.lfWeight = FW_BOLD;
@@ -100,11 +102,12 @@ void CAboutDlg::Impl::DoDataExchange(CDataExchange* pDX)
 /** 
  * @brief Read version info from resource to dialog.
  */
-BOOL CAboutDlg::Impl::OnInitDialog() 
+BOOL CAboutDlg::Impl::OnInitDialog()
 {
 	CTrDialog::OnInitDialog();
 
-	if (!LoadImageFromResource(m_image, MAKEINTRESOURCE(IDR_SPLASH), _T("IMAGE")))
+	HRESULT hr = m_image.Load(paths::ConcatPath(env::GetProgPath(), _T("Resources\\splash.png")).c_str());
+	if (FAILED(hr))
 	{
 		// FIXME: LoadImageFromResource() seems to fail when running on Wine 5.0.
 	}
@@ -116,10 +119,21 @@ BOOL CAboutDlg::Impl::OnInitDialog()
 	String link;
 	GetDlgItemText(IDC_WWW, link);
 	link = _T("<a href=\"") + m_p->m_info.website + _T("\">") + link + _T("</a>");
-	SetDlgItemText(IDC_WWW, link);	
+	SetDlgItemText(IDC_WWW, link);
 
 	UpdateData(FALSE);
-	
+
+	if (DarkMode::isExperimentalActive())
+		WinMergeDarkMode::InvertLightness(m_image);
+
+	if (HWND hLink = GetDlgItem(IDC_WWW)->GetSafeHwnd())
+		DarkMode::enableSysLinkCtrlCtlColor(hLink);
+
+	if (HWND hSelf = m_hWnd)
+	{
+		DarkMode::removeWindowEraseBgSubclass(hSelf);
+		WinMergeDarkMode::SetAsciiArtSubclass(hSelf);
+	}
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
@@ -128,10 +142,21 @@ HBRUSH CAboutDlg::Impl::OnCtlColor(CDC* pDC, CWnd* pWnd, UINT nCtlColor)
 {
 	if (nCtlColor == CTLCOLOR_STATIC)
 	{
-		if (pWnd->GetDlgCtrlID() == IDC_GNU_ASCII)
+		const int ctrlId = pWnd->GetDlgCtrlID();
+		if (ctrlId == IDC_GNU_ASCII)
+		{
 			pDC->SetTextColor(RGB(128, 128, 128));
-		pDC->SetBkMode(TRANSPARENT);
-		return (HBRUSH)GetStockObject(NULL_BRUSH);
+			pDC->SetBkMode(TRANSPARENT);
+			return (HBRUSH)GetStockObject(NULL_BRUSH);
+		}
+		else if (ctrlId == IDC_COMPANY)
+		{
+			return (HBRUSH)GetStockObject(NULL_BRUSH);
+		}
+		else if (ctrlId == IDC_VERSION)
+		{
+			return (HBRUSH)GetStockObject(WHITE_BRUSH);
+		}
 	}
 	return CTrDialog::OnCtlColor(pDC, pWnd, nCtlColor);
 }
@@ -145,7 +170,7 @@ BOOL CAboutDlg::Impl::OnEraseBkgnd(CDC* pDC)
 	GetDlgItem(IDC_COMPANY)->GetWindowRect(&rcCompany);
 	ScreenToClient(&rcCompany);
 	rc.top = rcCompany.bottom;
-	pDC->FillSolidRect(&rc, GetSysColor(COLOR_BTNFACE));
+	pDC->FillSolidRect(&rc, DarkMode::isEnabled() ? DarkMode::getDlgBackgroundColor() : GetSysColor(COLOR_BTNFACE));
 	rc.bottom = rc.top;
 	rc.top = 0;
 	m_image.Draw(pDC->m_hDC, rc, Gdiplus::InterpolationModeBicubic);
@@ -164,11 +189,10 @@ void CAboutDlg::Impl::OnBnClickedOpenContributors()
 
 void CAboutDlg::Impl::OnBnClickedWWW(NMHDR *pNMHDR, LRESULT *pResult)
 {
-	PNMLINK pNMLink = (PNMLINK)pNMHDR;
 	int tmp = 0;
 	m_p->m_onclick_url.notify(m_p, tmp);
 }
 
 CAboutDlg::CAboutDlg() : m_pimpl(new CAboutDlg::Impl(this)) {}
-CAboutDlg::~CAboutDlg() {}
+CAboutDlg::~CAboutDlg() = default;
 int CAboutDlg::DoModal() { return static_cast<int>(m_pimpl->DoModal()); }

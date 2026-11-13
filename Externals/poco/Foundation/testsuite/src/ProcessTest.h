@@ -30,7 +30,9 @@ public:
 	void testLaunchRedirectOut();
 	void testLaunchEnv();
 	void testLaunchArgs();
+	void testLaunchInvalidCommand();
 	void testIsRunning();
+	void testLaunchCloseHandles();
 
 	void setUp();
 	void tearDown();
@@ -38,6 +40,7 @@ public:
 	static CppUnit::Test* suite();
 
 private:
+	static std::string getFullName(const std::string& name);
 };
 
 

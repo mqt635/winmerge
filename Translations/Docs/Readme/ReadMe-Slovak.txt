@@ -1,27 +1,27 @@
-WINMERGE
+ï»¿WINMERGE
 
-WinMerge je nástroj s otvorenım zdrojom na porovnávanie a zluèovanie pre Windows. WinMerge môe porovnáva prieèinky aj súbory a zobrazuje rozdiely vo forme vizuálneho textu, èo je ¾ahké na pochopenie a zvládnutie. WinMerge môe by pouitı ako externı nástroj na zistenie rozdielov/zlúèenie alebo ako samostatná aplikácia.
+WinMerge je nÃ¡stroj s otvorenÃ½m zdrojom na porovnÃ¡vanie a zluÄovanie pre Windows. WinMerge mÃ´Å¾e porovnÃ¡vaÅ¥ prieÄinky aj sÃºbory a zobrazuje rozdiely vo forme vizuÃ¡lneho textu, Äo je Ä¾ahkÃ© na pochopenie a zvlÃ¡dnutie. WinMerge mÃ´Å¾e byÅ¥ pouÅ¾itÃ½ ako externÃ½ nÃ¡stroj na zistenie rozdielov/zlÃºÄenie alebo ako samostatnÃ¡ aplikÃ¡cia.
 
-WinMerge má mnoho uitoènıch podpornıch funkcií na èo najjednoduchšie a najuitoènejšie porovnávanie, synchronizáciu a zlúèenie. Nieko¾ko programovacích jazykov a ostatné formáty súborov majú zvırazòovanú syntaxu.
+WinMerge mÃ¡ mnoho uÅ¾itoÄnÃ½ch podpornÃ½ch funkciÃ­ na Äo najjednoduchÅ¡ie a najuÅ¾itoÄnejÅ¡ie porovnÃ¡vanie, synchronizÃ¡ciu a zlÃºÄenie. NiekoÄ¾ko programovacÃ­ch jazykov a ostatnÃ© formÃ¡ty sÃºborov majÃº zvÃ½razÅˆovanÃº syntaxu.
 
-Najnovšia verzia WinMerge a informácie o WinMerge sú k dispozícii na stránke https://winmerge.org/.
+NajnovÅ¡ia verzia WinMerge a informÃ¡cie o WinMerge sÃº k dispozÃ­cii na strÃ¡nke https://winmerge.org/.
 
-Rıchle spustenie
+RÃ½chle spustenie
 ================
-Ak sa chcete dozvedie, ako vykona základné operácie po inštalácii programu WinMerge, kliknite na Pomocník>Pomocník WinMerge a prejdite na tému Rıchle spustenie, alebo prejdite na internetovú verziu na stránke https://manual.winmerge.org/QuickStart.html
+Ak sa chcete dozvedieÅ¥, ako vykonaÅ¥ zÃ¡kladnÃ© operÃ¡cie po inÅ¡talÃ¡cii programu WinMerge, kliknite na PomocnÃ­k>PomocnÃ­k WinMerge a prejdite na tÃ©mu RÃ½chle spustenie, alebo prejdite na internetovÃº verziu na strÃ¡nke https://manual.winmerge.org/Quick_start.html
 
-Pomocník WinMerge
+PomocnÃ­k WinMerge
 =================
-Pomocník WinMerge sa inštaluje lokálne ako súbor pomoci HTML spoloènosti Microsoft, WinMerge.chm, pri inštalácii WinMerge. Ak chcete otvori Pomocníka, kliknite na  Pomocník>Pomocník WinMerge alebo stlaète kláves F1 v okne WinMerge. V príkazovom riadku spustite WinMerge s parametrom /? prepínaè pomocníka.
+PomocnÃ­k WinMerge sa inÅ¡taluje lokÃ¡lne ako sÃºbor pomoci HTML spoloÄnosti Microsoft, WinMerge.chm, pri inÅ¡talÃ¡cii WinMerge. Ak chcete otvoriÅ¥ PomocnÃ­ka, kliknite na  PomocnÃ­k>PomocnÃ­k WinMerge alebo stlaÄte klÃ¡ves F1 v okne WinMerge. V prÃ­kazovom riadku spustite WinMerge s parametrom /? prepÃ­naÄ pomocnÃ­ka.
 
 Podpora WinMerge
 ================
-Máte otázky alebo návrhy tıkajúce sa WinMerge? Pre zaèiatok je dobrım miestom nástenka komunity WinMerge na https://forums.winmerge.org/. Vıvojári èasto èítajú a odpovedajú na otázky na oboch fórach. Pouite otvorenú diskusiu fóra pre všeobecné problémy WinMerge, napríklad otázky tıkajúce sa pouívania. Pouívajte fórum vıvojárov pri problémoch s vıvojom WinMerge.
+MÃ¡te otÃ¡zky alebo nÃ¡vrhy tÃ½kajÃºce sa WinMerge? Pre zaÄiatok je dobrÃ½m miestom nÃ¡stenka komunity WinMerge na https://github.com/WinMerge/winmerge/discussions. VÃ½vojÃ¡ri Äasto ÄÃ­tajÃº a odpovedajÃº na otÃ¡zky na oboch fÃ³rach. PouÅ¾ite otvorenÃº diskusiu fÃ³ra pre vÅ¡eobecnÃ© problÃ©my WinMerge, naprÃ­klad otÃ¡zky tÃ½kajÃºce sa pouÅ¾Ã­vania. PouÅ¾Ã­vajte fÃ³rum vÃ½vojÃ¡rov pri problÃ©moch s vÃ½vojom WinMerge.
 
-Chyby a poiadavky na funkènos
+Chyby a poÅ¾iadavky na funkÄnosÅ¥
 ==============================
-Ak sa problém nevyrieši na fóre WinMerge, skontrolujte sledovaè projektu: prejdite na https://project.winmerge.org/ a kliknite na odkaz sledovaèa na ponuku, ako sú napríklad chyby a poiadavky na funkènos, kde môete prezera alebo odosiela poloky. 
+Ak sa problÃ©m nevyrieÅ¡i na fÃ³re WinMerge, skontrolujte sledovaÄ projektu: prejdite na https://github.com/WinMerge/winmerge/issues a kliknite na odkaz sledovaÄa na ponuku, ako sÃº naprÃ­klad chyby a poÅ¾iadavky na funkÄnosÅ¥, kde mÃ´Å¾ete prezeraÅ¥ alebo odosielaÅ¥ poloÅ¾ky. 
 
-Pri odosielaní chyby, uveïte vo svojej správe èíslo verzie WinMerge. Protokol konfigurácie môete vygenerova kliknutím na poloku Pomocník>Konfigurácia. Pripojte protokol konfigurácie k hláseniu o chybe; obsahuje ve¾a uitoènıch informácií pre vıvojárov.
+Pri odosielanÃ­ chyby, uveÄte vo svojej sprÃ¡ve ÄÃ­slo verzie WinMerge. Protokol konfigurÃ¡cie mÃ´Å¾ete vygenerovaÅ¥ kliknutÃ­m na poloÅ¾ku PomocnÃ­k>KonfigurÃ¡cia. Pripojte protokol konfigurÃ¡cie k hlÃ¡seniu o chybe; obsahuje veÄ¾a uÅ¾itoÄnÃ½ch informÃ¡ciÃ­ pre vÃ½vojÃ¡rov.
 
-- Vıvojári WinMerge
+- VÃ½vojÃ¡ri WinMerge

@@ -6,6 +6,9 @@
 #pragma once
 
 #include "OptionsPanel.h"
+#include "SuperComboBox.h"
+#include "ValidatingEdit.h"
+#include "FilterEngine/FilterExpression.h"
 
 class COptionsMgr;
 
@@ -32,6 +35,13 @@ public:
 	virtual void ReadOptions() override;
 	virtual void WriteOptions() override;
 
+	CSuperComboBox m_ctlAdditionalCompareCondition;
+	CValidatingEdit m_ctlAdditionalCompareConditionEdit;
+	std::unique_ptr<FilterExpression> m_pAdditionalCompareCondition;
+	CSuperComboBox m_ctlRenameMoveKey;
+	CValidatingEdit m_ctlRenameMoveKeyEdit;
+	std::unique_ptr<FilterExpression> m_pRenameMoveKey;
+
 // Dialog Data
 	//{{AFX_DATA(PropCompareFolder)
 	enum { IDD = IDD_PROPPAGE_COMPARE_FOLDER };
@@ -40,11 +50,16 @@ public:
 	bool    m_bIgnoreSmallTimeDiff;
 	bool    m_bIncludeUniqFolders;
 	bool    m_bIncludeSubdirs;
-	bool    m_bExpandSubdirs;
 	bool    m_bIgnoreReparsePoints;
 	unsigned m_nQuickCompareLimit;
 	unsigned m_nBinaryCompareLimit;
+	int     m_nExpandSubdirs;
 	int     m_nCompareThreads;
+	int     m_nCompareThreadsPrev;
+	String  m_sAdditionalCompareCondition;
+	int     m_nRenameMoveDetection;
+	String  m_sRenameMoveKey;
+	int     m_nRenameMoveMergeMode;
 	//}}AFX_DATA
 
 
@@ -60,9 +75,14 @@ protected:
 	// Generated message map functions
 	//{{AFX_MSG(CPropCompare)
 	afx_msg BOOL OnInitDialog() override;
-	afx_msg void OnDefaults();
+	afx_msg void OnDefaults() override;
 	afx_msg void OnCbnSelchangeComparemethodcombo();
 	afx_msg void OnBnClickedRecursCheck();
+	afx_msg void OnCbnSelchangeRenameMoveDetection();
+	afx_msg void OnEditChangeAdditionalCompareCondition();
+	afx_msg void OnBnClickedAdditionalCompareConditionMenu();
+	afx_msg void OnEditChangeRenameMoveKey();
+	afx_msg void OnBnClickedRenameMoveKeyMenu();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 	void UpdateControls();

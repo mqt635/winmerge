@@ -7,7 +7,7 @@
 #pragma once
 
 #include <vector>
-#include <Windows.h>
+#include <windows.h>
 #include <ShellAPI.h>
 #include "UnicodeString.h"
 
@@ -30,7 +30,7 @@ public:
 	void Reset();
 
 protected:
-	std::vector<TCHAR> GetPathList(bool source) const;
+	std::vector<tchar_t> GetPathList(bool source) const;
 	size_t CountStringSize(bool source) const;
 
 private:

@@ -28,14 +28,15 @@
 
 #include "StdAfx.h"
 #include "scbarcf.h"
+#include "RoundedRectWithShadow.h"
 
 /////////////////////////////////////////////////////////////////////////
 // CSizingControlBarCF
 
 IMPLEMENT_DYNAMIC(CSizingControlBarCF, baseCSizingControlBarCF);
 
-int CALLBACK EnumFontFamProc(ENUMLOGFONT FAR *lpelf,
-                             NEWTEXTMETRIC FAR *lpntm,
+int CALLBACK EnumFontFamProc(ENUMLOGFONT* lpelf,
+                             NEWTEXTMETRIC* lpntm,
                              int FontType,
                              LPARAM lParam)
 {
@@ -67,7 +68,7 @@ END_MESSAGE_MAP()
 
 void CSizingControlBarCF::OnUpdateCmdUI(CFrameWnd* pTarget, BOOL bDisableIfNoHndler)
 {
-    baseCSizingControlBarCF::OnUpdateCmdUI(pTarget, bDisableIfNoHndler);
+    __super::OnUpdateCmdUI(pTarget, bDisableIfNoHndler);
 
     if (!HasGripper())
         return;
@@ -77,7 +78,7 @@ void CSizingControlBarCF::OnUpdateCmdUI(CFrameWnd* pTarget, BOOL bDisableIfNoHnd
     CWnd* pFocus = GetFocus();
     bool bActiveOld = m_bActive;
 
-    m_bActive = (pFocus->GetSafeHwnd() && IsChild(pFocus));
+    m_bActive = (pFocus && pFocus->GetSafeHwnd() && IsChild(pFocus));
 
     if (m_bActive != bActiveOld)
         bNeedPaint = true;
@@ -86,7 +87,7 @@ void CSizingControlBarCF::OnUpdateCmdUI(CFrameWnd* pTarget, BOOL bDisableIfNoHnd
         SendMessage(WM_NCPAINT);
 }
 
-void CSizingControlBarCF::NcPaintGripper(CDC* pDC, CRect rcClient)
+void CSizingControlBarCF::NcPaintGripper(CDC* pDC, const CRect& rcClient)
 {
     if (!HasGripper())
         return;
@@ -113,62 +114,12 @@ void CSizingControlBarCF::NcPaintGripper(CDC* pDC, CRect rcClient)
 
     // draw the caption background
     //CBrush br;
-    COLORREF clrCptn = m_bActive ?
-        ::GetSysColor(COLOR_ACTIVECAPTION) :
-        ::GetSysColor(COLOR_INACTIVECAPTION);
-
-    // query gradient info (usually TRUE for Win98/Win2k)
-    BOOL bGradient = FALSE;
-    ::SystemParametersInfo(SPI_GETGRADIENTCAPTIONS, 0, &bGradient, 0);
-    
-    if (!bGradient)
-        pDC->FillSolidRect(&rcGrip, clrCptn); // solid color
-    else
-    {
-        // gradient from left to right or from bottom to top
-        // get second gradient color (the right end)
-        COLORREF clrCptnRight = m_bActive ?
-            ::GetSysColor(COLOR_GRADIENTACTIVECAPTION) :
-            ::GetSysColor(COLOR_GRADIENTINACTIVECAPTION);
-
-        // this will make 2^6 = 64 fountain steps
-        int nShift = 6;
-        int nSteps = 1 << nShift;
-
-        for (int i = 0; i < nSteps; i++)
-        {
-            // do a little alpha blending
-            int nR = (GetRValue(clrCptn) * (nSteps - i) +
-                      GetRValue(clrCptnRight) * i) >> nShift;
-            int nG = (GetGValue(clrCptn) * (nSteps - i) +
-                      GetGValue(clrCptnRight) * i) >> nShift;
-            int nB = (GetBValue(clrCptn) * (nSteps - i) +
-                      GetBValue(clrCptnRight) * i) >> nShift;
-
-            COLORREF cr = RGB(nR, nG, nB);
-
-            // then paint with the resulting color
-            CRect r2 = rcGrip;
-            if (bHorz)
-            {
-                r2.bottom = rcGrip.bottom - 
-                    ((i * rcGrip.Height()) >> nShift);
-                r2.top = rcGrip.bottom - 
-                    (((i + 1) * rcGrip.Height()) >> nShift);
-                if (r2.Height() > 0)
-                    pDC->FillSolidRect(r2, cr);
-            }
-            else
-            {
-                r2.left = rcGrip.left + 
-                    ((i * rcGrip.Width()) >> nShift);
-                r2.right = rcGrip.left + 
-                    (((i + 1) * rcGrip.Width()) >> nShift);
-                if (r2.Width() > 0)
-                    pDC->FillSolidRect(r2, cr);
-            }
-        }
-    }
+    const COLORREF clrCptn = m_bActive ?
+        ::GetSysColor(COLOR_GRADIENTACTIVECAPTION) :
+        ::GetSysColor(COLOR_GRADIENTINACTIVECAPTION);
+    const COLORREF clrBack = ::GetSysColor(COLOR_3DFACE);
+    const int radius = pointToPixel(2.25);
+    DrawRoundedRect(pDC->m_hDC, rcGrip.left, rcGrip.top, rcGrip.Width(), rcGrip.Height(), radius, clrCptn, clrBack);
 
     // draw the caption text - first select a font
     CFont font;
@@ -215,7 +166,7 @@ void CSizingControlBarCF::NcPaintGripper(CDC* pDC, CRect rcClient)
 
 LRESULT CSizingControlBarCF::OnSetText(WPARAM wParam, LPARAM lParam)
 {
-    LRESULT lResult = baseCSizingControlBarCF::OnSetText(wParam, lParam);
+    LRESULT lResult = __super::OnSetText(wParam, lParam);
 
     SendMessage(WM_NCPAINT);
 

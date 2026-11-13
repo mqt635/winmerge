@@ -10,7 +10,9 @@
 #include "UnicodeString.h"
 #include "paths.h"
 #include "TFile.h"
+#include "Logger.h"
 #include "DebugNew.h"
+#include <filesystem>
 
 /**
  * @brief Set filename and path for the item.
@@ -50,7 +52,7 @@ bool DirItem::Update(const String &sFilePath)
 	flags.reset();
 	mtime = 0;
 
-	if (!sFilePath.empty())
+	if (!sFilePath.empty() && !paths::IsURL(sFilePath))
 	{
 		try
 		{
@@ -69,6 +71,30 @@ bool DirItem::Update(const String &sFilePath)
 
 			flags.attributes = GetFileAttributes(file.wpath().c_str());
 
+			retVal = true;
+		}
+		catch (Poco::Exception& e)
+		{
+			RootLogger::Warn(e.displayText());
+		}
+	}
+	return retVal;
+}
+
+/**
+ * @brief Update filename from given file.
+ * @param [in] sFilePath Full path to file/directory to update
+ * @return true if information was updated (item was found).
+ */
+bool DirItem::UpdateFileName(const String& sFilePath)
+{
+	bool retVal = false;
+	if (!sFilePath.empty())
+	{
+		try
+		{
+			std::filesystem::path canonicalPath = std::filesystem::canonical(sFilePath);
+			filename = canonicalPath.filename();
 			retVal = true;
 		}
 		catch (...)
@@ -97,4 +123,13 @@ void DirItem::ClearPartial()
 	mtime = 0;
 	size = DirItem::FILE_SIZE_NONE;
 	flags.reset();
+}
+
+/**
+ * @brief Return whether the item is a directory.
+ * @return true if the item is a directory.
+ */
+bool DirItem::IsDirectory() const
+{
+	return ((flags.attributes & FILE_ATTRIBUTE_DIRECTORY) == FILE_ATTRIBUTE_DIRECTORY);
 }

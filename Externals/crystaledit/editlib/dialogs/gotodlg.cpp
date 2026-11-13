@@ -56,7 +56,7 @@ void CGotoDlg::OnOK ()
 {
   CDialog::OnOK ();
   ASSERT (m_pBuddy != nullptr);
-  m_pBuddy->GoToLine (_ttoi (m_sNumber), _tcschr (_T ("+-"), *(LPCTSTR)m_sNumber) != nullptr);
+  m_pBuddy->GoToLine (tc::ttoi (m_sNumber), tc::tcschr (_T ("+-"), *(const tchar_t*)m_sNumber) != nullptr);
 }
 
 void CGotoDlg::
@@ -71,6 +71,7 @@ BOOL CGotoDlg::
 OnInitDialog ()
 {
   CDialog::OnInitDialog ();
+  LangTranslateDialog(m_hWnd);
 
   GetDlgItem (IDOK)->EnableWindow (!m_sNumber.IsEmpty ());
 

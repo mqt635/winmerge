@@ -1,4 +1,4 @@
-WINMERGE
+﻿WINMERGE
 
 WinMerge este un utilitar cu Sursă Deschisă de comparare şi fuziune 
 de fişiere care rulează pe toate versiunile moderne ale sistemului
@@ -12,7 +12,7 @@ https://winmerge.org
 Start rapid către utilizarea WinMerge:
 Citiţi capitolul Quick-start din manualul on-line pentru a vă
 familiariza cu WinMerge:
-https://manual.winmerge.org/QuickStart.html
+https://manual.winmerge.org/Quick_start.html
 
 Manualul HTML:
 Manualul este disponibil la
@@ -28,15 +28,15 @@ https://msdn.microsoft.com/library/default.asp?url=/downloads/list/webdev.asp
 şi verificaţi daca Windows Scripting Host este la zi şi funcţionabil.
 
 Suport:
-Dezvoltatorii răspund la întrebări pe forumul WinMerge de la Sourceforge.net:
-https://sourceforge.net/forum/?group_id=13216
+Dezvoltatorii răspund la întrebări pe forumul WinMerge de la GitHub:
+https://github.com/WinMerge/winmerge/discussions
 
 Defecte şi solicitarea de noi funcţionalităţi:
 Defectele şi solicitarea de noi funcţionalităţi trebuie înregistrate pe
-listele de Defecte (Bugs) şi Funcţionalităţi (RFE) de la sourceforge.net.
+listele de Defecte (Bugs) şi Funcţionalităţi (RFE) de la GitHub.
 
 Lista de defecte:
-https://sourceforge.net/tracker/?group_id=13216&atid=113216
+https://github.com/WinMerge/winmerge/issues
 Atunci când înregistraţi un defect, vă rugăm să ne spuneţi versiunea de
 WinMerge pe care o folosiţi! WinMerge versiunea 2.2.0 sau mai noi pot
 scrie configurarea sub care rulează într-un fişier.
@@ -45,7 +45,7 @@ Vă rugăm să ataşaţi şi această informaţie (ca un ataşament) la raportar
 dumneavoastră, conţine informaţii pentru dezvoltatori.
 
 Lista pentru înregistratea de solicitări de noi funcţionalităţi (RFE):
-https://sourceforge.net/tracker/?group_id=13216&atid=363216
+https://github.com/WinMerge/winmerge/issues
 
 
 - Dezvoltatorii WinMerge

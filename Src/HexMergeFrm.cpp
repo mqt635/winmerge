@@ -13,15 +13,17 @@
 
 #include "stdafx.h"
 #include "HexMergeFrm.h"
-#include "Merge.h"
 #include "HexMergeDoc.h"
 #include "HexMergeView.h"
 #include "OptionsDef.h"
 #include "OptionsMgr.h"
+#include "SplitterPositions.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
+
+#define SWAPPARAMS_IF(c, a, b) (c ? a : b), (c ? b : a)
 
 /////////////////////////////////////////////////////////////////////////////
 // CHexMergeFrame
@@ -36,10 +38,15 @@ BEGIN_MESSAGE_MAP(CHexMergeFrame, CMergeFrameCommon)
 	ON_MESSAGE_VOID(WM_IDLEUPDATECMDUI, OnIdleUpdateCmdUI)
 	ON_MESSAGE(MSG_STORE_PANESIZES, OnStorePaneSizes)
 	// [View] menu
+	ON_COMMAND(ID_VIEW_SPLITVERTICALLY, OnViewSplitVertically)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_SPLITVERTICALLY, OnUpdateViewSplitVertically)
 	//ON_UPDATE_COMMAND_UI(ID_VIEW_DETAIL_BAR, OnUpdateControlBarMenu)
 	//ON_COMMAND_EX(ID_VIEW_DETAIL_BAR, OnBarCheck)
 	//ON_UPDATE_COMMAND_UI(ID_VIEW_LOCATION_BAR, OnUpdateControlBarMenu)
 	//ON_COMMAND_EX(ID_VIEW_LOCATION_BAR, OnBarCheck)
+	// [Window] menu
+	ON_COMMAND(ID_WINDOW_PRESERVE_SPLITTER_RATIOS, OnWindowPreserveSplitterPosition)
+	ON_UPDATE_COMMAND_UI(ID_WINDOW_PRESERVE_SPLITTER_RATIOS, OnUpdateWindowPreserveSplitterPosition)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -79,9 +86,9 @@ void CHexMergeFrame::CreateHexWndStatusBar(CStatusBar &wndStatusBar, CWnd *pwndP
 	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
 	wndStatusBar.Create(pwndPane, WS_CHILD|WS_VISIBLE);
 	wndStatusBar.SetIndicators(0, 3);
-	wndStatusBar.SetPaneInfo(0, 0, SBPS_STRETCH, 0);
-	wndStatusBar.SetPaneInfo(1, 0, 0, pointToPixel(60));
-	wndStatusBar.SetPaneInfo(2, 0, 0, pointToPixel(60));
+	wndStatusBar.SetPaneInfo(0, 0, SBPS_STRETCH | SBPS_CLICKABLE, 0);
+	wndStatusBar.SetPaneInfo(1, 0, SBPS_CLICKABLE, pointToPixel(60));
+	wndStatusBar.SetPaneInfo(2, 0, SBPS_CLICKABLE, pointToPixel(60));
 	wndStatusBar.SetParent(this);
 	wndStatusBar.SetWindowPos(&wndBottom, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
 }
@@ -93,9 +100,10 @@ BOOL CHexMergeFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 	CCreateContext* pContext)
 {
 	m_pMergeDoc = dynamic_cast<CHexMergeDoc *>(pContext->m_pCurrentDoc);
+	bool bSplitVert = !GetOptionsMgr()->GetBool(OPT_SPLIT_HORIZONTALLY);
 
 	// create a splitter with 1 row, 2 columns
-	if (!m_wndSplitter.CreateStatic(this, 1, m_pMergeDoc->m_nBuffers, WS_CHILD | WS_VISIBLE | WS_HSCROLL | WS_VSCROLL) )
+	if (!m_wndSplitter.CreateStatic(this, SWAPPARAMS_IF(bSplitVert, 1, m_pMergeDoc->m_nBuffers), WS_CHILD | WS_VISIBLE | WS_HSCROLL | WS_VSCROLL) )
 	{
 		TRACE0("Failed to CreateStaticSplitter\n");
 		return FALSE;
@@ -104,7 +112,7 @@ BOOL CHexMergeFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 	int nPane;
 	for (nPane = 0; nPane < m_pMergeDoc->m_nBuffers; nPane++)
 	{
-		if (!m_wndSplitter.CreateView(0, nPane,
+		if (!m_wndSplitter.CreateView(SWAPPARAMS_IF(bSplitVert, 0, nPane),
 			RUNTIME_CLASS(CHexMergeView), CSize(-1, 200), pContext))
 		{
 			TRACE0("Failed to create first pane\n");
@@ -126,6 +134,25 @@ BOOL CHexMergeFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 	m_wndFilePathBar.SetOnSetFocusCallback([&](int pane) {
 		SetActivePane(pane);
 	});
+	m_wndFilePathBar.SetOnCaptionChangedCallback([this](int pane, const String& sText) {
+		m_pMergeDoc->SetDescription(pane ,sText);
+		m_pMergeDoc->UpdateHeaderPath(pane);
+		GetView(pane)->SetFocus();
+	});
+	m_wndFilePathBar.SetOnFileSelectedCallback([this](int pane, const String& sFilepath, const String& sDescription) {
+		if (m_pMergeDoc->ChangeFile(pane, sFilepath, sDescription))
+		{
+			GetView(pane)->SetFocus();
+			// Only add to MRU if description is empty (i.e., not from clipboard history)
+			if (sDescription.empty())
+				MruHelper::addToMru(pane, sFilepath);
+		}
+	});
+	m_wndFilePathBar.SetOnFileSaveCallback([&](int pane) {
+		const int id = (m_pMergeDoc->m_nBuffers < 3 && pane == 1) ? ID_FILE_SAVE_RIGHT : ID_FILE_SAVE_LEFT + pane;
+		PostMessage(WM_COMMAND, id);
+	});
+	m_wndFilePathBar.SetDefaultHistoryCallbacks();
 
 	// Set filename bars inactive so colors get initialized
 	for (nPane = 0; nPane < m_pMergeDoc->m_nBuffers; nPane++)
@@ -133,7 +160,7 @@ BOOL CHexMergeFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 
 	CHexMergeView *pView[3];
 	for (nPane = 0; nPane < m_pMergeDoc->m_nBuffers; nPane++)
-		pView[nPane] = static_cast<CHexMergeView *>(m_wndSplitter.GetPane(0, nPane));
+		pView[nPane] = static_cast<CHexMergeView *>(m_wndSplitter.GetPane(SWAPPARAMS_IF(bSplitVert, 0, nPane)));
 
 	for (nPane = 0; nPane < m_pMergeDoc->m_nBuffers; nPane++)
 		CreateHexWndStatusBar(m_wndStatusBar[nPane], pView[nPane]);
@@ -170,6 +197,9 @@ BOOL CHexMergeFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 	m_pMergeDoc->SetMergeViews(pView);
 	m_pMergeDoc->RefreshOptions();
 
+	// Load splitter positions
+	LoadOptions();
+
 	return TRUE;
 }
 
@@ -184,7 +214,7 @@ void CHexMergeFrame::ActivateFrame(int nCmdShow)
 /**
  * @brief Save the window's position, free related resources, and destroy the window
  */
-BOOL CHexMergeFrame::DestroyWindow() 
+BOOL CHexMergeFrame::DestroyWindow()
 {
 	SavePosition();
 	SaveActivePane();
@@ -204,11 +234,13 @@ BOOL CHexMergeFrame::DestroyWindow()
  */
 void CHexMergeFrame::SavePosition()
 {
+	// Save splitter positions
+	SaveOptions();
 }
 
 void CHexMergeFrame::SaveActivePane()
 {
-	if (CWnd* pLeft = m_wndSplitter.GetPane(0, 0))
+	if (m_wndSplitter.GetPane(0, 0))
 	{
 		GetOptionsMgr()->SaveOption(OPT_ACTIVE_PANE, GetActivePane());
 	}
@@ -230,28 +262,59 @@ void CHexMergeFrame::OnSize(UINT nType, int cx, int cy)
 	UpdateHeaderSizes();
 }
 
+void CHexMergeFrame::LoadOptions()
+{
+	const bool horizontal = m_wndSplitter.GetColumnCount() != 1;
+	SplitterPositions::LoadPaneRatio(OPT_CMP_BIN_SPLITTER_RATIOS, 0, m_pMergeDoc->m_nBuffers,
+		[this, horizontal](const double* positions, int count) {
+			m_wndSplitter.SetSplitterRatios(positions, count, horizontal);
+		});
+}
+
+void CHexMergeFrame::SaveOptions()
+{
+	const bool horizontal = m_wndSplitter.GetColumnCount() != 1;
+	if (!GetOptionsMgr()->GetString(OPT_CMP_BIN_SPLITTER_RATIOS).empty())
+		SplitterPositions::SavePaneRatios(OPT_CMP_BIN_SPLITTER_RATIOS, 0, m_pMergeDoc->m_nBuffers,
+			[this, horizontal](int i) {
+				return m_wndSplitter.GetSplitterRatio(i, horizontal);
+			});
+}
+
 /// update splitting position for panels 1/2 and headerbar and statusbar 
 void CHexMergeFrame::UpdateHeaderSizes()
 {
 	if (!m_wndSplitter.m_hWnd || !m_wndFilePathBar.m_hWnd)
 		return;
+	CRect rcFrame;
+	GetClientRect(&rcFrame);
 	int w[3],wmin;
 	int nPaneCount = m_wndSplitter.GetColumnCount();
-	for (int pane = 0; pane < nPaneCount; pane++)
+	if (nPaneCount > 1)
 	{
-		m_wndSplitter.GetColumnInfo(pane, w[pane], wmin);
-		if (w[pane]<1) w[pane]=1; // Perry 2003-01-22 (I don't know why this happens)
+		for (int pane = 0; pane < nPaneCount; pane++)
+		{
+			m_wndSplitter.GetColumnInfo(pane, w[pane], wmin);
+			if (w[pane]<1) w[pane]=1; // Perry 2003-01-22 (I don't know why this happens)
+		}
+	}
+	else
+	{
+		nPaneCount = m_wndSplitter.GetRowCount();
+		for (int pane = 0; pane < nPaneCount; pane++)
+		{
+			w[pane] = rcFrame.Width() / nPaneCount;
+			if (w[pane]<1) w[pane]=1; // Perry 2003-01-22 (I don't know why this happens)
+		}
 	}
 	
-	if (!std::equal(m_nLastSplitPos, m_nLastSplitPos + nPaneCount - 1, w))
+	if (!std::equal(m_nLastSplitPos, m_nLastSplitPos + nPaneCount, w))
 	{
-		std::copy_n(w, nPaneCount - 1, m_nLastSplitPos);
+		std::copy_n(w, nPaneCount, m_nLastSplitPos);
 
 		// resize controls in header dialog bar
 		m_wndFilePathBar.Resize(w);
-		RECT rcFrame, rc;
-		GetClientRect(&rcFrame);
-		rc = rcFrame;
+		RECT rc = rcFrame;
 		rc.top = rc.bottom - m_rectBorder.bottom;
 		rc.right = 0;
 		for (int pane = 0; pane < nPaneCount; pane++)
@@ -286,6 +349,12 @@ int CHexMergeFrame::GetActivePane()
 	return nPane;
 }
 
+CWnd* CHexMergeFrame::GetView(int nPane)
+{
+	return (m_wndSplitter.GetColumnCount() > 1) ? 
+		m_wndSplitter.GetPane(0, nPane) : m_wndSplitter.GetPane(nPane, 0);
+}
+
 void CHexMergeFrame::SetActivePane(int nPane)
 {
 	if (m_wndSplitter.GetColumnCount() > 1)
@@ -311,7 +380,7 @@ void CHexMergeFrame::OnIdleUpdateCmdUI()
 			pView[pane] = static_cast<CHexMergeView *>(m_wndSplitter.GetPane(0, pane));
 
 		// Update mod indicators
-		TCHAR ind[2];
+		tchar_t ind[2];
 
 		for (pane = 0; pane < nColumns; ++pane)
 		{
@@ -324,7 +393,7 @@ void CHexMergeFrame::OnIdleUpdateCmdUI()
 		SCROLLINFO si, siView[3];
 		// Synchronize horizontal scrollbars
 		pView[0]->GetScrollInfo(SB_HORZ, &si, SIF_ALL | SIF_DISABLENOSCROLL);
-		m_HScrollInfo[0] = si;
+		m_HScrollInfo[0] = siView[0] = si;
 		for (pane = 1; pane < nColumns; ++pane)
 		{
 			SCROLLINFO siCur;
@@ -356,7 +425,7 @@ void CHexMergeFrame::OnIdleUpdateCmdUI()
 
 		// Synchronize vertical scrollbars
 		pView[0]->GetScrollInfo(SB_VERT, &si, SIF_ALL | SIF_DISABLENOSCROLL);
-		m_VScrollInfo[0] = si;
+		m_VScrollInfo[0] = siView[0] = si;
 		for (pane = 1; pane < nColumns; ++pane)
 		{
 			SCROLLINFO siCur;
@@ -402,3 +471,47 @@ LRESULT CHexMergeFrame::OnStorePaneSizes(WPARAM wParam, LPARAM lParam)
 	SavePosition();
 	return 0;
 }
+
+/**
+ * @brief Split panes vertically
+ */
+void CHexMergeFrame::OnViewSplitVertically() 
+{
+	bool bSplitVertically = (m_wndSplitter.GetColumnCount() != 1);
+	bSplitVertically = !bSplitVertically; // toggle
+	GetOptionsMgr()->SaveOption(OPT_SPLIT_HORIZONTALLY, !bSplitVertically);
+	m_wndSplitter.FlipSplit();
+}
+
+/**
+ * @brief Update "Split Vertically" UI items
+ */
+void CHexMergeFrame::OnUpdateViewSplitVertically(CCmdUI* pCmdUI) 
+{
+	pCmdUI->Enable(TRUE);
+	pCmdUI->SetCheck((m_wndSplitter.GetColumnCount() != 1));
+}
+
+/**
+ * @brief Remember/restore splitter position
+ */
+void CHexMergeFrame::OnWindowPreserveSplitterPosition()
+{
+	auto& splitterWnd = m_wndSplitter;
+	if (!GetOptionsMgr()->GetString(OPT_CMP_BIN_SPLITTER_RATIOS).empty())
+	{
+		GetOptionsMgr()->SaveOption(OPT_CMP_BIN_SPLITTER_RATIOS, _T(""));
+		splitterWnd.ResetSplitterRatios(splitterWnd.GetColumnCount() != 1);
+		return;
+	}
+	const bool horizontal = splitterWnd.GetColumnCount() != 1;
+	SplitterPositions::SavePaneRatios(OPT_CMP_BIN_SPLITTER_RATIOS, 0, m_pMergeDoc->m_nBuffers,
+		[&splitterWnd, horizontal](int i) { return splitterWnd.GetSplitterRatio(i, horizontal); });
+}
+
+void CHexMergeFrame::OnUpdateWindowPreserveSplitterPosition(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(!GetOptionsMgr()->GetString(OPT_CMP_BIN_SPLITTER_RATIOS).empty());
+}
+
+

@@ -43,11 +43,11 @@
  */
 
 #include "StdAfx.h"
-#include "editcmd.h"
 #include "ccrystaltextview.h"
 #include "ccrystaltextbuffer.h"
-#include "SyntaxColors.h"
 #include "ccrystaltextmarkers.h"
+#include "editcmd.h"
+#include "SyntaxColors.h"
 #include <malloc.h>
 #include "utils/string_util.h"
 #include "utils/icu.hpp"
@@ -65,20 +65,34 @@ static const UINT_PTR CRYSTAL_TIMER_DRAGSEL = 1001;
 static const UINT_PTR CRYSTAL_RECALC_VSCROLLBAR = 1002;
 static const UINT_PTR CRYSTAL_RECALC_HSCROLLBAR = 1003;
 
-static LPTSTR NTAPI EnsureCharNext(LPCTSTR current)
-{
-  LPTSTR next = ::CharNext(current);
-  return next > current ? next : next + 1;
-}
-
-static LPTSTR NTAPI EnsureCharPrev(LPCTSTR start, LPCTSTR current)
-{
-  LPTSTR prev = ::CharPrev(start, current);
-  return prev < current ? prev : prev - 1;
-}
-
 /////////////////////////////////////////////////////////////////////////////
 // CCrystalTextView
+
+int CCrystalTextView::
+GetPreviousVisibleLine (int y) const
+{
+  const int nLineCount = GetLineCount ();
+  if (y <= 0)
+    return -1;
+  if (y > nLineCount)
+    y = nLineCount;
+
+  do { --y; } while (y > 0 && !GetLineVisible (y));
+  return GetLineVisible (y) ? y : -1;
+}
+
+int CCrystalTextView::
+GetNextVisibleLine (int y) const
+{
+  const int nLineCount = GetLineCount ();
+  if (y >= nLineCount - 1)
+    return -1;
+  if (y < -1)
+    y = -1;
+
+  do { ++y; } while (y < nLineCount - 1 && !GetLineVisible (y));
+  return GetLineVisible (y) ? y : -1;
+}
 
 void CCrystalTextView::
 MoveLeft (bool bSelect)
@@ -92,9 +106,10 @@ MoveLeft (bool bSelect)
     {
       if (m_ptCursorPos.x == 0)
         {
-          if (m_ptCursorPos.y > 0)
+          const int y = GetPreviousVisibleLine (m_ptCursorPos.y);
+          if (y >= 0)
             {
-              m_ptCursorPos.y--;
+              m_ptCursorPos.y = y;
               m_ptCursorPos.x = GetLineLength (m_ptCursorPos.y);
             }
         }
@@ -125,9 +140,10 @@ MoveRight (bool bSelect)
     {
       if (m_ptCursorPos.x == nLineLength)
         {
-          if (m_ptCursorPos.y < GetLineCount () - 1)
+          const int y = GetNextVisibleLine (m_ptCursorPos.y);
+          if (y >= 0)
             {
-              m_ptCursorPos.y++;
+              m_ptCursorPos.y = y;
               m_ptCursorPos.x = 0;
             }
         }
@@ -163,7 +179,7 @@ MoveWordLeft (bool bSelect)
 
   if (m_ptCursorPos.x > 0)
     {
-      const TCHAR *pszChars = GetLineChars(m_ptCursorPos.y);
+      const tchar_t *pszChars = GetLineChars(m_ptCursorPos.y);
       auto pIterWord = ICUBreakIterator::getWordBreakIterator(reinterpret_cast<const UChar *>(pszChars), GetLineLength(m_ptCursorPos.y));
       int nPos = pIterWord->preceding(m_ptCursorPos.x);
       if (xisspace(pszChars[nPos]))
@@ -196,7 +212,7 @@ MoveWordRight (bool bSelect)
       return;
     }
 
-  const TCHAR *pszChars = GetLineChars(m_ptCursorPos.y);
+  const tchar_t *pszChars = GetLineChars(m_ptCursorPos.y);
   auto pIterWord = ICUBreakIterator::getWordBreakIterator(reinterpret_cast<const UChar *>(pszChars), nLength);
   int nPos = pIterWord->following(m_ptCursorPos.x);
   while (nPos < nLength && xisspace(pszChars[nPos]))
@@ -219,7 +235,7 @@ MoveUp (bool bSelect)
     m_ptCursorPos = m_ptDrawSelStart;
 
   //BEGIN SW
-  CPoint  subLinePos;
+  CEPoint  subLinePos;
   CharPosToPoint( m_ptCursorPos.y, m_ptCursorPos.x, subLinePos );
 
   int         nSubLine = GetSubLineIndex( m_ptCursorPos.y ) + subLinePos.y;
@@ -237,7 +253,7 @@ MoveUp (bool bSelect)
           nSubLine--;
         }
       while (IsEmptySubLineIndex(nSubLine));
-      SubLineCursorPosToTextPos( CPoint( m_nIdealCharPos, nSubLine ), m_ptCursorPos );
+      m_ptCursorPos = SubLineCursorPosToTextPos( CEPoint( m_nIdealCharPos, nSubLine ) );
       /*ORIGINAL
       m_ptCursorPos.y --;
       m_ptCursorPos.x = ApproxActualOffset(m_ptCursorPos.y, m_nIdealCharPos);
@@ -260,7 +276,7 @@ MoveDown (bool bSelect)
     m_ptCursorPos = m_ptDrawSelEnd;
 
   //BEGIN SW
-  CPoint	subLinePos;
+  CEPoint	subLinePos;
   CharPosToPoint( m_ptCursorPos.y, m_ptCursorPos.x, subLinePos );
 
   int			nSubLine = GetSubLineIndex( m_ptCursorPos.y ) + subLinePos.y;
@@ -281,7 +297,7 @@ MoveDown (bool bSelect)
             }
           while (IsEmptySubLineIndex(nSubLine));
         }
-      SubLineCursorPosToTextPos( CPoint( m_nIdealCharPos, nSubLine ), m_ptCursorPos );
+      m_ptCursorPos = SubLineCursorPosToTextPos( CEPoint( m_nIdealCharPos, nSubLine ) );
       /*ORIGINAL
       m_ptCursorPos.y ++;
       m_ptCursorPos.x = ApproxActualOffset(m_ptCursorPos.y, m_nIdealCharPos);
@@ -300,9 +316,9 @@ void CCrystalTextView::
 MoveHome (bool bSelect)
 {
   int nLength = GetLineLength (m_ptCursorPos.y);
-  LPCTSTR pszChars = GetLineChars (m_ptCursorPos.y);
+  const tchar_t* pszChars = GetLineChars (m_ptCursorPos.y);
   //BEGIN SW
-  CPoint	pos;
+  CEPoint	pos;
   CharPosToPoint( m_ptCursorPos.y, m_ptCursorPos.x, pos );
   int nHomePos = SubLineHomeToCharPos( m_ptCursorPos.y, pos.y );
   int nOriginalHomePos = nHomePos;
@@ -333,7 +349,7 @@ void CCrystalTextView::
 MoveEnd (bool bSelect)
 {
   //BEGIN SW
-  CPoint	pos;
+  CEPoint	pos;
   CharPosToPoint( m_ptCursorPos.y, m_ptCursorPos.x, pos );
   m_ptCursorPos.x = SubLineEndToCharPos( m_ptCursorPos.y, pos.y );
   /*ORIGINAL
@@ -363,7 +379,7 @@ MovePgUp (bool bSelect)
     }
 
   // setting cursor
-  CPoint subLinePos;
+  CEPoint subLinePos;
   CharPosToPoint( m_ptCursorPos.y, m_ptCursorPos.x, subLinePos );
 
   int nSubLine = GetSubLineIndex( m_ptCursorPos.y ) + subLinePos.y - GetScreenLines() + 1;
@@ -374,8 +390,7 @@ MovePgUp (bool bSelect)
   if ( nSubLine < 0 )
     nSubLine = 0;
 
-  SubLineCursorPosToTextPos( CPoint( m_nIdealCharPos, nSubLine ),
-    m_ptCursorPos );
+  m_ptCursorPos = SubLineCursorPosToTextPos( CEPoint( m_nIdealCharPos, nSubLine ) );
 
   m_nIdealCharPos = CalculateActualOffset (m_ptCursorPos.y, m_ptCursorPos.x);
   EnsureVisible (m_ptCursorPos);    //todo: no vertical scroll
@@ -405,7 +420,7 @@ MovePgDn (bool bSelect)
     }
 
   // setting cursor
-  CPoint subLinePos;
+  CEPoint subLinePos;
   CharPosToPoint( m_ptCursorPos.y, m_ptCursorPos.x, subLinePos );
 
   int nSubLine = GetSubLineIndex( m_ptCursorPos.y ) + subLinePos.y + GetScreenLines() - 1;
@@ -416,8 +431,8 @@ MovePgDn (bool bSelect)
   if( nSubLine > nSubLineCount - 1 )
     nSubLine = nSubLineCount - 1;
 
-  SubLineCursorPosToTextPos( 
-    CPoint( m_nIdealCharPos, nSubLine ), m_ptCursorPos );
+  m_ptCursorPos = SubLineCursorPosToTextPos( 
+    CEPoint( m_nIdealCharPos, nSubLine ) );
 
   m_nIdealCharPos = CalculateActualOffset (m_ptCursorPos.y, m_ptCursorPos.x);
   EnsureVisible (m_ptCursorPos);    //todo: no vertical scroll
@@ -431,8 +446,11 @@ MovePgDn (bool bSelect)
 void CCrystalTextView::
 MoveCtrlHome (bool bSelect)
 {
+  int y = !GetLineVisible (0) ? GetNextVisibleLine (0) : 0;
+  if (y < 0)
+    return;
   m_ptCursorPos.x = 0;
-  m_ptCursorPos.y = 0;
+  m_ptCursorPos.y = y;
   m_nIdealCharPos = CalculateActualOffset (m_ptCursorPos.y, m_ptCursorPos.x);
   EnsureVisible (m_ptCursorPos);
   if (!bSelect)
@@ -444,7 +462,11 @@ MoveCtrlHome (bool bSelect)
 void CCrystalTextView::
 MoveCtrlEnd (bool bSelect)
 {
-  m_ptCursorPos.y = GetLineCount () - 1;
+  int y = GetLineCount () - 1;
+  y = !GetLineVisible (y) ? GetPreviousVisibleLine (y) : y;
+  if (y < 0)
+    return;
+  m_ptCursorPos.y = y;
   m_ptCursorPos.x = GetLineLength (m_ptCursorPos.y);
   m_nIdealCharPos = CalculateActualOffset (m_ptCursorPos.y, m_ptCursorPos.x);
   EnsureVisible (m_ptCursorPos);
@@ -459,7 +481,11 @@ ScrollUp ()
 {
   if (m_nTopLine > 0)
     {
-      ScrollToLine (m_nTopLine - 1);
+      const int nTopLine = GetPreviousVisibleLine (m_nTopLine);
+      if (nTopLine < 0)
+        return;
+      ScrollToLine (nTopLine);
+      UpdateCaret ();
       UpdateSiblingScrollPos (false);
     }
 }
@@ -469,7 +495,11 @@ ScrollDown ()
 {
   if (m_nTopLine < GetLineCount () - 1)
     {
-      ScrollToLine (m_nTopLine + 1);
+      const int nTopLine = GetNextVisibleLine (m_nTopLine);
+      if (nTopLine < 0)
+        return;
+      ScrollToLine (nTopLine);
+      UpdateCaret ();
       UpdateSiblingScrollPos (false);
     }
 }
@@ -488,7 +518,7 @@ ScrollLeft ()
 void CCrystalTextView::
 ScrollRight ()
 {
-  if (m_nOffsetChar < GetMaxLineLength (m_nTopLine, GetScreenLines()) - 1)
+  if (CoverLength(m_nTopLine, GetScreenLines(), m_nOffsetChar))
     {
       ScrollToChar (m_nOffsetChar + 1);
       UpdateCaret ();
@@ -496,8 +526,8 @@ ScrollRight ()
     }
 }
 
-CPoint CCrystalTextView::
-WordToRight (CPoint pt)
+CEPoint CCrystalTextView::
+WordToRight (CEPoint pt)
 {
   ASSERT_VALIDTEXTPOS (pt);
   int nLength = GetLineLength (pt.y);
@@ -510,8 +540,8 @@ WordToRight (CPoint pt)
   return pt;
 }
 
-CPoint CCrystalTextView::
-WordToLeft (CPoint pt)
+CEPoint CCrystalTextView::
+WordToLeft (CEPoint pt)
 {
   ASSERT_VALIDTEXTPOS (pt);
   if (pt.x > 0)
@@ -530,7 +560,7 @@ SelectAll ()
   int nLineCount = GetLineCount ();
   m_ptCursorPos.x = GetLineLength (nLineCount - 1);
   m_ptCursorPos.y = nLineCount - 1;
-  m_ptAnchor = CPoint (0, 0);
+  m_ptAnchor = CEPoint (0, 0);
   SetSelection (m_ptAnchor, m_ptCursorPos);
   UpdateCaret ();
 }
@@ -570,7 +600,7 @@ OnLButtonDown (UINT nFlags, CPoint point)
       else
         {
           int x = ClientToIdealTextPos (point.x);
-          CPoint ptStart, ptEnd;
+          CEPoint ptStart, ptEnd;
           const int nLineCount = GetLineCount ();
           for (int y = 0; y < nLineCount; ++y)
             {
@@ -619,14 +649,14 @@ OnLButtonDown (UINT nFlags, CPoint point)
           const int nSubLines = GetSubLineCount();
 
           // Find char pos that is the beginning of the subline clicked on
-          CPoint pos;
+          CEPoint pos;
           CharPosToPoint (m_ptCursorPos.y, m_ptCursorPos.x, pos);
           m_ptCursorPos.x = SubLineHomeToCharPos (m_ptCursorPos.y, pos.y);
 
           if (!bShift)
             m_ptAnchor = m_ptCursorPos;
 
-          CPoint ptStart, ptEnd;
+          CEPoint ptStart, ptEnd;
           CharPosToPoint (m_ptAnchor.y, m_ptAnchor.x, pos);
           ptStart.x = 0;
           ptStart.y = m_ptAnchor.y;
@@ -660,7 +690,7 @@ OnLButtonDown (UINT nFlags, CPoint point)
     }
   else
     {
-      CPoint ptText = ClientToText (point);
+      CEPoint ptText = ClientToText (point);
       PrepareSelBounds ();
       //  [JRT]:  Support For Disabling Drag and Drop...
       if ((IsInsideSelBlock (ptText)) &&    // If Inside Selection Area
@@ -675,7 +705,7 @@ OnLButtonDown (UINT nFlags, CPoint point)
           if (!bShift)
             m_ptAnchor = m_ptCursorPos;
 
-          CPoint ptStart, ptEnd;
+          CEPoint ptStart, ptEnd;
           if (bControl)
             {
               if (m_ptCursorPos.y < m_ptAnchor.y ||
@@ -738,7 +768,7 @@ OnMouseMove (UINT nFlags, CPoint point)
           return;
       }
 
-      CPoint ptNewCursorPos = ClientToText (point);
+      CEPoint ptNewCursorPos = ClientToText (point);
       if (m_bColumnSelection)
         {
           int x = ClientToIdealTextPos (point.x);
@@ -749,17 +779,17 @@ OnMouseMove (UINT nFlags, CPoint point)
           return;
         }
 
-      CPoint ptStart, ptEnd;
+      CEPoint ptStart, ptEnd;
       if (m_bLineSelection)
         {
           if (ptNewCursorPos.y < m_ptAnchor.y ||
                 ptNewCursorPos.y == m_ptAnchor.y && ptNewCursorPos.x < m_ptAnchor.x)
             {
-              CPoint  pos;
+              CEPoint  pos;
               ptEnd = m_ptAnchor;
               CharPosToPoint( ptEnd.y, ptEnd.x, pos );
               if( GetSubLineIndex( ptEnd.y ) + pos.y == GetSubLineCount() - 1 )
-                ptEnd = SubLineEndToCharPos( ptEnd.y, pos.y );
+                ptEnd.x = SubLineEndToCharPos( ptEnd.y, pos.y );
               else
                 {
                   int nLine, nSubLine;
@@ -775,7 +805,7 @@ OnMouseMove (UINT nFlags, CPoint point)
             {
               ptEnd = m_ptAnchor;
 
-              CPoint  pos;
+              CEPoint  pos;
               CharPosToPoint( ptEnd.y, ptEnd.x, pos );
               ptEnd.x = SubLineHomeToCharPos( ptEnd.y, pos.y );
 
@@ -873,6 +903,7 @@ OnLButtonUp (UINT nFlags, CPoint point)
 
       AdjustTextPoint (point);
       m_ptCursorPos = ClientToText (point);
+      m_ptAnchor = m_ptCursorPos;
       EnsureVisible (m_ptCursorPos);
       SetSelection (m_ptCursorPos, m_ptCursorPos);
       UpdateCaret ();
@@ -921,6 +952,7 @@ OnTimer (UINT_PTR nIDEvent)
       if (m_nTopLine != nNewTopLine)
         {
           ScrollToLine (nNewTopLine);
+          UpdateCaret ();
           UpdateSiblingScrollPos (false);
           bChanged = true;
         }
@@ -950,7 +982,7 @@ OnTimer (UINT_PTR nIDEvent)
       if (bChanged && !m_nColumnResizing)
         {
           AdjustTextPoint (pt);
-          CPoint ptNewCursorPos = ClientToText (pt);
+          CEPoint ptNewCursorPos = ClientToText (pt);
           if (ptNewCursorPos != m_ptCursorPos)
             {
               m_ptCursorPos = ptNewCursorPos;
@@ -995,7 +1027,7 @@ OnLButtonDblClk (UINT nFlags, CPoint point)
   if (point.x < GetMarginWidth ())
     {
       AdjustTextPoint (point);
-      CPoint ptCursorPos = ClientToText (point);
+      CEPoint ptCursorPos = ClientToText (point);
       ToggleBookmark(ptCursorPos.y);
       return;
     }
@@ -1007,7 +1039,7 @@ OnLButtonDblClk (UINT nFlags, CPoint point)
       m_ptCursorPos = ClientToText (point);
       m_ptAnchor = m_ptCursorPos;
 
-      CPoint ptStart, ptEnd;
+      CEPoint ptStart, ptEnd;
       if (m_ptCursorPos.y < m_ptAnchor.y ||
             m_ptCursorPos.y == m_ptAnchor.y && m_ptCursorPos.x < m_ptAnchor.x)
         {
@@ -1066,9 +1098,9 @@ OnEditSelectAll ()
 void CCrystalTextView::
 OnRButtonDown (UINT nFlags, CPoint point)
 {
-  CPoint pt = point;
-  AdjustTextPoint (pt);
-  pt = ClientToText (pt);
+  CPoint point2 = point;
+  AdjustTextPoint (point2);
+  CEPoint pt = ClientToText (point2);
 
   // If there is selection, dont' clear it
   if (!IsSelection() || !IsInsideSelBlock(pt))
@@ -1086,7 +1118,7 @@ bool CCrystalTextView::
 IsSelection () const
 {
 #if _MSC_VER < 1910		// VS2015 (and earlier?) generates a "performance" warning
-  // NOTE:  Comparing two `CPoint` values yields a BOOL result; therefore this funny code
+  // NOTE:  Comparing two `CEPoint` values yields a BOOL result; therefore this funny code
   return (m_ptSelStart != m_ptSelEnd) ? true : false;
 #else
   return (m_ptSelStart != m_ptSelEnd);
@@ -1117,7 +1149,7 @@ TextInClipboard ()
 }
 
 bool CCrystalTextView::
-PutToClipboard (LPCTSTR pszText, int cchText, bool bColumnSelection)
+PutToClipboard (const tchar_t* pszText, int cchText, bool bColumnSelection)
 {
   if (pszText == nullptr || cchText == 0)
     return false;
@@ -1127,12 +1159,12 @@ PutToClipboard (LPCTSTR pszText, int cchText, bool bColumnSelection)
   if (OpenClipboard ())
     {
       EmptyClipboard ();
-      SIZE_T cbData = (cchText + 1) * sizeof(TCHAR);
+      SIZE_T cbData = (cchText + 1) * sizeof(tchar_t);
       HGLOBAL hData = GlobalAlloc (GMEM_MOVEABLE | GMEM_DDESHARE, cbData);
       if (hData != nullptr)
         {
           SIZE_T dwSize = GlobalSize(hData);
-          LPTSTR pszData = (LPTSTR)::GlobalLock (hData);
+          tchar_t* pszData = (tchar_t*)::GlobalLock (hData);
           if (pszData != nullptr)
             {
               memcpy (pszData, pszText, cbData);
@@ -1166,12 +1198,12 @@ GetFromClipboard (CString & text, bool & bColumnSelection)
       HGLOBAL hData = GetClipboardData (fmt);
       if (hData != nullptr)
         {
-          LPTSTR pszData = (LPTSTR) GlobalLock (hData);
+          tchar_t* pszData = (tchar_t*) GlobalLock (hData);
           if (pszData != nullptr)
             {
               UINT cbData = (UINT) GlobalSize (hData);
               // in case we get an odd length for unicodes
-              int cchText = ((cbData + sizeof(TCHAR)/sizeof(wchar_t)) / sizeof(TCHAR)) - 1;
+              int cchText = ((cbData + sizeof(tchar_t)/sizeof(wchar_t)) / sizeof(tchar_t)) - 1;
               if (cchText >= 0)
                 memcpy(text.GetBufferSetLength(cchText), pszData, cbData);
               GlobalUnlock (hData);

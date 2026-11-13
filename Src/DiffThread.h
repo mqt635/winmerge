@@ -30,16 +30,23 @@ struct DiffFuncStruct
 	CDiffContext * context; /**< Compare context. */
 	Poco::BasicEvent<int> m_listeners; /**< Event listeners */
 	int nThreadState; /**< Thread state. */
+	int nCollectThreadState; /**< Collect thread state. */
+	int nThreadCount; /**< Number of threads used for compare. */
 	DiffThreadAbortable * m_pAbortgate; /**< Interface for aborting compare. */
 	Poco::Semaphore *pSemaphore; /**< Semaphore for synchronizing threads. */
 	std::function<void (DiffFuncStruct*)> m_fncCollect;
 	std::function<void (DiffFuncStruct*)> m_fncCompare;
+	bool bMarkedRescan;	/**< Is the rescan due to "Refresh Selected"? */
+	Poco::Event m_collectCompletedEvent;
 
 	DiffFuncStruct()
 		: context(nullptr)
 		, nThreadState(0/*CDiffThread::THREAD_NOTSTARTED*/)
+		, nThreadCount(1)
+		, nCollectThreadState(0/*CDiffThread::THREAD_NOTSTARTED*/)
 		, m_pAbortgate(nullptr)
 		, pSemaphore(nullptr)
+		, bMarkedRescan(false)
 		{}
 };
 
@@ -72,6 +79,7 @@ public:
 	CDiffThread();
 	~CDiffThread();
 	void SetContext(CDiffContext * pCtx);
+	void SetThreadCount(int count);
 	unsigned CompareDirectories();
 	template<class T>
 	void AddListener(T *pObj, void (T::*pMethod)(int& state)) {
@@ -83,9 +91,12 @@ public:
 	}
 	void SetCollectFunction(std::function<void(DiffFuncStruct*)> func) { m_pDiffParm->m_fncCollect = func; }
 	void SetCompareFunction(std::function<void(DiffFuncStruct*)> func) { m_pDiffParm->m_fncCompare = func; }
+	void SetMarkedRescan(bool bMarkedRescan);
+	bool IsMarkedRescan() const;
 
 // runtime interface for main thread, called on main thread
 	unsigned GetThreadState() const;
+	unsigned GetCollectThreadState() const;
 	void Abort() { m_bAborting = true; }
 	bool IsAborting() const { return m_bAborting; }
 	void Pause() { m_bPaused = true; }
@@ -114,9 +125,43 @@ inline void CDiffThread::SetContext(CDiffContext * pCtx)
 }
 
 /**
+ * @brief Sets number of threads used for compare.
+ * @param [in] count Number of threads to use for compare.
+ */
+inline void CDiffThread::SetThreadCount(int count)
+{
+	m_pDiffParm->nThreadCount = count;
+}
+
+/**
  * @brief Returns thread's current state
  */
 inline unsigned CDiffThread::GetThreadState() const
 {
 	return m_pDiffParm->nThreadState;
+}
+
+/**
+ * @brief Returns collect thread's current state
+ */
+inline unsigned CDiffThread::GetCollectThreadState() const
+{
+	return m_pDiffParm->nCollectThreadState;
+}
+
+/**
+ * @brief Sets whether the rescan is due to "Refresh Selected"
+ * @param [in] bMarkedRescan Is the rescan due to "Refresh Selected"?
+ */
+inline void CDiffThread::SetMarkedRescan(bool bMarkedRescan)
+{
+	m_pDiffParm->bMarkedRescan = bMarkedRescan;
+}
+
+/**
+ * @brief Returns whether the rescan is due to "Refresh Selected"
+ */
+inline bool CDiffThread::IsMarkedRescan() const
+{
+	return m_pDiffParm->bMarkedRescan;
 }

@@ -23,7 +23,7 @@ Pipe::Pipe():
 {
 }
 
-	
+
 Pipe::Pipe(const Pipe& pipe):
 	_pImpl(pipe._pImpl)
 {
@@ -60,8 +60,8 @@ void Pipe::close(CloseMode mode)
 		_pImpl->closeWrite();
 		break;
 	default:
+		_pImpl->closeWrite();  // close write first to send EOF to blocked readers
 		_pImpl->closeRead();
-		_pImpl->closeWrite();
 		break;
 	}
 }

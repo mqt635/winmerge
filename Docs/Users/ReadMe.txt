@@ -16,7 +16,7 @@ Quick start
 ===========
 To learn how to perform basic operations after installing WinMerge, click
 Help>WinMerge Help and navigate to the Quick start topic.  Or, go to the Web
-version at https://manual.winmerge.org/QuickStart.html.
+version at https://manual.winmerge.org/Quick_start.html.
 
 WinMerge Help
 ============= 
@@ -31,16 +31,14 @@ https://manual.winmerge.org/.
 WinMerge Support
 ================
 Questions or suggestions about WinMerge? A good place to start is the WinMerge
-community bulletin board at https://forums.winmerge.org/. Developers frequently
-read and respond to questions in both forums. Use the Open Discussion forum for
-general WinMerge issues, such as questions about usage. Use the Developers forum
-for WinMerge development issues.
+community bulletin board at https://github.com/WinMerge/winmerge/discussions.
+Developers frequently read and respond to questions in the forum.
 
 Bugs and feature requests
 =========================
-If an issue is not resolved in the the WinMerge forums, check the project
-trackers: go to https://project.winmerge.org/, and click a link in the Trackers
-menu, like Bugs and Feature Requests, where you can browse or submit items.
+If an issue is not resolved in the WinMerge forums, check the project
+trackers: go to https://github.com/WinMerge/winmerge/issues, where you can
+browse or submit items.
 
 If you submit a bug, please include the WinMerge version number in your
 report. You can generate a configuration log by clicking Help>Configuration.

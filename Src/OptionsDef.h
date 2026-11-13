@@ -10,6 +10,9 @@
 // User's language
 inline const String OPT_SELECTED_LANGUAGE{_T("Locale/LanguageId"s)};
 
+// Logging
+inline const String OPT_LOGGING {_T("Settings/Logging"s)};
+
 // View-menu
 inline const String OPT_SHOW_UNIQUE_LEFT {_T("Settings/ShowUniqueLeft"s)};
 inline const String OPT_SHOW_UNIQUE_MIDDLE {_T("Settings/ShowUniqueMiddle"s)};
@@ -24,16 +27,22 @@ inline const String OPT_SHOW_DIFFERENT_RIGHT_ONLY {_T("Settings/ShowDifferentRig
 inline const String OPT_SHOW_MISSING_LEFT_ONLY {_T("Settings/ShowMissingLeftOnly"s)};
 inline const String OPT_SHOW_MISSING_MIDDLE_ONLY {_T("Settings/ShowMissingMiddleOnly"s)};
 inline const String OPT_SHOW_MISSING_RIGHT_ONLY {_T("Settings/ShowMissingRightOnly"s)};
+inline const String OPT_SHOW_EMPTY_FOLDERS {_T("Settings/ShowEmptyFolders"s)};
 inline const String OPT_TREE_MODE {_T("Settings/TreeMode"s)};
 
 // Show/hide toolbar/statusbar/tabbar
+inline const String OPT_SHOW_MENUBAR {_T("Settings/ShowMenubar"s)};
 inline const String OPT_SHOW_TOOLBAR {_T("Settings/ShowToolbar"s)};
 inline const String OPT_SHOW_STATUSBAR {_T("Settings/ShowStatusbar"s)};
 inline const String OPT_SHOW_TABBAR {_T("Settings/ShowTabbar"s)};
+inline const String OPT_SHOW_OUTPUTBAR {_T("Settings/ShowOutputbar"s)};
+inline const String OPT_REBAR_STATE {_T("Settings/ReBarState"s)};
 inline const String OPT_TOOLBAR_SIZE {_T("Settings/ToolbarSize"s)};
 inline const String OPT_RESIZE_PANES {_T("Settings/AutoResizePanes"s)};
+inline const String OPT_MDI_BUTTON_VISIBILITY {_T("Settings/MDIButtonVisibility"s)};
 
 inline const String OPT_SYNTAX_HIGHLIGHT {_T("Settings/HiliteSyntax"s)};
+inline const String OPT_SYNTAX_HIGHLIGHT_MODE {_T("Settings/HiliteSyntaxMode"s)};
 inline const String OPT_VIEW_WHITESPACE {_T("Settings/ViewWhitespace"s)};
 inline const String OPT_VIEW_EOL {_T("Settings/ViewEOL"s)};
 inline const String OPT_SCROLL_TO_FIRST {_T("Settings/ScrollToFirst"s)};
@@ -68,22 +77,35 @@ inline const String OPT_ADDITIONAL_PROPERTIES {_T("Settings/AdditionalProperties
 // Window/Pane
 inline const String OPT_ACTIVE_FRAME_MAX {_T("Settings/ActiveFrameMax"s)};
 inline const String OPT_ACTIVE_PANE {_T("Settings/ActivePane"s)};
+inline const String OPT_LOCBAR_MOVECURSOR_ONCLICK {_T("Settings/LocBarMoveCursorOnClick"s)};
 
-// Folder Compare Report
+// Folder/File Compare Report
 inline const String OPT_REPORTFILES_REPORTTYPE {_T("ReportFiles/ReportType"s)};
 inline const String OPT_REPORTFILES_COPYTOCLIPBOARD {_T("ReportFiles/CopyToClipboard"s)};
+inline const String OPT_REPORTFILES_OPENREPORTFILE {_T("ReportFiles/OpenReportFile"s)};
 inline const String OPT_REPORTFILES_INCLUDEFILECMPREPORT {_T("ReportFiles/IncludeFileCmpReport"s)};
+inline const String OPT_REPORTFILES_INCLUDEALLIMAGEPAGES {_T("ReportFiles/IncludeAllImagePages"s)};
+
+// archive
+inline const String OPT_ARCHIVE_INCLUDEREPORT {_T("Archives/IncludeReport"s)};
+inline const String OPT_ARCHIVE_INCLUDEPATCH {_T("Archives/IncludePatch"s)};
+inline const String OPT_ARCHIVE_INCLUDEPROJECT {_T("Archives/IncludeProject"s)};
+inline const String OPT_ARCHIVE_COPYTOCLIPBOARD {_T("Archives/CopyToClipboard"s)};
 
 // File compare
 inline const String OPT_AUTOMATIC_RESCAN {_T("Settings/AutomaticRescan"s)};
 inline const String OPT_ALLOW_MIXED_EOL {_T("Settings/AllowMixedEOL"s)};
-// restore old copy behaviour (always copy "full line" instead of "selected text only"), with a hidden option
-inline const String OPT_COPY_FULL_LINE {_T("Settings/CopyFullLine"s)};
+inline const String OPT_COPY_GRANULARITY {_T("Settings/CopyGranularity"s)};
 inline const String OPT_TAB_SIZE {_T("Settings/TabSize"s)};
 inline const String OPT_TAB_TYPE {_T("Settings/TabType"s)};
 inline const String OPT_WORDWRAP {_T("Settings/WordWrap"s)};
+inline const String OPT_WORDWRAP_TABLE {_T("Settings/WordWrapTable"s)};
 inline const String OPT_VIEW_LINENUMBERS {_T("Settings/ViewLineNumbers"s)};
 inline const String OPT_VIEW_FILEMARGIN {_T("Settings/ViewFileMargin"s)};
+inline const String OPT_VIEW_TOPMARGIN {_T("Settings/ViewTopMargin"s)};
+inline const String OPT_VIEW_TOPMARGIN_TABLE {_T("Settings/ViewTopMarginTable"s)};
+inline const String OPT_VIEW_ZOOM {_T("Settings/ViewZoom"s)};
+inline const String OPT_LINE_NUMBER_USED_AS_HEADERS {_T("Settings/LineNumberUsedAsHeaders"s)};
 inline const String OPT_DIFF_CONTEXT {_T("Settings/DiffContextV2"s)};
 inline const String OPT_INVERT_DIFF_CONTEXT {_T("Settings/InvertDiffContext"s)};
 
@@ -110,7 +132,13 @@ inline const String OPT_CUSTOM_TEMP_PATH {_T("Settings/CustomTempPath"s)};
 inline const String OPT_SPLIT_HORIZONTALLY {_T("Settings/SplitHorizontally"s)};
 inline const String OPT_FILE_SIZE_THRESHOLD {_T("Settings/OPT_FILE_SIZE_THRESHOLD"s)};
 
+inline const String OPT_AUTO_RELOAD_MODIFIED_FILES {_T("Settings/AutoReloadModifiedFiles"s)};
+
 // Color options
+// SysColor hook
+inline const String OPT_SYSCOLOR_HOOK_ENABLED {_T("Settings/SysColorHookEnabled"s)};
+inline const String OPT_SYSCOLOR_HOOK_COLORS {_T("Settings/SysColorHookColors"s)};
+
 // The difference color
 inline const String OPT_CLR_DIFF {_T("Settings/DifferenceColor"s)};
 // The selected difference color
@@ -190,7 +218,10 @@ inline const String OPT_DIRCLR_MARGIN {_T("Settings/DirMarginColor"s)};
 // Use dir compare coloring?
 inline const String OPT_DIRCLR_USE_COLORS {_T("Settings/UseDirCompareColors"s)};
 
+inline const String OPT_COLOR_MODE {_T("Settings/ColorMode"s)};
+inline const String OPT_COLOR_MODE_EFFECTIVE {_T("Settings/ColorModeEffective"s)};
 inline const String OPT_COLOR_SCHEME {_T("Settings/ColorScheme"s)};
+inline const String OPT_COLOR_SCHEME_DARK {_T("Settings/ColorSchemeDark"s)};
 
 // Compare options
 inline const String OPT_CMP_IGNORE_WHITESPACE {_T("Settings/IgnoreSpace"s)};
@@ -200,9 +231,11 @@ inline const String OPT_CMP_IGNORE_CASE {_T("Settings/IgnoreCase"s)};
 inline const String OPT_CMP_IGNORE_NUMBERS {_T("Settings/IgnoreNumbers"s)};
 inline const String OPT_CMP_IGNORE_EOL {_T("Settings/IgnoreEol"s)};
 inline const String OPT_CMP_IGNORE_CODEPAGE {_T("Settings/IgnoreCodepage"s)};
+inline const String OPT_CMP_IGNORE_MISSING_TRAILING_EOL {_T("Settings/IgnoreMissingTrailingEol"s)};
+inline const String OPT_CMP_IGNORE_LINE_BREAKS {_T("Settings/IgnoreLineBreaks"s)};
 inline const String OPT_CMP_METHOD {_T("Settings/CompMethod2"s)};
 inline const String OPT_CMP_MOVED_BLOCKS {_T("Settings/MovedBlocks"s)};
-inline const String OPT_CMP_MATCH_SIMILAR_LINES {_T("Settings/MatchSimilarLines"s)};
+inline const String OPT_CMP_ALIGN_SIMILAR_LINES {_T("Settings/MatchSimilarLines"s)};
 inline const String OPT_CMP_STOP_AFTER_FIRST {_T("Settings/StopAfterFirst"s)};
 inline const String OPT_CMP_QUICK_LIMIT {_T("Settings/QuickMethodLimit"s)};
 inline const String OPT_CMP_BINARY_LIMIT {_T("Settings/BinaryMethodLimit"s)};
@@ -213,10 +246,17 @@ inline const String OPT_CMP_INCLUDE_SUBDIRS {_T("Settings/Recurse"s)};
 inline const String OPT_CMP_DIFF_ALGORITHM {_T("Settings/DiffAlgorithm"s)};
 inline const String OPT_CMP_INDENT_HEURISTIC {_T("Settings/IndentHeuristic"s)};
 inline const String OPT_CMP_COMPLETELY_BLANK_OUT_IGNORED_CHANGES {_T("Settings/CompletelyBlankOutIgnoredChanges"s)};
+inline const String OPT_CMP_ADDITIONAL_CONDITION {_T("Settings/AdditionalCompareCondition"s)};
+
+// Renamed/moved detection options
+inline const String OPT_CMP_RENAME_MOVE_DETECTION {_T("Settings/RenameMoveDetection"s)};
+inline const String OPT_CMP_RENAME_MOVE_KEY {_T("Settings/RenameMoveKey"s)};
+inline const String OPT_CMP_RENAME_MOVE_MERGE_MODE {_T("Settings/RenameMoveMergeMode"s)};
 
 // Image Compare options
 inline const String OPT_CMP_IMG_FILEPATTERNS {_T("Settings/ImageFilePatterns"s)};
 inline const String OPT_CMP_IMG_SHOWDIFFERENCES {_T("Settings/ImageShowDifferences"s)};
+inline const String OPT_CMP_IMG_BLINKDIFFERENCES {_T("Settings/ImageBlinkDifferences"s)};
 inline const String OPT_CMP_IMG_OVERLAYMODE {_T("Settings/ImageOverlayMode"s)};
 inline const String OPT_CMP_IMG_OVERLAYALPHA {_T("Settings/ImageOverlayAlpha"s)};
 inline const String OPT_CMP_IMG_DRAGGING_MODE {_T("Settings/ImageDraggingMode"s)};
@@ -228,19 +268,45 @@ inline const String OPT_CMP_IMG_DIFFCOLORALPHA {_T("Settings/ImageDiffColorAlpha
 inline const String OPT_CMP_IMG_THRESHOLD {_T("Settings/ImageColorDistanceThreshold"s)};
 inline const String OPT_CMP_IMG_INSERTIONDELETIONDETECTION_MODE {_T("Settings/ImageInsertionDeletionDetectionMode"s)};
 inline const String OPT_CMP_IMG_VECTOR_IMAGE_ZOOM_RATIO {_T("Settings/ImageVectorImageZoomRatio"s)};
+inline const String OPT_CMP_IMG_BLINKINTERVAL {_T("Settings/ImageBlinkInterval"s)};
+inline const String OPT_CMP_IMG_OVERLAYANIMATIONINTERVAL {_T("Settings/ImageOverlayAnimationInterval"s)};
+
 inline const String OPT_CMP_ENABLE_IMGCMP_IN_DIRCMP {_T("Settings/EnableImageCompareInFolderCompare"s)};
 inline const String OPT_CMP_IMG_OCR_RESULT_TYPE {_T("Settings/ImageOcrResultType"s)};
+inline const String OPT_CMP_IMG_PREFER_WIC_DECODER {_T("Settings/ImagePreferWICDecoder"s)};
+inline const String OPT_CMP_IMG_SPLITTER_RATIOS {_T("Settings/ImageSplitterRatios"s)};
+
+// Text file Compare options
+inline const String OPT_CMP_TEXT_SPLITTER_RATIOS {_T("Settings/TextSplitterRatios"s)};
+
+// WebPage Compare options
+inline const String OPT_CMP_WEB_USERDATAFOLDER_TYPE {_T("Settings/WebPageUserDataFolderType"s)};
+inline const String OPT_CMP_WEB_USERDATAFOLDER_PERPANE {_T("Settings/WebPageUserDataFolderPerPane"s)};
+inline const String OPT_CMP_WEB_FIT_TO_WINDOW {_T("Settings/WebPageFitToWindow"s)};
+inline const String OPT_CMP_WEB_SHOWDIFFERENCES {_T("Settings/WebPageShowDifferences"s)};
+inline const String OPT_CMP_WEB_VIEW_WIDTH {_T("Settings/WebPageViewWidth"s)};
+inline const String OPT_CMP_WEB_VIEW_HEIGHT {_T("Settings/WebPageViewHeight"s)};
+inline const String OPT_CMP_WEB_ZOOM {_T("Settings/WebZoom"s)};
+inline const String OPT_CMP_WEB_SPLITTER_RATIOS {_T("Settings/WebPageSplitterRatios"s)};
+inline const String OPT_CMP_WEB_USER_AGENT {_T("Settings/WebUserAgent"s)};
+inline const String OPT_CMP_WEB_SYNC_EVENTS {_T("Settings/WebSyncEvents"s)};
+inline const String OPT_CMP_WEB_SYNC_EVENT_FLAGS {_T("Settings/WebSyncEventFlags"s)};
+inline const String OPT_CMP_WEB_URL_PATTERN_TO_INCLUDE {_T("Settings/WebPageURLPatternToInclude"s)};
+inline const String OPT_CMP_WEB_URL_PATTERN_TO_EXCLUDE {_T("Settings/WebPageURLPatternToExclude"s)};
 
 // Binary options
 inline const String OPT_CMP_BIN_FILEPATTERNS {_T("Settings/BinaryFilePatterns"s)};
+inline const String OPT_CMP_BIN_SPLITTER_RATIOS {_T("Settings/BinarySplitterRatios"s)};
 
 // Table options
 inline const String OPT_CMP_CSV_FILEPATTERNS {_T("Settings/CSVFilePatterns"s)};
+inline const String OPT_CMP_CSV_DELIM_CHAR   {_T("Settings/CSVDelimiterCharacter"s)};
 inline const String OPT_CMP_TSV_FILEPATTERNS {_T("Settings/TSVFilePatterns"s)};
 inline const String OPT_CMP_DSV_FILEPATTERNS {_T("Settings/DSVFilePatterns"s)};
 inline const String OPT_CMP_DSV_DELIM_CHAR   {_T("Settings/DSVDelimiterCharacter"s)};
 inline const String OPT_CMP_TBL_ALLOW_NEWLINES_IN_QUOTES {_T("Settings/TableAllowNewlinesInQuotes"s)};
 inline const String OPT_CMP_TBL_QUOTE_CHAR   {_T("Settings/TableQuoteCharacter"s)};
+inline const String OPT_CMP_TBL_SPLITTER_RATIOS {_T("Settings/TableSplitterRatios"s)};
 
 /// Are regular expression linefilters enabled?
 inline const String OPT_LINEFILTER_ENABLED {_T("Settings/IgnoreRegExp"s)};
@@ -248,6 +314,10 @@ inline const String OPT_LINEFILTER_ENABLED {_T("Settings/IgnoreRegExp"s)};
 inline const String OPT_FILEFILTER_CURRENT {_T("Settings/FileFilterCurrent"s)};
 inline const String OPT_FILTER_USERPATH {_T("Settings/UserFilterPath"s)};
 inline const String OPT_FILEFILTER_SHARED {_T("Settings/Filters/Shared"s)};
+inline const String OPT_USERDATA_LOCATION {_T("Settings/UserDataLocation"s)};
+
+// Merge Result Pane
+inline const String OPT_MERGE_RESULT_PANE_ENABLED {_T("Settings/MergeResultPaneEnabled"s)};
 
 /// Substitution Filters
 inline const String OPT_SUBSTITUTION_FILTERS_ENABLED {_T("Settings/SubstitutionFiltersEnabled"s)};
@@ -276,10 +346,16 @@ inline const String OPT_PLUGINS_OPEN_IN_SAME_FRAME_TYPE {_T("Plugins/OpenInSameF
 inline const String OPT_SHOW_SELECT_FILES_AT_STARTUP {_T("Settings/ShowFileDialog"s)};
 
 // MDI Tab Bar
+inline const String OPT_TABBAR_ON_TITLEBAR {_T("Settings/TabBarOnTitleBar"s)};
 inline const String OPT_TABBAR_AUTO_MAXWIDTH {_T("Settings/TabBarAutoMaxWidth"s)};
 
 // MRU
 inline const String OPT_MRU_MAX {_T("Settings/MRUMax"s)};
+// Open view: the recent comparison list is expanded (collapsed by default)
+inline const String OPT_SHOW_RECENT_COMPARES {_T("Settings/ShowRecentCompares"s)};
+
+// Experimentals
+inline const String OPT_MOUSE_HOOK_ENABLED {_T("Settings/MouseHookEnabled"s)};
 
 // Font options
 inline const String OPT_FONT_FILECMP {_T("Font/"s)};

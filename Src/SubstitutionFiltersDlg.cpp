@@ -8,14 +8,11 @@
 #include "SubstitutionFiltersList.h"
 #include "Merge.h"
 #include "SubstitutionFiltersDlg.h"
-#include <Poco/Exception.h>
+#include "Constants.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
-
-/** @brief Location for file compare specific help to open. */
-static TCHAR FilterHelpLocation[] = _T("::/htmlhelp/Filters.html");
 
 /////////////////////////////////////////////////////////////////////////////
 // CPropLineFilter property page
@@ -32,7 +29,7 @@ SubstitutionFiltersDlg::SubstitutionFiltersDlg()
 	//{{AFX_DATA_INIT(SubstitutionFiltersFiltersDlg)
 	m_bEnabled = false;
 	//}}AFX_DATA_INIT
-	m_strCaption = theApp.LoadDialogCaption(m_lpszTemplateName).c_str();
+	m_strCaption = I18n::LoadDialogCaption(m_lpszTemplateName).c_str();
 	m_psp.pszTitle = m_strCaption;
 	m_psp.dwFlags |= PSP_USETITLE;
 	m_psp.hIcon = AfxGetApp()->LoadIcon(IDI_SUBSTITUTIONFILTER);
@@ -54,6 +51,7 @@ BEGIN_MESSAGE_MAP(SubstitutionFiltersDlg, CTrPropertyPage)
 	ON_BN_CLICKED(IDC_LFILTER_ADDBTN, OnBnClickedAddBtn)
 	ON_BN_CLICKED(IDC_LFILTER_CLEARBTN, OnBnClickedClearBtn)
 	ON_BN_CLICKED(IDC_LFILTER_REMOVEBTN, OnBnClickedRemovebtn)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_SUBSTITUTION_FILTERS, OnLvnItemChangedSubstitutionFilterList)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -71,11 +69,13 @@ BOOL SubstitutionFiltersDlg::OnInitDialog()
 
 	InitList();
 	
+	SetButtonState();
+
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
 
-static CString RemoveMnemonic(String text)
+static CString RemoveMnemonic(const String& text)
 {
 	Poco::RegularExpression re("\\(&.\\)|&|:");
 	std::string textu8 = ucr::toUTF8(text);
@@ -119,7 +119,7 @@ void SubstitutionFiltersDlg::InitList()
  */
 void SubstitutionFiltersDlg::OnHelp()
 {
-	theApp.ShowHelp(FilterHelpLocation);
+	CMergeApp::ShowHelp(FilterHelpLocation);
 }
 
 /**
@@ -148,6 +148,8 @@ void SubstitutionFiltersDlg::OnBnClickedAddBtn()
 void SubstitutionFiltersDlg::OnBnClickedClearBtn()
 {
 	m_listFilters.DeleteAllItems();
+
+	SetButtonState();
 }
 
 /**
@@ -176,9 +178,9 @@ BOOL SubstitutionFiltersDlg::OnApply()
 	{
 		m_pSubstitutionFiltersList->MakeSubstitutionList(true);
 	}
-	catch (Poco::RegularExpressionException& e)
+	catch (std::runtime_error& e)
 	{
-		AfxMessageBox(ucr::toTString(e.message()).c_str(), MB_OK | MB_ICONEXCLAMATION);
+		AfxMessageBox(ucr::toTString(e.what()).c_str(), MB_OK | MB_ICONEXCLAMATION);
 		return FALSE;
 	}
 
@@ -214,4 +216,40 @@ void SubstitutionFiltersDlg::OnBnClickedRemovebtn()
 		bool bPartialOk = false;
 		m_listFilters.EnsureVisible(newSel, bPartialOk);
 	}
+
+	SetButtonState();
+}
+
+/**
+ * @brief Called when item state is changed.
+ *
+ * Set the state of the "Remove" and "Clear" buttons.
+ * @param [in] pNMHDR Listview item data.
+ * @param [out] pResult Result of the action is returned in here.
+ */
+void SubstitutionFiltersDlg::OnLvnItemChangedSubstitutionFilterList(NMHDR* pNMHDR, LRESULT* pResult)
+{
+	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
+	if ((pNMLV->uOldState & LVIS_SELECTED) != (pNMLV->uNewState & LVIS_SELECTED))
+	{
+		SetButtonState();
+	}
+	*pResult = 0;
+}
+
+/**
+ * @brief Set the state of the "Remove" and "Clear" buttons.
+ * 
+ * Disable the "Remove" button when no item is selected.
+ * Disable the "Clear" button when no item is registered in the list.
+ */
+void SubstitutionFiltersDlg::SetButtonState()
+{
+	int sel = -1;
+	sel = m_listFilters.GetNextItem(sel, LVNI_SELECTED);
+	bool enabled = (sel != -1);
+	EnableDlgItem(IDC_LFILTER_REMOVEBTN, enabled);
+
+	enabled = (m_listFilters.GetItemCount() > 0);
+	EnableDlgItem(IDC_LFILTER_CLEARBTN, enabled);
 }

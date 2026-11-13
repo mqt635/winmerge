@@ -9,6 +9,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 #include "diff.h"
 #include "FileLocation.h"
 #include "PathContext.h"
@@ -16,6 +17,10 @@
 #include "DiffList.h"
 #include "UnicodeString.h"
 #include "FileTransform.h"
+#include "TextDefinition.h"
+#include "ITextBuffer.h"
+#include "ISyntaxParser.h"
+#include "TableProps.h"
 
 class CDiffContext;
 class PrediffingInfo;
@@ -25,7 +30,6 @@ struct file_data;
 class MovedLines;
 class FilterList;
 class SubstitutionList;
-namespace CrystalLineParser { struct TextDefinition; };
 
 /** @enum COMPARE_TYPE
  * @brief Different foldercompare methods.
@@ -83,6 +87,12 @@ namespace CrystalLineParser { struct TextDefinition; };
  * size always means files are different. E.g. automatically created logs - when
  * more data is added size increases.
  */
+
+ /** @var CMP_EXISTENCE
+  * @brief Compare only by file existence.
+  * This compare type considers files identical if both left and right
+  * files exist, without checking their contents, size, or timestamps.
+  */
 enum COMPARE_TYPE
 {
 	CMP_CONTENT = 0,
@@ -91,6 +101,7 @@ enum COMPARE_TYPE
 	CMP_DATE,
 	CMP_DATE_SIZE,
 	CMP_SIZE,
+	CMP_EXISTENCE,
 	CMP_IMAGE_CONTENT,
 };
 
@@ -121,7 +132,7 @@ struct DIFFSTATUS
 	IDENTLEVEL Identical = IDENTLEVEL::NONE; /**< diffutils said files are identical */
 	bool bPatchFileFailed = false; /**< Creating patch file failed */
 
-	DIFFSTATUS() {}
+	DIFFSTATUS() = default;
 	void MergeStatus(const DIFFSTATUS& other)
 	{
 		if (Identical == IDENTLEVEL::ALL)
@@ -141,10 +152,9 @@ struct DIFFSTATUS
 
 struct PostFilterContext
 {
-	int nParsedLineEndLeft = -1;
-	int nParsedLineEndRight = -1;
-	unsigned dwCookieLeft = 0;
-	unsigned dwCookieRight = 0;
+	std::shared_ptr<LangServices::ISyntaxParser> m_pSyntaxParser[3];
+	bool m_bSyntaxParserInitialized[3] = { false, false, false };
+	std::unique_ptr<LangServices::ITextBuffer> m_pTextBuffer[3]; /**< Text buffer for parser access */
 };
 
 /**
@@ -163,10 +173,12 @@ public:
 	void SetCreatePatchFile(const String &filename);
 	void SetCreateDiffList(DiffList *diffList);
 	void GetOptions(DIFFOPTIONS *options) const;
-	void SetOptions(const DIFFOPTIONS *options);
+	const DiffutilsOptions& GetOptions() const { return m_options; }
+	void SetOptions(const DIFFOPTIONS *options, bool setToDiffutils = false);
 	void SetTextForAutomaticPrediff(const String &text);
 	void SetPrediffer(const PrediffingInfo * prediffer = nullptr);
 	void GetPrediffer(PrediffingInfo * prediffer) const;
+	void SetTableProps(int pane, const TableProps& tableProps) { m_tableProps[pane] = tableProps; };
 	void SetPatchOptions(const PATCHOPTIONS *options);
 	void SetDetectMovedBlocks(bool bDetectMovedBlocks);
 	bool GetDetectMovedBlocks() const { return (m_pMovedLines[0] != nullptr); }
@@ -182,33 +194,36 @@ public:
 	void SetCompareFiles(const PathContext &originalFile);
 	void WritePatchFileHeader(enum output_style output_style, bool bAppendFiles);
 	void WritePatchFileTerminator(enum output_style output_style);
-	void SetFilterList(const String& filterStr);
-	void SetFilterList(const FilterList *pFilterList);
+	const FilterList* GetFilterList() const;
+	void SetFilterList(std::shared_ptr<FilterList> pFilterList);
 	const SubstitutionList* GetSubstitutionList() const;
 	void SetSubstitutionList(std::shared_ptr<SubstitutionList> pSubstitutionFiltersList);
-	void SetFilterCommentsSourceDef(CrystalLineParser::TextDefinition *def) { m_pFilterCommentsDef = def; };
+	void SetFilterCommentsSourceDef(LangServices::TextDefinition *def) { m_pFilterCommentsDef = def; };
 	void SetFilterCommentsSourceDef(const String& ext);
+	void SetCodepage(int codepage) { m_codepage = codepage; }
 	void EnablePlugins(bool enable);
-	void PostFilter(PostFilterContext& ctxt, int LineNumberLeft, int QtyLinesLeft, int LineNumberRight,
-		int QtyLinesRight, OP_TYPE &Op, const file_data *file_data_ary) const;
+	int PostFilter(PostFilterContext& ctxt, change* thisob, const file_data* file_data_ary) const;
+	bool Diff2Files(struct change ** diffs, DiffFileData *diffData,
+		int * bin_status, int * bin_file) const;
 
 protected:
 	String FormatSwitchString() const;
-	bool Diff2Files(struct change ** diffs, DiffFileData *diffData,
-		int * bin_status, int * bin_file) const;
 	void LoadWinMergeDiffsFromDiffUtilsScript(struct change * script, const file_data * inf);
+	std::vector<DiffRangeInfo> InsertMovedBlocks3Way();
 	void WritePatchFile(struct change * script, file_data * inf);
 public:
 	void LoadWinMergeDiffsFromDiffUtilsScript3(
-		struct change * script10, struct change * script12,
-		const file_data * inf10, const file_data * inf12);
+		struct change * script10, struct change * script12, struct change * script02,
+		const file_data * inf10, const file_data * inf12, const file_data * inf02);
+	static bool IsIdenticalOrIgnorable(struct change* script);
 	static void FreeDiffUtilsScript(struct change * & script);
-	bool RegExpFilter(int StartPos, int EndPos, const file_data * pinf) const;
+	bool RegExpFilter(std::string& lines) const;
 
 private:
 	DiffutilsOptions m_options;
+	int m_xdlFlags;
 	DIFFSTATUS m_status; /**< Status of last compare */
-	std::unique_ptr<FilterList> m_pFilterList; /**< List of linefilters. */
+	std::shared_ptr<FilterList> m_pFilterList; /**< List of linefilters. */
 	std::shared_ptr<SubstitutionList> m_pSubstitutionList;
 
 	PathContext m_files; /**< Full path to diff'ed file. */
@@ -219,6 +234,7 @@ private:
 	bool m_bPathsAreTemp; /**< Are compared paths temporary? */
 	/// prediffer info are stored only for MergeDoc
 	std::unique_ptr<PrediffingInfo> m_infoPrediffer;
+	std::optional<TableProps> m_tableProps[3]; /**< Table properties for table compare */
 	/// prediffer info are stored only for MergeDoc
 	String m_sToFindPrediffer;
 	bool m_bUseDiffList; /**< Are results returned in difflist? */
@@ -228,8 +244,9 @@ private:
 	int m_nDiffs; /**< Difference count */
 	DiffList *m_pDiffList; /**< Pointer to external DiffList */
 	std::unique_ptr<MovedLines> m_pMovedLines[3];
-	CrystalLineParser::TextDefinition *m_pFilterCommentsDef; /**< Text definition for Comments filter  */
+	LangServices::TextDefinition *m_pFilterCommentsDef; /**< Text definition for Comments filter  */
 	bool m_bPluginsEnabled; /**< Are plugins enabled? */
+	int m_codepage; /**< Codepage used in line filter */
 };
 
 /**

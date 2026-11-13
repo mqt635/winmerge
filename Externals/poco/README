@@ -25,12 +25,12 @@ build/                     the build system for Unix and additional utility scri
 cmake/                     Support files for CMake
 
 bin/                       all executables (dynamic link libraries on Windows)
-bin64/                     all 64-bit executables (and DLLs)
+bin64/                     64-bit executables (and DLLs) on Windows
 
 doc/                       additional documentation
 
 lib/                       all libraries (import libraries on Windows)
-lib64/                     all 64-bit libraries
+lib64/                     64-bit libraries on Windows
 
 CppUnit/                   project and make/build files for the CppUnit unit testing framework
     doc/                   additional documentation
@@ -79,7 +79,7 @@ DOCUMENTATION
 =============
 
 Plenty of documentation (tutorial slides, articles and SDK reference)
-is available at <http://pocoproject.org/documentation/>.
+is available at <https://docs.pocoproject.org/>.
 
 
 EXTERNAL DEPENDENCIES
@@ -88,33 +88,23 @@ EXTERNAL DEPENDENCIES
 The following libraries require third-party software (header files and
 libraries) being installed to build properly:
 
-- NetSSL_OpenSSL and Crypt require OpenSSL.
+- NetSSL_OpenSSL, Crypto and JWT require OpenSSL.
 - Data/ODBC requires ODBC
   (Microsoft ODBC on Windows, unixODBC or iODBC on Unix/Linux)
-- Data/MySQL requires the MySQL client.
+- Data/MySQL requires the MySQL or MariaDB client library.
+- Data/PostgreSQL requires the PostgreSQL client library (libpq).
 
 Most Unix/Linux systems already have OpenSSL preinstalled. If your system
-does not have OpenSSL, please get it from http://www.openssl.org or
+does not have OpenSSL, please get it from https://www.openssl.org or
 another source. You do not have to build OpenSSL yourself - a binary
 distribution is fine (e.g., apt-get install openssl libssl-dev).
 On macOS, install OpenSSL via Homebrew (brew install openssl).
-
-The easiest way to install OpenSSL on Windows is to get the pre-built
-libraries from the pocoproject/openssl Git repository at
-<https://github.com/pocoproject/openssl>. This repository is included
-as a submodule in the poco GitHub repository, but not in the release
-source code packages. You can also provide your own OpenSSL build by
-editing the Visual Studio project files.
+On Windows, OpenSSL can be installed with vcpkg, or through WinGet
+(winget install -e --id ShiningLight.OpenSSL.Dev).
 
 Depending on where you have installed the OpenSSL libraries,
-you might have to edit the build script (buildwin.cmd), or add the
-necessary paths to the INCLUDE and LIB environment variables.
-
-Through the Poco/Crypto/Crypto.h and Poco/Net/NetSSL.h header files,
-Visual C++ will automatically link the libcrypto.lib and libssl.lib
-libraries. If your OpenSSL libraries are named differently, compile
-with the macro POCO_EXTERNAL_OPENSSL defined and edit the project
-files accordingly.
+you might have to add the necessary paths to the INCLUDE and LIB
+environment variables, or set OPENSSL_ROOT_DIR when using CMake.
 
 The Data library requires ODBC support on your system if you want
 to build the ODBC connector (which is the default). On Windows
@@ -133,7 +123,7 @@ accordingly.
 BUILDING WITH CMAKE
 ===================
 
-The POCO C++ Libraries support CMake as a build system on Linux, macOS and Windows.
+CMake is the official build system for the POCO C++ Libraries on Linux, macOS and Windows.
 To build the POCO C++ Libraries with CMake:
 
 1. create a cmake-build directory (e.g. in the POCO root directory):
@@ -144,61 +134,65 @@ $ mkdir cmake-build
 
 $ cd cmake-build
 $ cmake ..
-$ make -s -j (or build the generated Visual Studio solution on Windows)
+$ cmake --build . --config Release
 
-If you cannot or do not want to build with CMake, there are other options,
-described in the following.
+
+BUILDING - USING VCPKG
+======================
+
+You can download and install poco using the vcpkg (https://vcpkg.io)
+dependency manager:
+
+$ git clone https://github.com/Microsoft/vcpkg.git
+$ cd vcpkg
+$ ./bootstrap-vcpkg.sh
+$ ./vcpkg integrate install
+$ ./vcpkg install poco
+
+The Poco port in vcpkg is kept up to date by Microsoft team members and community contributors.
+If the version is out of date, please create an issue or pull request
+(https://github.com/Microsoft/vcpkg) on the vcpkg repository.
+
+
+BUILDING - USING CONAN
+======================
+
+You can download and install poco using the Conan (https://github.com/conan-io/conan)
+package manager. It needs to be installed (https://conan.io/downloads.html) first.
+
+You can install Poco libraries from Conan Center (https://conan.io/center.html):
+
+$ conan install --requires=poco/1.15.0
+
+Or, you can download Poco recipe and build locally:
+
+$ conan install --requires=poco/1.15.0 --build=poco
+
+The Poco recipe and packages in Conan Center are kept up to date by Conan team members and community contributors.
+If the version is out of date, or you detect any wrong behavior, please create an issue or pull request
+(https://github.com/conan-io/conan-center-index) on the Conan Center Index repository.
 
 
 BUILDING ON WINDOWS
 ===================
 
-Microsoft Visual Studio 2015 or newer is required to build the POCO C++ Libraries on
-Windows platforms. Solution and project files for all versions from 2015 to 2019 are included.
-64-bit (x64) builds are supported as well.
-You can either build from within Visual Studio (Build->Batch Build->Select All;Rebuild)
-or from the command line. To build from the command line, start the
-Visual Studio Command Prompt and cd to the directory where you
-have extracted the POCO C++ Libraries sources. Then, simply start the buildwin.cmd script
-and pass as argument the version of visual studio (140, 150, 160, etc.). You can customize
-what is being built by buildwin.cmd by passing appropriate command line arguments to
-it. Call buildwin.cmd without arguments to see what is available.
-
-To disable certain components (e.g., NetSSL_OpenSSL or Data/MySQL) from the build,
-edit the file named "components" and remove the respective lines.
+Microsoft Visual Studio 2019 or newer is required to build the POCO C++ Libraries on
+Windows platforms. Use CMake to generate Visual Studio solutions and build.
 
 Certain libraries, like NetSSL_OpenSSL, Crypto or Data/MySQL have dependencies
-to other libraries. Since the build script does not know where to find the necessary
-header files and import libraries, you have to either add the header file paths to
-the INCLUDE environment variable and the library path to the LIB environment variable,
-or you'll have to edit the buildwin.cmd script, where these environment variables can
-be set as well.
+to other libraries. Use vcpkg to install the required packages.
 
 In order to run the test suite and the samples, the top-most bin directory containing
 the shared libraries must be in the PATH environment variable.
-
-IMPORTANT NOTE: Please make sure that the path to the directory containing the
-POCO C++ Libraries source tree does not contain spaces. Otherwise, the Microsoft
-message compiler may fail when building the Foundation library.
 
 
 BUILDING ON UNIX/LINUX/macOS
 ============================
 
-For building on Unix platforms, the POCO C++ Libraries come with their own
-build system. The build system is based on GNU Make 3.80 (or newer), with the help
-from a few shell scripts. If you do not have GNU Make 3.80 (or later) installed on
-your machine, you will need to download it from
-http://directory.fsf.org/devel/build/make.html>,
-build and install it prior to building the POCO C++ Libraries.
+Use CMake to build the POCO C++ Libraries on Unix, Linux and macOS.
 
-You can check the version of GNU Make installed on your system with
-
-> gmake --version
-
-or
-
-> make --version
+Alternatively, the POCO C++ Libraries come with their own GNU Make based
+build system. The build system requires GNU Make 3.80 or newer.
 
 Once you have GNU Make up and running, the rest is quite simple.
 To extract the sources and build all libraries, testsuites and samples, simply
@@ -207,7 +201,7 @@ To extract the sources and build all libraries, testsuites and samples, simply
 > tar -xf poco-X.Y.tar
 > cd poco-X.Y
 > ./configure
-> gmake -s
+> make -s
 
 See the configure script source for a list of possible options.
 For starters, we recommend --no-tests and --no-samples, to reduce build times.
@@ -218,7 +212,7 @@ Once you have successfully built POCO, you can install it
 to /usr/local (or another directory specified as parameter
 to configure --prefix=<path>):
 
-> sudo gmake -s install
+> sudo make -s install
 
 You can omit certain components from the build. For example, you might
 want to omit Data/ODBC or Data/MySQL if you do not have the corresponding
@@ -226,13 +220,6 @@ third-party libraries (iodbc or unixodbc, mysqlclient) installed
 on your system. To do this, use the --omit argument to configure:
 
 > ./configure --omit=Data/ODBC,Data/MySQL
-
-
-IMPORTANT: Make sure that the path to the build directory does not
-contain symbolic links. Furthermore, on macOS (or other systems
-with case insensitive filesystems), make sure that the characters in
-the path have the correct case. Otherwise you'll get an error saying
-"Current working directory not under $PROJECT_BASE.".
 
 
 BUILDING ON QNX NEUTRINO
@@ -263,11 +250,11 @@ BUILDING FOR VXWORKS
 
 Please see the VxWorks Platform Notes in the Reference Documentation for
 more information. The Reference Documentation can be found online
-at <http://pocoproject.org/docs/>.
+at <https://docs.pocoproject.org/>.
 
 
 MORE INFORMATION
 ================
 
 For more information, see the POCO C++ Libraries website
-at <http://pocoproject.org>.
+at <https://pocoproject.org>.

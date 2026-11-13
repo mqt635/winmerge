@@ -95,6 +95,8 @@ DATE:		BY:					DESCRIPTION:
 #include "paths.h"
 #include "Environment.h"
 #include "Merge7zFormatRegister.h"
+#include "Merge7zFormatMergePluginImpl.h"
+#include "Logger.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -151,17 +153,17 @@ Merge7z::Format *ArchiveGuessFormat(const String& path)
 		return nullptr;
 	String path2(path);
 	// Map extensions through ExternalArchiveFormat.ini
-	static TCHAR null[] = _T("");
-	static const TCHAR section[] = _T("extensions");
+	static tchar_t null[] = _T("");
+	static const tchar_t section[] = _T("extensions");
 	String entry = paths::FindExtension(path);
-	TCHAR value[20];
-	static LPCTSTR filename = nullptr;
+	tchar_t value[20];
+	static const tchar_t* filename = nullptr;
 	if (filename == nullptr)
 	{
-		TCHAR cPath[INTERNET_MAX_PATH_LENGTH];
+		tchar_t cPath[INTERNET_MAX_PATH_LENGTH];
 		DWORD cchPath = SearchPath(nullptr, _T("ExternalArchiveFormat.ini"), nullptr,
 			INTERNET_MAX_PATH_LENGTH, cPath, nullptr);
-		filename = cchPath && cchPath < INTERNET_MAX_PATH_LENGTH ? _tcsdup(cPath) : null;
+		filename = cchPath && cchPath < INTERNET_MAX_PATH_LENGTH ? tc::tcsdup(cPath) : null;
 	}
 	if (*filename &&
 		GetPrivateProfileString(section, entry.c_str(), null, value, 20, filename) &&
@@ -169,7 +171,7 @@ Merge7z::Format *ArchiveGuessFormat(const String& path)
 	{
 		// Remove end-of-line comments (in string returned from GetPrivateProfileString)
 		// that is, remove semicolon & whatever follows it
-		if (LPTSTR p = StrChr(value, ';'))
+		if (tchar_t* p = StrChr(value, ';'))
 		{
 			*p = '\0';
 			StrTrim(value, _T(" \t"));
@@ -188,20 +190,16 @@ Merge7z::Format *ArchiveGuessFormat(const String& path)
 	}*/
 	// Default to Merge7z*.dll
 
-	try
+	Merge7z::Format* pFormat = Merge7zFormatRegister::GuessFormat(path2);
+	if (pFormat == nullptr && !paths::IsURL(path2))
 	{
-		Merge7z::Format *pFormat = m_Merge7z->GuessFormat(path2.c_str());
-		if (pFormat == nullptr)
-			pFormat = Merge7zFormatRegister::GuessFormat(path2);
-		return pFormat;
+		auto* infoUnpacker = Merge7zFormatMergePluginImpl::GetPackingInfo();
+		const auto& pluginPipeline = infoUnpacker->GetPluginPipeline();
+		if (!pluginPipeline.empty() && pluginPipeline != _T("<Automatic>") && pluginPipeline != _("<Automatic>"))
+			return nullptr;
+		pFormat = m_Merge7z->GuessFormat(path2.c_str());
 	}
-	catch (...)
-	{
-		Merge7z::Format *pFormat = Merge7zFormatRegister::GuessFormat(path2);
-		if (pFormat != nullptr)
-			return pFormat;
-		throw;
-	}
+	return pFormat;
 }
 
 /**
@@ -316,174 +314,36 @@ Merge7z::Envelope *SingleItemEnumerator::Enum(Item &item)
 /**
  * @brief SingleFileEnumerator constructor.
  */
-SingleItemEnumerator::SingleItemEnumerator(LPCTSTR path, LPCTSTR FullPath, LPCTSTR Name)
+SingleItemEnumerator::SingleItemEnumerator(const tchar_t* path, const tchar_t* FullPath, const tchar_t* Name)
 : FullPath(FullPath)
 , Name(Name)
 {
 }
 
-/**
- * @brief Construct a DirItemEnumerator.
- *
- * Argument *nFlags* controls operation as follows:
- * LVNI_ALL:		Enumerate all items.
- * LVNI_SELECTED:	Enumerate selected items only.
- * Original:		Set folder prefix for first iteration to "original"
- * Altered:			Set folder prefix for second iteration to "altered"
- * BalanceFolders:	Ensure that all nonempty folders on either side have a
- *					corresponding folder on the other side, even if it is
- *					empty (DirScan doesn't recurse into folders which
- *					appear only on one side).
- * DiffsOnly:		Enumerate diffs only.
- */
-DirItemEnumerator::DirItemEnumerator(CDirView *pView, int nFlags)
-: m_pView(pView)
-, m_nFlags(nFlags)
+CompressibleItemEnumerator::CompressibleItemEnumerator(std::vector<CompressibleItem> items)
+ : m_items(std::move(items))
 {
-	if (m_nFlags & Original)
-	{
-		m_rgFolderPrefix.push_back(_T("original"));
-	}
-	if (m_nFlags & Altered)
-	{
-		m_rgFolderPrefix.push_back(_T("altered"));
-	}
-	if (m_nFlags & BalanceFolders)
-	{
-		const CDiffContext& ctxt = pView->GetDiffContext();
-		// Collect implied folders
-		for (UINT i = Open() ; i-- ; )
-		{
-			const DIFFITEM &di = Next();
-			if ((m_nFlags & DiffsOnly) && !IsItemNavigableDiff(ctxt, di))
-			{
-				continue;
-			}
-			// Enumerating items
-			if (di.diffcode.exists(m_index))
-			{
-				// Item is present on right side, i.e. folder is implied
-				m_rgImpliedFolders[m_index][di.diffFileInfo[m_index].path.get()] = PVOID(1);
-			}
-		}
-	}
 }
 
-/**
- * @brief Initialize enumerator, return number of items to be enumerated.
- */
-UINT DirItemEnumerator::Open()
+UINT CompressibleItemEnumerator::Open()
 {
-	m_nIndex = -1;
-	m_curFolderPrefix = m_rgFolderPrefix.begin();
-	if (m_pView->GetDocument()->m_nDirs < 3)
-		m_index = (m_nFlags & Right) != 0 ? 1 : 0;
-	else
-		m_index = ((m_nFlags & Right) != 0) ? 2 : ((m_nFlags & Middle) != 0 ? 1 : 0);
-	size_t nrgFolderPrefix = m_rgFolderPrefix.size();
-	if (nrgFolderPrefix)
-	{
-		m_strFolderPrefix = *m_curFolderPrefix++;
-	}
-	else
-	{
-		nrgFolderPrefix = 1;
-	}
-	return
-	static_cast<UINT>((
-		(m_nFlags & LVNI_SELECTED)
-	?	pView(m_pView)->GetSelectedCount()
-	:	pView(m_pView)->GetItemCount()
-	) * nrgFolderPrefix);
+	m_itemPos = 0;
+	return static_cast<UINT>(m_items.size());
 }
 
-/**
- * @brief Return next item.
- */
-const DIFFITEM &DirItemEnumerator::Next()
+CompressibleItemEnumerator::Envelope* CompressibleItemEnumerator::Enum(Item & item)
 {
-	enum {nMask = LVNI_FOCUSED|LVNI_SELECTED|LVNI_CUT|LVNI_DROPHILITED};
-	while ((m_nIndex = pView(m_pView)->GetNextItem(m_nIndex, m_nFlags & nMask)) == -1)
-	{
-		m_strFolderPrefix = *m_curFolderPrefix++;
-		m_index = 1;
-	}
-	return m_pView->GetDiffItem(m_nIndex);
-}
-
-/**
- * @brief Pass information about an item to Merge7z.
- *
- * Information is passed through struct Merge7z::DirItemEnumerator::Item.
- * The *mask* member denotes which of the other members contain valid data.
- * If *mask* is zero upon return, which will be the case if Enum() decides to
- * leave the struct untouched, Merge7z will ignore the item.
- * If Enum() allocates temporary storage for string members, it must also
- * allocate an Envelope, providing a Free() method to free the temporary
- * storage, along with the Envelope itself. The Envelope pointer is passed to
- * Merge7z as the return value of the function. It is not meant to be a success
- * indicator, so if no temporary storage is required, it is perfectly alright
- * to return `nullptr`.
- */
-Merge7z::Envelope *DirItemEnumerator::Enum(Item &item)
-{
-	const CDiffContext& ctxt = m_pView->GetDiffContext();
-	const DIFFITEM &di = Next();
-
-	if ((m_nFlags & DiffsOnly) && !IsItemNavigableDiff(ctxt, di))
-	{
+	if (m_itemPos >= m_items.size())
 		return 0;
-	}
-
-	bool isSideOnly = !di.diffcode.exists(m_index);
-
-	Envelope *envelope = new Envelope;
-
-	const String &sFilename = di.diffFileInfo[m_index].filename;
-	const String &sSubdir = di.diffFileInfo[m_index].path;
-	if (sSubdir.length())
-		envelope->Name = paths::ConcatPath(sSubdir, sFilename);
-	else
-		envelope->Name = sFilename;
-	envelope->FullPath = paths::ConcatPath(
-			di.getFilepath(m_index, ctxt.GetNormalizedPath(m_index)),
-			sFilename);
-
-	UINT32 Recurse = item.Mask.Recurse;
-
-	if (m_nFlags & BalanceFolders)
-	{
-		// Enumerating items on right side
-		if (isSideOnly)
-		{
-			// Item is missing on right side
-			PVOID &implied = m_rgImpliedFolders[m_index][di.diffFileInfo[1-m_index].path.get()];
-			if (implied == nullptr)
-			{
-				// Folder is not implied by some other file, and has
-				// not been enumerated so far, so enumerate it now!
-				envelope->Name = di.diffFileInfo[1-m_index].path;
-				envelope->FullPath = di.getFilepath(1-m_index, ctxt.GetNormalizedPath(1-m_index));
-				implied = PVOID(2); // Don't enumerate same folder twice!
-				isSideOnly = false;
-				Recurse = 0;
-			}
-		}
-	}
-
-	if (isSideOnly)
-	{
-		return envelope;
-	}
-
-	if (m_strFolderPrefix.length())
-	{
-		if (envelope->Name.length())
-			envelope->Name.insert(0, _T("\\"));
-		envelope->Name.insert(0, m_strFolderPrefix);
-	}
-
-	item.Mask.Item = item.Mask.Name|item.Mask.FullPath|item.Mask.CheckIfPresent|Recurse;
+	
+	const CompressibleItem & ci = m_items[m_itemPos++];
+	
+	Envelope* envelope = new Envelope;
+	envelope->Name = ci.name;
+	envelope->FullPath = ci.fullPath;
+	
+	item.Mask.Item = item.Mask.Name | item.Mask.FullPath | item.Mask.CheckIfPresent
+		 | (ci.recurse ? item.Mask.Recurse : 0);
 	item.Name = envelope->Name.c_str();
 	item.FullPath = envelope->FullPath.c_str();
 	return envelope;
@@ -492,7 +352,7 @@ Merge7z::Envelope *DirItemEnumerator::Enum(Item &item)
 /**
  * @brief Apply appropriate handlers from left to right.
  */
-bool DirItemEnumerator::MultiStepCompressArchive(LPCTSTR path)
+bool CompressibleItemEnumerator::MultiStepCompressArchive(const tchar_t* path)
 {
 	DeleteFile(path);
 	Merge7z::Format *piHandler = ArchiveGuessFormat(path);
@@ -523,14 +383,14 @@ bool DirItemEnumerator::MultiStepCompressArchive(LPCTSTR path)
 /**
  * @brief Generate archive from DirView items.
  */
-void DirItemEnumerator::CompressArchive(LPCTSTR path)
+bool CompressibleItemEnumerator::CompressArchive(const tchar_t* path)
 {
 	String strPath;
 	if (path == nullptr)
 	{
 		// 7z311 can only write 7z, zip, and tar(.gz|.bz2) archives, so don't
 		// offer other formats here!
-		static const TCHAR _T_Filter[]
+		static const tchar_t _T_Filter[]
 		(
 			_T("7z|*.7z|")
 			//_T("z|*.z|")
@@ -590,8 +450,10 @@ void DirItemEnumerator::CompressArchive(LPCTSTR path)
 	}
 	if (path && !MultiStepCompressArchive(path))
 	{
-		LangMessageBox(IDS_UNKNOWN_ARCHIVE_FORMAT, MB_ICONEXCLAMATION);
+		I18n::MessageBox(IDS_UNKNOWN_ARCHIVE_FORMAT, MB_ICONEXCLAMATION);
+		return false;
 	}
+	return true;
 }
 
 
@@ -600,6 +462,7 @@ DecompressResult DecompressArchive(HWND hWnd, const PathContext& files)
 	DecompressResult res(files, nullptr, paths::IS_EXISTING_DIR);
 	try
 	{
+		HRESULT hr;
 		String path;
 		// Handle archives using 7-zip
 		Merge7z::Format *piHandler;
@@ -614,11 +477,15 @@ DecompressResult DecompressArchive(HWND hWnd, const PathContext& files)
 				res.files[1].erase();
 			do
 			{
-				if (FAILED(piHandler->DeCompressArchive(hWnd, res.files[0].c_str(), path.c_str())))
+				hr = piHandler->DeCompressArchive(hWnd, res.files[0].c_str(), path.c_str());
+				if (FAILED(hr))
+				{
+					res.hr = hr;
 					break;
+				}
 				if (res.files[0].find(path) == 0)
 				{
-					VERIFY(::DeleteFile(res.files[0].c_str()) || (LogErrorString(strutils::format(_T("DeleteFile(%s) failed"), res.files[0])), false));
+					VERIFY(::DeleteFile(res.files[0].c_str()) || (RootLogger::Error(strutils::format(_T("DeleteFile(%s) failed"), res.files[0])), false));
 				}
 				BSTR pTmp = piHandler->GetDefaultName(hWnd, res.files[0].c_str());
 				res.files[0] = ucr::toTString(pTmp);
@@ -642,11 +509,15 @@ DecompressResult DecompressArchive(HWND hWnd, const PathContext& files)
 			path = env::GetTempChildPath();
 			do
 			{
-				if (FAILED(piHandler->DeCompressArchive(hWnd, res.files[1].c_str(), path.c_str())))
-					break;;
+				hr = piHandler->DeCompressArchive(hWnd, res.files[1].c_str(), path.c_str());
+				if (FAILED(hr))
+				{
+					res.hr = hr;
+					break;
+				}
 				if (res.files[1].find(path) == 0)
 				{
-					VERIFY(::DeleteFile(res.files[1].c_str()) || (LogErrorString(strutils::format(_T("DeleteFile(%s) failed"), res.files[1])), false));
+					VERIFY(::DeleteFile(res.files[1].c_str()) || (RootLogger::Error(strutils::format(_T("DeleteFile(%s) failed"), res.files[1])), false));
 				}
 				BSTR pTmp = piHandler->GetDefaultName(hWnd, res.files[1].c_str());
 				res.files[1] = OLE2T(pTmp);
@@ -669,11 +540,15 @@ DecompressResult DecompressArchive(HWND hWnd, const PathContext& files)
 			path = env::GetTempChildPath();
 			do
 			{
-				if (FAILED(piHandler->DeCompressArchive(hWnd, res.files[2].c_str(), path.c_str())))
-					break;;
+				hr = piHandler->DeCompressArchive(hWnd, res.files[2].c_str(), path.c_str());
+				if (FAILED(hr))
+				{
+					res.hr = hr;
+					break;
+				}
 				if (res.files[2].find(path) == 0)
 				{
-					VERIFY(::DeleteFile(res.files[2].c_str()) || (LogErrorString(strutils::format(_T("DeleteFile(%s) failed"), res.files[2])), false));
+					VERIFY(::DeleteFile(res.files[2].c_str()) || (RootLogger::Error(strutils::format(_T("DeleteFile(%s) failed"), res.files[2])), false));
 				}
 				BSTR pTmp = piHandler->GetDefaultName(hWnd, res.files[2].c_str());
 				res.files[2] = OLE2T(pTmp);
@@ -693,7 +568,8 @@ DecompressResult DecompressArchive(HWND hWnd, const PathContext& files)
 			if (!PathFileExists(res.files[0].c_str()) || !PathFileExists(res.files[1].c_str()))
 			{
 				// not a Perry style patch: diff with itself...
-				res.files[0] = res.files[1] = path;
+				res.files[0] = path;
+				res.files[1] = std::move(path);
 			}
 			else
 			{
@@ -704,9 +580,22 @@ DecompressResult DecompressArchive(HWND hWnd, const PathContext& files)
 	}
 	catch (CException *e)
 	{
+		res.hr = E_FAIL;
 		e->Delete();
 	}
 	return res;
 }
 
+void Merge7zInitFlags()
+{
+	if (m_Merge7z.Merge7z[0])
+		return;
+	LANGID wLangID = (LANGID)GetThreadLocale();
+	DWORD flags = Merge7z::Initialize::Default | Merge7z::Initialize::Local7z | (wLangID << 16);
+	if (GetOptionsMgr()->GetBool(OPT_ARCHIVE_PROBETYPE))
+	{
+		flags |= Merge7z::Initialize::GuessFormatBySignature | Merge7z::Initialize::GuessFormatByExtension;
+	}
+	((interface Merge7z*)m_Merge7z.Merge7z[1])->Initialize(flags);
+}
 

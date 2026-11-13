@@ -8,6 +8,7 @@
 #include "FilterList.h"
 #include <vector>
 #include <Poco/RegularExpression.h>
+#include <Poco/Exception.h>
 #include "unicoder.h"
 
 using Poco::RegularExpression;
@@ -15,10 +16,7 @@ using Poco::RegularExpression;
 /** 
  * @brief Constructor.
  */
- FilterList::FilterList()
-: m_lastMatchExpression(nullptr)
-{
-}
+FilterList::FilterList() = default;
 
 /** 
  * @brief Destructor.
@@ -35,16 +33,42 @@ FilterList::~FilterList()
  * @param [in] regularExpression Regular expression string.
  * @param [in] encoding Expression encoding.
  */
-void FilterList::AddRegExp(const std::string& regularExpression)
+void FilterList::AddRegExp(const std::string& regularExpression, bool throwIfInvalid)
 {
 	try
 	{
 		m_list.push_back(filter_item_ptr(new filter_item(regularExpression, RegularExpression::RE_UTF8)));
 	}
-	catch (...)
+	catch (Poco::RegularExpressionException& e)
 	{
-		// TODO:
+		if (throwIfInvalid)
+			throw std::runtime_error(e.message().c_str());
 	}
+}
+
+static bool match(const std::vector <filter_item_ptr>& list, const std::string& string)
+{
+	if (list.empty())
+		return false;
+	bool retval = false;
+	for (const auto& item : list)
+	{
+		int result = 0;
+		RegularExpression::Match match;
+		try
+		{
+			result = item->regexp.match(string, 0, match);
+		}
+		catch (...)
+		{
+		}
+		if (result > 0)
+		{
+			retval = true;
+			break;
+		}
+	}
+	return retval;
 }
 
 /** 
@@ -58,9 +82,6 @@ void FilterList::AddRegExp(const std::string& regularExpression)
  */
 bool FilterList::Match(const std::string& string, int codepage/*=CP_UTF8*/)
 {
-	bool retval = false;
-	const size_t count = m_list.size();
-
 	// convert string into UTF-8
 	ucr::buffer buf(string.length() * 2);
 
@@ -68,33 +89,7 @@ bool FilterList::Match(const std::string& string, int codepage/*=CP_UTF8*/)
 			ucr::convert(ucr::NONE, codepage, reinterpret_cast<const unsigned char *>(string.c_str()), 
 					string.length(), ucr::UTF8, ucr::CP_UTF_8, &buf);
 
-	unsigned i = 0;
-	while (i < count && !retval)
-	{
-		const filter_item_ptr& item = m_list[i];
-		int result = 0;
-		RegularExpression::Match match;
-		try
-		{
-			if (buf.size > 0)
-				result = item->regexp.match(std::string(reinterpret_cast<const char *>(buf.ptr), buf.size), 0, match);
-			else
-				result = item->regexp.match(string, 0, match);
-		}
-		catch (...)
-		{
-			// TODO:
-		}
-		if (result > 0)
-		{
-			m_lastMatchExpression = &item->filterAsString;
-			retval = true;
-		}
-		else
-			++i;
-	}
-
-	return retval;
+	return match(m_list, (buf.size > 0) ? std::string(reinterpret_cast<const char*>(buf.ptr), buf.size) : string);
 }
 
 /**
@@ -111,12 +106,9 @@ void FilterList::CloneFrom(const FilterList* filterList)
 	m_list.clear();
 
 	size_t count = filterList->m_list.size();
+	m_list.reserve(count);
 	for (size_t i = 0; i < count; i++)
 	{
-		filter_item_ptr ptr(new filter_item(filterList->m_list[i].get()));
-		m_list.push_back(ptr);
-
-		if (&filterList->m_list[i]->filterAsString == filterList->m_lastMatchExpression)
-			m_lastMatchExpression = &m_list[i]->filterAsString;
+		m_list.emplace_back(std::make_shared<filter_item>(filterList->m_list[i].get()));
 	}
 }

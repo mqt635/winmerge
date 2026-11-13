@@ -4,21 +4,8 @@
 #include "RegOptionsMgr.h"
 #include "OptionsDef.h"
 
-void LogErrorStringUTF8(const std::string& sz)
-{
-}
-
-void LogErrorString(const String& sz)
-{
-}
-
 void AppErrorMessageBox(const String& msg)
 {
-}
-
-String LoadResString(unsigned id)
-{
-	return _T("");
 }
 
 String GetSysError(int nerr)
@@ -26,15 +13,18 @@ String GetSysError(int nerr)
 	return _T("");
 }
 
-String tr(const std::string& str)
-{
-	return ucr::toTString(str);
-}
-
-CRegOptionsMgr m_option;
+CRegOptionsMgr m_option(_T("Thingamahoochie\\WinMerge\\"));
 
 COptionsMgr * GetOptionsMgr()
 {
 	m_option.InitOption(OPT_PLUGINS_CUSTOM_SETTINGS_LIST, _T(""));
 	return &m_option;
+}
+
+namespace I18n
+{
+	String tr(const std::string& str)
+	{
+		return ucr::toTString(str);
+	}
 }

@@ -114,6 +114,7 @@ BEGIN
         MENUITEM "Print Preview",               ID_FILE_PRINT_PREVIEW
         MENUITEM "Pa&ge Setup...",              ID_FILE_PAGE_SETUP
         MENUITEM "P&rint Setup...",             ID_FILE_PRINT_SETUP
+        MENUITEM "Convert to &HTML...",         ID_FILE_CONVERT_TO_HTML
         MENUITEM SEPARATOR
         MENUITEM "Recent File",                 ID_FILE_MRU_FILE1, GRAYED
         MENUITEM SEPARATOR
@@ -189,6 +190,7 @@ BEGIN
         MENUITEM "View T&op Margins",           ID_VIEW_TOPMARGIN
         MENUITEM "W&rap Lines",                 ID_VIEW_WORDWRAP
         MENUITEM "&View Whitespace",            ID_VIEW_WHITESPACE
+        MENUITEM "View Line &Numbers",          ID_VIEW_LINENUMBERS
         MENUITEM "Select &Font...",             ID_VIEW_SELECT_FONT
         MENUITEM SEPARATOR
         MENUITEM "&Toolbar",                    ID_VIEW_TOOLBAR
@@ -223,9 +225,12 @@ BEGIN
     "E",            ID_EDIT_MATCHBRACE,     VIRTKEY, CONTROL, NOINVERT
     "F",            ID_EDIT_FIND,           VIRTKEY, CONTROL, NOINVERT
     "G",            ID_EDIT_GOTO,           VIRTKEY, CONTROL, NOINVERT
+    "G",            ID_EDIT_GOTO_LAST_CHANGE, VIRTKEY, SHIFT, CONTROL, NOINVERT
     "H",            ID_EDIT_REPLACE,        VIRTKEY, CONTROL, NOINVERT
     "I",            ID_EDIT_FIND_INCREMENTAL_FORWARD, VIRTKEY, CONTROL, NOINVERT
     "I",            ID_EDIT_FIND_INCREMENTAL_BACKWARD, VIRTKEY, SHIFT, CONTROL, NOINVERT
+    "J",            ID_EDIT_CAPITALIZE,     VIRTKEY, CONTROL, NOINVERT
+    "K",            ID_EDIT_SWAPCASE,       VIRTKEY, CONTROL, NOINVERT
     "M",            ID_EDIT_MARK,           VIRTKEY, SHIFT, CONTROL, NOINVERT
     "V",            ID_EDIT_PASTE,          VIRTKEY, CONTROL, NOINVERT
     VK_INSERT,      ID_EDIT_PASTE,          VIRTKEY, SHIFT, NOINVERT
@@ -243,6 +248,8 @@ BEGIN
     VK_F3,          ID_EDIT_REPEAT,         VIRTKEY, NOINVERT
     VK_F3,          ID_EDIT_REPEAT,         VIRTKEY, SHIFT, NOINVERT
     VK_SPACE,       ID_EDIT_AUTOCOMPLETE,   VIRTKEY, CONTROL, NOINVERT
+    VK_RETURN,      ID_EDIT_AUTOEXPAND,     VIRTKEY, CONTROL, NOINVERT
+    29,             ID_EDIT_MATCHBRACE,     ASCII, NOINVERT
 END
 
 
@@ -273,7 +280,7 @@ BEGIN
     CONTROL         "Match &case",IDC_EDIT_MATCH_CASE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,37,135,10
     CONTROL         "Regular &expression",IDC_EDIT_REGEXP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,47,135,10
     CONTROL         "D&on't wrap end of file",IDC_FINDDLG_DONTWRAP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,57,135,10
-    CONTROL         "&Don't close this dialog box",IDC_FINDDLG_DONTCLOSE,
+    CONTROL         "&Don't close this dialog",IDC_FINDDLG_DONTCLOSE,
                     "Button",BS_AUTOCHECKBOX | BS_TOP | BS_MULTILINE | WS_TABSTOP,7,67,135,10
     DEFPUSHBUTTON   "Find &Prev",IDC_EDIT_FINDPREV,226,7,50,14,WS_GROUP
     DEFPUSHBUTTON   "&Find Next",IDOK,226,24,50,14,WS_GROUP
@@ -292,7 +299,7 @@ BEGIN
     CONTROL         "Match &whole word only",IDC_EDIT_WHOLE_WORD,"Button",BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,7,44,135,10
     CONTROL         "Match &case",IDC_EDIT_MATCH_CASE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,54,135,10
     CONTROL         "Regular &expression",IDC_EDIT_REGEXP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,64,135,10
-    CONTROL         "&Don't wrap end of file",IDC_EDIT_SCOPE_DONT_WRAP,
+    CONTROL         "&Don't wrap at end of file",IDC_EDIT_SCOPE_DONT_WRAP,
                     "Button",BS_AUTOCHECKBOX | WS_TABSTOP,7,74,135,10
     GROUPBOX        "Replace in",IDC_STATIC,149,40,90,36,WS_GROUP
     CONTROL         "&Selection",IDC_EDIT_SCOPE_SELECTION,"Button",BS_AUTORADIOBUTTON | WS_GROUP,154,51,80,10
@@ -309,7 +316,7 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSM
 CAPTION "Markers"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    CONTROL         "Enable &Markers",IDC_EDIT_MARKERS_ENABLED,"Button",BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,6,4,135,10
+    CONTROL         "Enable &markers",IDC_EDIT_MARKERS_ENABLED,"Button",BS_AUTOCHECKBOX | WS_GROUP | WS_TABSTOP,6,4,135,10
     CONTROL         "",IDC_EDIT_MARKER_LIST,"SysListView32",LVS_LIST | LVS_SHOWSELALWAYS | LVS_ALIGNLEFT | LVS_NOCOLUMNHEADER | WS_BORDER | WS_TABSTOP,6,15,231,66
     PUSHBUTTON      "New",IDC_EDIT_MARKER_NEW,240,15,50,14,WS_GROUP
     PUSHBUTTON      "&Delete",IDC_EDIT_MARKER_DELETE,240,30,50,14,WS_GROUP
@@ -433,19 +440,10 @@ END
 
 /////////////////////////////////////////////////////////////////////////////
 //
-// Bitmap
-//
-
-IDR_MAINFRAME           BITMAP                  "res\\Toolbar.bmp"
-
-IDR_MARGIN_ICONS        BITMAP                  "res\\mg_icons.bmp"
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
 // IMAGE
 //
 
+IDR_TOOLBAR_PNG         IMAGE                   "res\\Toolbar.png"
 IDR_MARGIN_ICONS_PNG    IMAGE                   "res\\mg_icons.png"
 
 

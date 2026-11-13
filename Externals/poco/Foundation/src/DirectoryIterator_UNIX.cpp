@@ -11,7 +11,6 @@
 // SPDX-License-Identifier:	BSL-1.0
 //
 
-#if 0
 
 #include "Poco/DirectoryIterator_UNIX.h"
 #if defined(POCO_VXWORKS)
@@ -25,7 +24,7 @@
 namespace Poco {
 
 
-DirectoryIteratorImpl::DirectoryIteratorImpl(const std::string& path): _pDir(0), _rc(1)
+DirectoryIteratorImpl::DirectoryIteratorImpl(const std::string& path): _pDir(nullptr), _rc(1)
 {
 	Path p(path);
 	p.makeFile();
@@ -63,5 +62,3 @@ const std::string& DirectoryIteratorImpl::next()
 
 
 } // namespace Poco
-
-#endif

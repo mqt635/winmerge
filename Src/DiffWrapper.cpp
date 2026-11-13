@@ -10,22 +10,10 @@
 #include "pch.h"
 #define NOMINMAX
 #include "DiffWrapper.h"
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <algorithm>
-#include <string>
-#include <cctype>
-#include <cwctype>
-#include <map>
-#include <cassert>
+#include <tuple>
 #include <exception>
-#include <vector>
-#include <list>
-#include <Poco/Format.h>
-#include <Poco/Debugger.h>
-#include <Poco/StringTokenizer.h>
+#include <array>
 #include <Poco/Exception.h>
-#include "DiffContext.h"
 #include "coretools.h"
 #include "DiffList.h"
 #include "MovedLines.h"
@@ -37,21 +25,23 @@
 #include "paths.h"
 #include "CompareOptions.h"
 #include "FileTextStats.h"
-#include "FolderCmp.h"
+#include "DiffFileData.h"
 #include "Environment.h"
 #include "PatchHTML.h"
 #include "UnicodeString.h"
 #include "unicoder.h"
 #include "TFile.h"
 #include "Exceptions.h"
-#include "parsers/crystallineparser.h"
 #include "SyntaxColors.h"
+#include "Logger.h"
 #include "MergeApp.h"
 #include "SubstitutionList.h"
+#include "codepage_detect.h"
+#include "cio.h"
+#include "SyntaxParserRegistry.h"
+#include "SyntaxParserHelper.h"
+#include "TableProps.h"
 
-using Poco::Debugger;
-using Poco::format;
-using Poco::StringTokenizer;
 using Poco::Exception;
 
 extern int recursive;
@@ -60,6 +50,8 @@ extern "C" int is_blank_line(char const* pch, char const* limit);
 
 static void CopyTextStats(const file_data * inf, FileTextStats * myTextStats);
 static void CopyDiffutilTextStats(file_data *inf, DiffFileData * diffData);
+
+constexpr char* FILTERED_LINE = "!" "c0d5089f" "-" "3d91" "-" "4d69" "-" "b406" "-" "dc5a5b51a4f8";
 
 /**
  * @brief Default constructor.
@@ -79,6 +71,8 @@ CDiffWrapper::CDiffWrapper()
 , m_pSubstitutionList{nullptr}
 , m_bPluginsEnabled(false)
 , m_status()
+, m_codepage(ucr::CP_UTF_8)
+, m_xdlFlags(0)
 {
 	// character that ends a line.  Currently this is always `\n'
 	line_end_char = '\n';
@@ -87,9 +81,7 @@ CDiffWrapper::CDiffWrapper()
 /**
  * @brief Destructor.
  */
-CDiffWrapper::~CDiffWrapper()
-{
-}
+CDiffWrapper::~CDiffWrapper() = default;
 
 /**
  * @brief Enables/disables patch-file creation and sets filename.
@@ -153,10 +145,13 @@ void CDiffWrapper::GetOptions(DIFFOPTIONS *options) const
  * internally and stores them.
  * @param [in] options Pointer to structure having new options.
  */
-void CDiffWrapper::SetOptions(const DIFFOPTIONS *options)
+void CDiffWrapper::SetOptions(const DIFFOPTIONS *options, bool setToDiffutils)
 {
 	assert(options != nullptr);
 	m_options.SetFromDiffOptions(*options);
+	m_xdlFlags = make_xdl_flags(m_options);
+	if (setToDiffutils)
+		m_options.SetToDiffUtils();
 }
 
 void CDiffWrapper::SetPrediffer(const PrediffingInfo * prediffer /*= nullptr*/)
@@ -237,61 +232,6 @@ static String convertToTString(const char* start, const char* end)
 	}
 }
 
-static unsigned GetLastLineCookie(unsigned dwCookie, int startLine, int endLine, const char **linbuf, CrystalLineParser::TextDefinition* enuType)
-{
-	if (!enuType)
-		return dwCookie;
-	for (int i = startLine; i <= endLine; ++i)
-	{
-		String text = convertToTString(linbuf[i], linbuf[i + 1]);
-		int nActualItems = 0;
-		std::vector<CrystalLineParser::TEXTBLOCK> blocks(text.length());
-		dwCookie = enuType->ParseLineX(dwCookie, text.c_str(), static_cast<int>(text.length()), blocks.data(), nActualItems);
-	}
-	return dwCookie;
-}
-
-static unsigned GetCommentsFilteredText(unsigned dwCookie, int startLine, int endLine, const char **linbuf, std::string& filtered, CrystalLineParser::TextDefinition* enuType)
-{
-	String filteredT;
-	for (int i = startLine; i <= endLine; ++i)
-	{
-		String text = convertToTString(linbuf[i], linbuf[i + 1]);
-		unsigned textlen = static_cast<unsigned>(text.size());
-		if (!enuType)
-		{
-			filteredT += text;
-		}
-		else
-		{
-			int nActualItems = 0;
-			std::vector<CrystalLineParser::TEXTBLOCK> blocks(textlen);
-			dwCookie = enuType->ParseLineX(dwCookie, text.c_str(), textlen, blocks.data(), nActualItems);
-
-			if (nActualItems == 0)
-			{
-				filteredT += text;
-			}
-			else
-			{
-				for (int j = 0; j < nActualItems; ++j)
-				{
-					CrystalLineParser::TEXTBLOCK& block = blocks[j];
-					if (block.m_nColorIndex != COLORINDEX_COMMENT)
-					{
-						unsigned blocklen = (j < nActualItems - 1) ? (blocks[j + 1].m_nCharPos - block.m_nCharPos) : textlen - block.m_nCharPos;
-						filteredT.append(text.c_str() + block.m_nCharPos, blocklen);
-					}
-				}
-			}
-		}
-	}
-
-	filtered = ucr::toUTF8(filteredT);
-
-	return dwCookie;
-}
-
 /**
  * @brief Replace a string inside a string with another string.
  * This function searches for a string inside another string an if found,
@@ -335,117 +275,470 @@ static void ReplaceChars(std::string & str, const char* chars, const char *rep)
 }
 
 /**
- * @brief Remove blank lines
+ * @brief Get the end-of-line (EOL) characters (LF, CR, or CRLF) from the end of a string.
+ * @param [in] str - A string from which the EOL characters will be identified.
  */
-void RemoveBlankLines(std::string &str)
+static std::string GetEOL(const std::string& str)
 {
-	size_t pos = 0;
-	while (pos < str.length())
+	if (str.empty())
+		return "";
+	if (str.size() >= 2 && str[str.size() - 2] == '\r' && str[str.size() - 1] == '\n')
+		return "\r\n";
+	if (str.back() == '\r')
+		return "\r";
+	if (str.back() == '\n')
+		return "\n";
+	return "";
+}
+
+static bool iseolch(tchar_t ch)
+{
+	return ch == '\n' || ch == '\r';
+}
+
+static size_t linelen(const tchar_t* string, size_t maxlen)
+{
+	const tchar_t* q = string + maxlen;
+	do
 	{
-		size_t posend = str.find_first_of("\r\n", pos);
-		if (posend != std::string::npos)
-			posend = str.find_first_not_of("\r\n", posend);
-		if (posend == std::string::npos)
-			posend = str.length();
-		if (is_blank_line(str.data() + pos, str.data() + posend))
-			str.erase(pos, posend - pos);
-		else
-			pos = posend;
-	}
+		maxlen = q - string;
+	} while (maxlen && iseolch(*--q));
+	return maxlen;
+}
+
+static std::unique_ptr<LangServices::ITextBuffer> CreateTextBuffer(const file_data& fileData)
+{
+	class DiffTextBuffer : public LangServices::ITextBuffer
+	{
+	public:
+		DiffTextBuffer(const file_data& fileData)
+			: m_fileData(fileData), m_lineCache(fileData.valid_lines - fileData.linbuf_base), m_lineCount(fileData.valid_lines - fileData.linbuf_base)
+		{
+		}
+		int GetLineCount() const override
+		{
+			return m_lineCount;
+		}
+		const tchar_t* GetLineChars(int nLineIndex) const override
+		{
+			if (nLineIndex < 0 || nLineIndex >= m_lineCount)
+				return nullptr;
+			if (m_lineCache[nLineIndex].empty())
+				m_lineCache[nLineIndex] = convertToTString(m_fileData.linbuf[nLineIndex + m_fileData.linbuf_base], m_fileData.linbuf[nLineIndex + 1 + m_fileData.linbuf_base]);
+			return m_lineCache[nLineIndex].c_str();
+		}
+		int GetLineLength(int nLineIndex) const override
+		{
+			if (nLineIndex < 0 || nLineIndex >= m_lineCount)
+				return 0;
+			if (m_lineCache[nLineIndex].empty())
+				m_lineCache[nLineIndex] = convertToTString(m_fileData.linbuf[nLineIndex + m_fileData.linbuf_base], m_fileData.linbuf[nLineIndex + 1 + m_fileData.linbuf_base]);
+			return static_cast<int>(linelen(m_lineCache[nLineIndex].c_str(), m_lineCache[nLineIndex].length()));
+		}
+		int GetFullLineLength(int nLineIndex) const override
+		{
+			if (nLineIndex < 0 || nLineIndex >= m_lineCount)
+				return 0;
+			if (m_lineCache[nLineIndex].empty())
+				m_lineCache[nLineIndex] = convertToTString(m_fileData.linbuf[nLineIndex + m_fileData.linbuf_base], m_fileData.linbuf[nLineIndex + 1 + m_fileData.linbuf_base]);
+			return static_cast<int>(m_lineCache[nLineIndex].length());
+		}
+	private:
+		const file_data& m_fileData;
+		mutable std::vector<String> m_lineCache;
+		int m_lineCount;
+	};
+	return std::unique_ptr<LangServices::ITextBuffer>(new DiffTextBuffer(fileData));
 }
 
 /**
-@brief The main entry for post filtering.  Performs post-filtering, by setting comment blocks to trivial
-@param [in]  LineNumberLeft		- First line number to read from left file
-@param [in]  QtyLinesLeft		- Number of lines in the block for left file
-@param [in]  LineNumberRight		- First line number to read from right file
-@param [in]  QtyLinesRight		- Number of lines in the block for right file
-@param [in,out]  Op				- This variable is set to trivial if block should be ignored.
-*/
-void CDiffWrapper::PostFilter(PostFilterContext& ctxt, int LineNumberLeft, int QtyLinesLeft, int LineNumberRight,
-	int QtyLinesRight, OP_TYPE &Op, const file_data *file_data_ary) const
+ * @brief The main entry for post filtering.  Performs post-filtering, by setting comment blocks to trivial
+ * @param [in, out]  thisob	Current change
+ * @return Number of trivial diffs inserted
+ */
+int CDiffWrapper::PostFilter(PostFilterContext& ctxt, change* thisob, const file_data *file_data_ary) const
 {
-	if (Op == OP_TRIVIAL)
-		return;
+	const int first0 = thisob->line0;
+	const int first1 = thisob->line1;
+	const int last0 = first0 + thisob->deleted - 1;
+	const int last1 = first1 + thisob->inserted - 1;
+	int trans_a0 = 0, trans_b0 = 0, trans_a1 = 0, trans_b1 = 0;
+	translate_range(&file_data_ary[0], first0, last0, &trans_a0, &trans_b0);
+	translate_range(&file_data_ary[1], first1, last1, &trans_a1, &trans_b1);
+	const int qtyLinesLeft = (trans_b0 - trans_a0) + 1; //Determine quantity of lines in this block for left side
+	const int qtyLinesRight = (trans_b1 - trans_a1) + 1;//Determine quantity of lines in this block for right side
+	const int lineNumberLeft = trans_a0 - 1;
+	const int lineNumberRight = trans_a1 - 1;
+	
+	std::string lineDataLeft, lineDataRight;
+	std::vector<bool> allTextIsCommentLeft(qtyLinesLeft), allTextIsCommentRight(qtyLinesRight);
+	bool doFilterComments = m_options.m_filterCommentsLines && m_pFilterCommentsDef != nullptr;
 
-	std::string LineDataLeft, LineDataRight;
-
-	if (m_options.m_filterCommentsLines)
+	if (doFilterComments)
 	{
-		ctxt.dwCookieLeft = GetLastLineCookie(ctxt.dwCookieLeft,
-			ctxt.nParsedLineEndLeft + 1, LineNumberLeft - 1, file_data_ary[0].linbuf + file_data_ary[0].linbuf_base, m_pFilterCommentsDef);
-		ctxt.dwCookieRight = GetLastLineCookie(ctxt.dwCookieRight,
-			ctxt.nParsedLineEndRight + 1, LineNumberRight - 1, file_data_ary[1].linbuf + file_data_ary[1].linbuf_base, m_pFilterCommentsDef);
+		if (!ctxt.m_bSyntaxParserInitialized[0])
+		{
+			ctxt.m_pSyntaxParser[0] = LangServices::SyntaxParserRegistry::GetInstance().CreateParser(m_pFilterCommentsDef->type);
+			ctxt.m_pTextBuffer[0] = CreateTextBuffer(file_data_ary[0]);
+			if (ctxt.m_pSyntaxParser[0] && ctxt.m_pTextBuffer[0])
+				ctxt.m_pSyntaxParser[0]->SetTextBuffer(ctxt.m_pTextBuffer[0].get());
+			ctxt.m_bSyntaxParserInitialized[0] = true;
+		}
+		if (!ctxt.m_bSyntaxParserInitialized[1])
+		{
+			ctxt.m_pSyntaxParser[1] = LangServices::SyntaxParserRegistry::GetInstance().CreateParser(m_pFilterCommentsDef->type);
+			ctxt.m_pTextBuffer[1] = CreateTextBuffer(file_data_ary[1]);
+			if (ctxt.m_pSyntaxParser[1] && ctxt.m_pTextBuffer[1])
+				ctxt.m_pSyntaxParser[1]->SetTextBuffer(ctxt.m_pTextBuffer[1].get());
+			ctxt.m_bSyntaxParserInitialized[1] = true;
+		}
+	}
 
-		ctxt.nParsedLineEndLeft = LineNumberLeft + QtyLinesLeft - 1;
-		ctxt.nParsedLineEndRight = LineNumberRight + QtyLinesRight - 1;;
+	if (doFilterComments && ctxt.m_pSyntaxParser[0] && ctxt.m_pSyntaxParser[1])
+	{
+		int nLineEndLeft = lineNumberLeft + qtyLinesLeft - 1;
+		int nLineEndRight = lineNumberRight + qtyLinesRight - 1;
 
-		ctxt.dwCookieLeft = GetCommentsFilteredText(ctxt.dwCookieLeft,
-			LineNumberLeft, ctxt.nParsedLineEndLeft, file_data_ary[0].linbuf + file_data_ary[0].linbuf_base, LineDataLeft, m_pFilterCommentsDef);
-		ctxt.dwCookieRight = GetCommentsFilteredText(ctxt.dwCookieRight,
-			LineNumberRight, ctxt.nParsedLineEndRight, file_data_ary[1].linbuf + file_data_ary[1].linbuf_base, LineDataRight, m_pFilterCommentsDef);
+		// Use SyntaxParserHelper for unified comment filtering
+		lineDataLeft = SyntaxParserHelper::GetCommentsFilteredText(
+			ctxt.m_pSyntaxParser[0].get(), lineNumberLeft, nLineEndLeft, allTextIsCommentLeft); 
+		lineDataRight = SyntaxParserHelper::GetCommentsFilteredText(
+			ctxt.m_pSyntaxParser[1].get(), lineNumberRight, nLineEndRight, allTextIsCommentRight);
 	}
 	else
 	{
-		LineDataLeft.assign(file_data_ary[0].linbuf[LineNumberLeft + file_data_ary[0].linbuf_base],
-			file_data_ary[0].linbuf[LineNumberLeft + QtyLinesLeft + file_data_ary[0].linbuf_base]
-			- file_data_ary[0].linbuf[LineNumberLeft + file_data_ary[0].linbuf_base]);
-		LineDataRight.assign(file_data_ary[1].linbuf[LineNumberRight + file_data_ary[1].linbuf_base],
-			file_data_ary[1].linbuf[LineNumberRight + QtyLinesRight + file_data_ary[1].linbuf_base]
-			- file_data_ary[1].linbuf[LineNumberRight + file_data_ary[1].linbuf_base]);
+		lineDataLeft.assign(file_data_ary[0].linbuf[lineNumberLeft + file_data_ary[0].linbuf_base],
+			file_data_ary[0].linbuf[lineNumberLeft + qtyLinesLeft + file_data_ary[0].linbuf_base]
+			- file_data_ary[0].linbuf[lineNumberLeft + file_data_ary[0].linbuf_base]);
+		lineDataRight.assign(file_data_ary[1].linbuf[lineNumberRight + file_data_ary[1].linbuf_base],
+			file_data_ary[1].linbuf[lineNumberRight + qtyLinesRight + file_data_ary[1].linbuf_base]
+			- file_data_ary[1].linbuf[lineNumberRight + file_data_ary[1].linbuf_base]);
+	}
+
+	if (m_pFilterList != nullptr && m_pFilterList->HasRegExps())
+	{
+		// Match lines against regular expression filters
+		// Our strategy is that every line in both sides must
+		// match regexp before we mark difference as ignored.
+		bool match1 = RegExpFilter(lineDataLeft);
+		bool match2 = RegExpFilter(lineDataRight);
+		if (match1 && match2)
+		{
+			thisob->trivial = 1;
+			return 0;
+		}
 	}
 
 	if (m_pSubstitutionList)
 	{
-		LineDataLeft = m_pSubstitutionList->Subst(LineDataLeft);
-		LineDataRight = m_pSubstitutionList->Subst(LineDataRight);
+		lineDataLeft = m_pSubstitutionList->Subst(lineDataLeft, m_codepage);
+		lineDataRight = m_pSubstitutionList->Subst(lineDataRight, m_codepage);
 	}
 
 	if (m_options.m_ignoreWhitespace == WHITESPACE_IGNORE_ALL)
 	{
 		//Ignore character case
-		ReplaceChars(LineDataLeft, " \t", "");
-		ReplaceChars(LineDataRight, " \t", "");
+		ReplaceChars(lineDataLeft, " \t", "");
+		ReplaceChars(lineDataRight, " \t", "");
 	}
 	else if (m_options.m_ignoreWhitespace == WHITESPACE_IGNORE_CHANGE)
 	{
 		//Ignore change in whitespace char count
-		ReplaceChars(LineDataLeft, " \t", " ");
-		ReplaceChars(LineDataRight, " \t", " ");
+		ReplaceChars(lineDataLeft, " \t", " ");
+		ReplaceChars(lineDataRight, " \t", " ");
 	}
 
-	if (m_options.m_bIgnoreNumbers )
+	if (m_options.m_bIgnoreNumbers)
 	{
 		//Ignore number character case
-		ReplaceChars(LineDataLeft, "0123456789", "");
-		ReplaceChars(LineDataRight, "0123456789", "");
+		ReplaceChars(lineDataLeft, "0123456789", "");
+		ReplaceChars(lineDataRight, "0123456789", "");
 	}
 	if (m_options.m_bIgnoreCase)
 	{
 		//ignore case
-		// std::transform(LineDataLeft.begin(),  LineDataLeft.end(),  LineDataLeft.begin(),  ::toupper);
-		for (std::string::iterator pb = LineDataLeft.begin(), pe = LineDataLeft.end(); pb != pe; ++pb) 
+		for (std::string::iterator pb = lineDataLeft.begin(), pe = lineDataLeft.end(); pb != pe; ++pb) 
 			*pb = static_cast<char>(::toupper(*pb));
-		// std::transform(LineDataRight.begin(), LineDataRight.end(), LineDataRight.begin(), ::toupper);
-		for (std::string::iterator pb = LineDataRight.begin(), pe = LineDataRight.end(); pb != pe; ++pb) 
+		for (std::string::iterator pb = lineDataRight.begin(), pe = lineDataRight.end(); pb != pe; ++pb) 
 			*pb = static_cast<char>(::toupper(*pb));
 	}
 	if (m_options.m_bIgnoreEOLDifference)
 	{
-		Replace(LineDataLeft, "\r\n", "\n");
-		Replace(LineDataLeft, "\r", "\n");
-		Replace(LineDataRight, "\r\n", "\n");
-		Replace(LineDataRight, "\r", "\n");
+		Replace(lineDataLeft, "\r\n", "\n");
+		Replace(lineDataLeft, "\r", "\n");
+		Replace(lineDataRight, "\r\n", "\n");
+		Replace(lineDataRight, "\r", "\n");
 	}
-	if (m_options.m_bIgnoreBlankLines)
+	if (thisob->link == nullptr && m_options.m_bIgnoreMissingTrailingEol && (file_data_ary[0].missing_newline != file_data_ary[1].missing_newline))
 	{
-		RemoveBlankLines(LineDataLeft);
-		RemoveBlankLines(LineDataRight);
+		if (file_data_ary[0].missing_newline && !file_data_ary[1].missing_newline)
+			lineDataLeft += GetEOL(lineDataRight);
+		else if (!file_data_ary[0].missing_newline && file_data_ary[1].missing_newline)
+			lineDataRight += GetEOL(lineDataLeft);
 	}
-	if (LineDataLeft != LineDataRight)
-		return;
-	//only difference is trival
-	Op = OP_TRIVIAL;
+	if (m_options.m_bIgnoreLineBreaks)
+	{
+		std::string lineDataLeftOneLine = lineDataLeft;
+		std::string lineDataRightOneLine = lineDataRight;
+		Replace(lineDataLeftOneLine, "\r\n", " ");
+		ReplaceChars(lineDataLeftOneLine, "\r\n", " ");
+		Replace(lineDataRightOneLine, "\r\n", " ");
+		ReplaceChars(lineDataRightOneLine, "\r\n", " ");
+		if (m_options.m_ignoreWhitespace == WHITESPACE_IGNORE_ALL)
+		{
+			//Ignore character case
+			ReplaceChars(lineDataLeftOneLine, " \t", "");
+			ReplaceChars(lineDataRightOneLine, " \t", "");
+		}
+		else if (m_options.m_ignoreWhitespace == WHITESPACE_IGNORE_CHANGE)
+		{
+			//Ignore change in whitespace char count
+			ReplaceChars(lineDataLeftOneLine, " \t", " ");
+			ReplaceChars(lineDataRightOneLine, " \t", " ");
+		}
+		// If both match after filtering, mark this diff hunk as trivial and return.
+		if (lineDataLeftOneLine == lineDataRightOneLine)
+		{
+			//only difference is trivial
+			thisob->trivial = 1;
+			return 0;
+		}
+	}
+	else
+	{
+		// If both match after filtering, mark this diff hunk as trivial and return.
+		if (lineDataLeft == lineDataRight)
+		{
+			//only difference is trivial
+			thisob->trivial = 1;
+			return 0;
+		}
+	}
+
+	auto SplitLines = [](const std::string& lines, int nlines) -> std::vector<std::string_view>
+		{
+			std::vector<std::string_view> result;
+			const char* line = lines.c_str();
+			for (size_t i = 0; i < lines.length(); ++i)
+			{
+				char c = lines[i];
+				if (c == '\r')
+				{
+					if (i + 1 < lines.length() && lines[i + 1] == '\n')
+						i++;
+					result.emplace_back(line, lines.c_str() + i + 1 - line);
+					line = lines.c_str() + i + 1;
+				}
+				else if (c == '\n')
+				{
+					result.emplace_back(line, lines.c_str() + i + 1 - line);
+					line = lines.c_str() + i + 1;
+				}
+			}
+			if (!lines.empty() && (lines.back() != '\r' && lines.back() != '\n'))
+				result.emplace_back(line, lines.c_str() + lines.length() - line);
+			if (result.size() < nlines)
+				result.emplace_back("", 0);
+			return result; 
+		};
+
+	std::vector<std::string_view> leftLines = SplitLines(lineDataLeft, qtyLinesLeft);
+	std::vector<std::string_view> rightLines = SplitLines(lineDataRight, qtyLinesRight);
+
+	if (qtyLinesLeft != leftLines.size() || qtyLinesRight != rightLines.size())
+		return 0;
+
+	// If both do not match as a result of filtering, some lines may match,
+	// so diff calculation is performed again using the filtered lines.
+	change* script = diff_2_buffers_xdiff(
+		lineDataLeft.c_str(), lineDataLeft.length(),
+		lineDataRight.c_str(), lineDataRight.length(), m_xdlFlags);
+	if (!script)
+		return 0;
+
+	auto TranslateLineNumbers = [](change* thisob, change* script)
+		{
+			assert(thisob && script);
+			for (change* cur = script; cur; cur = cur->link)
+			{
+				cur->line0 += thisob->line0;
+				cur->line1 += thisob->line1;
+			}
+		};
+
+	// Insert lines with no differences as trivial diffs after filtering
+	auto InsertTrivialChanges = [](change* thisob, change* script) -> int
+		{
+			assert(thisob && script);
+			int l0 = thisob->line0;
+			int l1 = thisob->line1;
+			change* first = script;
+			change* prev = nullptr;
+			int nTrivialInserts = 0;
+			for (change* cur = script; cur; cur = cur->link)
+			{
+				if (l0 < cur->line0 || l1 < cur->line1)
+				{
+					nTrivialInserts++;
+					change *newob = (change *)xmalloc(sizeof (change));
+					newob->line0 = l0;
+					newob->line1 = l1;
+					newob->deleted = cur->line0 - l0;
+					newob->inserted = cur->line1 - l1;
+					newob->trivial = 1;
+					newob->match0 = -1;
+					newob->match1 = -1;
+					if (cur == first)
+					{
+						std::swap(newob->line0, cur->line0);
+						std::swap(newob->line1, cur->line1);
+						std::swap(newob->deleted, cur->deleted);
+						std::swap(newob->inserted, cur->inserted);
+						std::swap(newob->trivial, cur->trivial);
+						std::swap(newob->match0, cur->match0);
+						std::swap(newob->match1, cur->match1);
+						newob->link = cur->link;
+						cur->link = newob;
+					}
+					else
+					{
+						prev->link = newob;
+						newob->link = cur;
+					}
+				}
+				l0 = cur->line0 + cur->deleted;
+				l1 = cur->line1 + cur->inserted;
+				prev = cur;
+			}
+			if (l0 < thisob->line0 + thisob->deleted || l1 < thisob->line1 + thisob->inserted)
+			{
+				nTrivialInserts++;
+				change *newob = (change *)xmalloc(sizeof (change));
+				prev->link = newob;
+				newob->line0 = l0;
+				newob->line1 = l1;
+				newob->deleted = thisob->line0 + thisob->deleted - l0;
+				newob->inserted = thisob->line1 + thisob->inserted - l1;
+				newob->trivial = 1;
+				newob->match0 = -1;
+				newob->match1 = -1;
+				newob->link = nullptr;
+			}
+			return nTrivialInserts;
+		};
+
+	// Insert blank lines or filtered lines that are only on one side as trivial diffs. 
+	auto InsertTrivialChanges2 =
+		[](change* thisob, change* script, bool ignoreBlankLines,
+		   const std::vector<std::string_view>& leftLines,
+		   const std::vector<std::string_view>& rightLines,
+		   const std::vector<bool>& linesFilteredLeft,
+		   const std::vector<bool>& linesFilteredRight) -> int
+		{
+			assert(thisob && script);
+			auto IsBlankLine = [](const std::string_view& line)
+				{
+					for (char c : line)
+					{
+						if (!std::isspace(static_cast<unsigned char>(c)))
+							return false;
+					}
+					return true;
+				};
+			int nTrivialInserts = 0;
+			for (change* cur = script; cur; cur = cur->link)
+			{
+				if (!cur->trivial && cur->deleted != cur->inserted)
+				{
+					bool ignorable = true;
+					if (cur->deleted > cur->inserted)
+					{
+						for (int i = cur->line0 + cur->inserted - thisob->line0; i < cur->line0 + cur->deleted - thisob->line0; ++i)
+						{
+							if (!(ignoreBlankLines && IsBlankLine(leftLines[i])) && !linesFilteredLeft[i] && leftLines[i] != FILTERED_LINE)
+								ignorable = false;
+						}
+						if (ignorable)
+						{
+							if (cur->inserted == 0)
+							{
+								cur->trivial = 1;
+							}
+							else
+							{
+								nTrivialInserts++;
+								change* newob = (change*)xmalloc(sizeof(change));
+								newob->line0 = cur->line0 + cur->inserted;
+								newob->line1 = cur->line1 + cur->inserted;
+								newob->deleted = cur->deleted - cur->inserted;
+								newob->inserted = 0;
+								newob->trivial = 1;
+								newob->match0 = -1;
+								newob->match1 = -1;
+								newob->link = cur->link;
+								cur->link = newob;
+								cur->deleted = cur->inserted;
+							}
+						}
+					}
+					else
+					{
+						for (int i = cur->line1 + cur->deleted - thisob->line1; i < cur->line1 + cur->inserted - thisob->line1; ++i)
+						{
+							if (!(ignoreBlankLines && IsBlankLine(rightLines[i])) && !linesFilteredRight[i] && rightLines[i] != FILTERED_LINE)
+								ignorable = false;
+						}
+						if (ignorable)
+						{
+							if (cur->deleted == 0)
+							{
+								cur->trivial = 1;
+							}
+							else
+							{
+								nTrivialInserts++;
+								change* newob = (change*)xmalloc(sizeof(change));
+								newob->line0 = cur->line0 + cur->deleted;
+								newob->line1 = cur->line1 + cur->deleted;
+								newob->deleted = 0;
+								newob->inserted = cur->inserted - cur->deleted;
+								newob->trivial = 1;
+								newob->match0 = -1;
+								newob->match1 = -1;
+								newob->link = cur->link;
+								cur->link = newob;
+								cur->inserted = cur->deleted;
+							}
+						}
+					}
+				}
+			}
+			return nTrivialInserts;
+		};
+
+	auto ReplaceChanges = [](change* thisob, change* script)
+		{
+			assert(thisob && script);
+			change* last = script;
+			for (change* cur = script; cur; cur = cur->link)
+				last = cur;
+			last->link = thisob->link;
+			thisob->link = script->link;
+			thisob->line0 = script->line0;
+			thisob->line1 = script->line1;
+			thisob->deleted = script->deleted;
+			thisob->inserted = script->inserted;
+			thisob->trivial = script->trivial;
+			thisob->match0 = script->match0;
+			thisob->match1 = script->match1;
+			free(script);
+		};
+
+	TranslateLineNumbers(thisob, script);
+	int nTrivialInserts = InsertTrivialChanges(thisob, script);
+	nTrivialInserts += InsertTrivialChanges2(thisob, script, m_options.m_bIgnoreBlankLines, leftLines, rightLines, allTextIsCommentLeft, allTextIsCommentRight);
+	ReplaceChanges(thisob, script);
+	return nTrivialInserts;
 }
 
 /**
@@ -482,6 +775,9 @@ bool CDiffWrapper::RunFileDiff()
 	if (m_bUseDiffList)
 		m_nDiffs = m_pDiffList->GetSize();
 
+	PluginPipelineContext pipelineContext;
+	pipelineContext.filteredFilenames = m_sToFindPrediffer;
+
 	for (file = 0; file < aFiles.GetSize(); file++)
 	{
 		if (m_bPluginsEnabled)
@@ -493,11 +789,13 @@ bool CDiffWrapper::RunFileDiff()
 
 			// this can only fail if the data can not be saved back (no more
 			// place on disk ???) What to do then ??
-			if (m_infoPrediffer && !m_infoPrediffer->Prediffing(strFileTemp[file], m_sToFindPrediffer, m_bPathsAreTemp, { strFileTemp[file] }))
+			pipelineContext.variables = { strFileTemp[file] };
+			pipelineContext.tableProps = m_tableProps[file];
+			if (m_infoPrediffer && !m_infoPrediffer->Prediffing(file, strFileTemp[file], m_bPathsAreTemp, pipelineContext))
 			{
 				// display a message box
-				String sError = strutils::format(
-					_T("An error occurred while prediffing the file '%s' with the plugin '%s'. The prediffing is not applied any more."),
+				String sError = strutils::format_string2(
+					_("Error prediffing '%1' with '%2'. Prediffing disabled."),
 					strFileTemp[file].c_str(),
 					m_infoPrediffer->GetPluginPipeline().c_str());
 				AppErrorMessageBox(sError);
@@ -510,8 +808,9 @@ bool CDiffWrapper::RunFileDiff()
 	struct change *script = nullptr;
 	struct change *script10 = nullptr;
 	struct change *script12 = nullptr;
-	DiffFileData diffdata, diffdata10, diffdata12;
-	int bin_flag = 0, bin_flag10 = 0, bin_flag12 = 0;
+	struct change *script02 = nullptr;
+	DiffFileData diffdata, diffdata10, diffdata12, diffdata02;
+	int bin_flag = 0, bin_flag10 = 0, bin_flag12 = 0, bin_flag02 = 0;
 
 	if (aFiles.GetSize() == 2)
 	{
@@ -537,7 +836,7 @@ bool CDiffWrapper::RunFileDiff()
 		String sTempPath = env::GetTemporaryPath(); // get path to Temp folder
 		String path = paths::ConcatPath(sTempPath, _T("Diff.txt"));
 
-		if (_tfopen_s(&outfile, path.c_str(), _T("w+")) == 0)
+		if (cio::tfopen_s(&outfile, path, _T("w+")) == 0)
 		{
 			print_normal_script(script);
 			fclose(outfile);
@@ -549,6 +848,7 @@ bool CDiffWrapper::RunFileDiff()
 	{
 		diffdata10.SetDisplayFilepaths(aFiles[1], aFiles[0]); // store true names for diff utils patch file
 		diffdata12.SetDisplayFilepaths(aFiles[1], aFiles[2]); // store true names for diff utils patch file
+		diffdata02.SetDisplayFilepaths(aFiles[0], aFiles[2]); // store true names for diff utils patch file
 
 		if (!diffdata10.OpenFiles(strFileTemp[1], strFileTemp[0]))
 		{
@@ -563,6 +863,13 @@ bool CDiffWrapper::RunFileDiff()
 		}
 
 		bRet = Diff2Files(&script12, &diffdata12, &bin_flag12, nullptr);
+
+		if (!diffdata02.OpenFiles(strFileTemp[0], strFileTemp[2]))
+		{
+			return false;
+		}
+
+		bRet = Diff2Files(&script02, &diffdata02, &bin_flag02, nullptr);
 	}
 
 	// First determine what happened during comparison
@@ -575,57 +882,17 @@ bool CDiffWrapper::RunFileDiff()
 	file_data * inf = diffdata.m_inf;
 	file_data * inf10 = diffdata10.m_inf;
 	file_data * inf12 = diffdata12.m_inf;
+	file_data * inf02 = diffdata02.m_inf;
 
 	if (aFiles.GetSize() == 2)
 	{
 		if (bin_flag != 0)
-		{
 			m_status.bBinaries = true;
-			if (bin_flag != -1)
-				m_status.Identical = IDENTLEVEL::ALL;
-			else
-				m_status.Identical = IDENTLEVEL::NONE;
-		}
-		else
-		{ // text files according to diffutils, so change script exists
-			m_status.Identical = (script == 0) ? IDENTLEVEL::ALL : IDENTLEVEL::NONE;
-			m_status.bBinaries = false;
-		}
-		m_status.bMissingNL[0] = !!inf[0].missing_newline;
-		m_status.bMissingNL[1] = !!inf[1].missing_newline;
 	}
 	else
 	{
-		m_status.Identical = IDENTLEVEL::NONE;
-		if (bin_flag10 != 0 || bin_flag12 != 0)
-		{
-			m_status.bBinaries = true;
-			if (bin_flag10 != -1 && bin_flag12 != -1)
-				m_status.Identical = IDENTLEVEL::ALL;
-			else if (bin_flag10 != -1)
-				m_status.Identical = IDENTLEVEL::EXCEPTRIGHT;
-			else if (bin_flag12 != -1)
-				m_status.Identical = IDENTLEVEL::EXCEPTLEFT;
-			else
-				m_status.Identical = IDENTLEVEL::EXCEPTMIDDLE;
-		}
-		else
-		{ // text files according to diffutils, so change script exists
-			m_status.bBinaries = false;
-			if (script10 == nullptr && script12 == nullptr)
-				m_status.Identical = IDENTLEVEL::ALL;
-			else if (script10 == nullptr)
-				m_status.Identical = IDENTLEVEL::EXCEPTRIGHT;
-			else if (script12 == nullptr)
-				m_status.Identical = IDENTLEVEL::EXCEPTLEFT;
-			else
-				m_status.Identical = IDENTLEVEL::EXCEPTMIDDLE;
-		}
-		m_status.bMissingNL[0] = !!inf10[1].missing_newline;
-		m_status.bMissingNL[1] = !!inf12[0].missing_newline;
-		m_status.bMissingNL[2] = !!inf12[1].missing_newline;
+		m_status.bBinaries = (bin_flag10 != 0 || bin_flag12 != 0);
 	}
-
 
 	// Create patch file
 	if (!m_status.bBinaries && m_bCreatePatchFile && aFiles.GetSize() == 2)
@@ -641,9 +908,55 @@ bool CDiffWrapper::RunFileDiff()
 			LoadWinMergeDiffsFromDiffUtilsScript(script, diffdata.m_inf);
 		else
 			LoadWinMergeDiffsFromDiffUtilsScript3(
-				script10, script12,
-				diffdata10.m_inf, diffdata12.m_inf);
+				script10, script12, script02,
+				diffdata10.m_inf, diffdata12.m_inf, diffdata02.m_inf);
 	}			
+
+	if (aFiles.GetSize() == 2)
+	{
+		if (bin_flag != 0)
+		{
+			if (bin_flag != -1)
+				m_status.Identical = IDENTLEVEL::ALL;
+			else
+				m_status.Identical = IDENTLEVEL::NONE;
+		}
+		else
+		{ // text files according to diffutils, so change script exists
+			m_status.Identical = (script == 0) ? IDENTLEVEL::ALL : IDENTLEVEL::NONE;
+		}
+		m_status.bMissingNL[0] = !!inf[0].missing_newline;
+		m_status.bMissingNL[1] = !!inf[1].missing_newline;
+	}
+	else
+	{
+		m_status.Identical = IDENTLEVEL::NONE;
+		if (bin_flag10 != 0 || bin_flag12 != 0)
+		{
+			if (bin_flag10 != -1 && bin_flag12 != -1)
+				m_status.Identical = IDENTLEVEL::ALL;
+			else if (bin_flag10 != -1)
+				m_status.Identical = IDENTLEVEL::EXCEPTRIGHT;
+			else if (bin_flag12 != -1)
+				m_status.Identical = IDENTLEVEL::EXCEPTLEFT;
+			else if (bin_flag12 != -1)
+				m_status.Identical = IDENTLEVEL::EXCEPTMIDDLE;
+		}
+		else
+		{ // text files according to diffutils, so change script exists
+			if (IsIdenticalOrIgnorable(script10) && IsIdenticalOrIgnorable(script12))
+				m_status.Identical = IDENTLEVEL::ALL;
+			else if (IsIdenticalOrIgnorable(script10))
+				m_status.Identical = IDENTLEVEL::EXCEPTRIGHT;
+			else if (IsIdenticalOrIgnorable(script12))
+				m_status.Identical = IDENTLEVEL::EXCEPTLEFT;
+			else if (IsIdenticalOrIgnorable(script02))
+				m_status.Identical = IDENTLEVEL::EXCEPTMIDDLE;
+		}
+		m_status.bMissingNL[0] = !!inf10[1].missing_newline;
+		m_status.bMissingNL[1] = !!inf12[0].missing_newline;
+		m_status.bMissingNL[2] = !!inf02[1].missing_newline;
+	}
 
 	// cleanup the script
 	if (aFiles.GetSize() == 2)
@@ -652,6 +965,7 @@ bool CDiffWrapper::RunFileDiff()
 	{
 		FreeDiffUtilsScript(script10);
 		FreeDiffUtilsScript(script12);
+		FreeDiffUtilsScript(script02);
 	}
 
 	// Done with diffutils filedata
@@ -663,6 +977,7 @@ bool CDiffWrapper::RunFileDiff()
 	{
 		diffdata10.Close();
 		diffdata12.Close();
+		diffdata02.Close();
 	}
 
 	if (m_bPluginsEnabled)
@@ -678,7 +993,7 @@ bool CDiffWrapper::RunFileDiff()
 				}
 				catch (Exception& e)
 				{
-					LogErrorStringUTF8(e.displayText());
+					RootLogger::Error(e.displayText());
 				}
 				strFileTemp[file].erase();
 			}
@@ -707,7 +1022,7 @@ void CDiffWrapper::AddDiffRange(DiffList *pDiffList, unsigned begin0, unsigned e
 	}
 	catch (std::exception& e)
 	{
-		AppErrorMessageBox(ucr::toTString(e.what()));
+		RootLogger::Error(e.what());
 	}
 }
 
@@ -719,7 +1034,7 @@ void CDiffWrapper::AddDiffRange(DiffList *pDiffList, DIFFRANGE &dr)
 	}
 	catch (std::exception& e)
 	{
-		AppErrorMessageBox(ucr::toTString(e.what()));
+		RootLogger::Error(e.what());
 	}
 }
 
@@ -727,7 +1042,7 @@ void CDiffWrapper::AddDiffRange(DiffList *pDiffList, DIFFRANGE &dr)
  * @brief Expand last DIFFRANGE of file by one line to contain last line after EOL.
  * @param [in] leftBufferLines size of array pane left
  * @param [in] rightBufferLines size of array pane right
- * @param [in] left on whitch side we have to insert
+ * @param [in] left on which side we have to insert
  * @param [in] bIgnoreBlankLines, if true we always add a new diff and mark as trivial
  */
 void CDiffWrapper::FixLastDiffRange(int nFiles, int bufferLines[], bool bMissingNL[], bool bIgnoreBlankLines)
@@ -813,11 +1128,7 @@ String CDiffWrapper::FormatSwitchString() const
 
 	if ((m_options.m_outputStyle == DIFF_OUTPUT_CONTEXT || m_options.m_outputStyle == DIFF_OUTPUT_UNIFIED) &&
 		m_options.m_contextLines > 0)
-	{
-		TCHAR tmpNum[5] = {0};
-		_itot_s(m_options.m_contextLines, tmpNum, 10);
-		switches += tmpNum;
-	}
+		switches += strutils::to_str(m_options.m_contextLines);
 
 	if (ignore_all_space_flag > 0)
 		switches += _T(" -w");
@@ -850,7 +1161,7 @@ void CDiffWrapper::SetAppendFiles(bool bAppendFiles)
  *
  * Compare two files (in DiffFileData param) using diffutils. Run diffutils
  * inside SEH so we can trap possible error and exceptions. If error or
- * execption is trapped, return compare failure.
+ * exception is trapped, return compare failure.
  * @param [out] diffs Pointer to list of change structs where diffdata is stored.
  * @param [in] diffData files to compare.
  * @param [out] bin_status used to return binary status from compare.
@@ -871,8 +1182,9 @@ bool CDiffWrapper::Diff2Files(struct change ** diffs, DiffFileData *diffData,
 	{
 		if (m_options.m_diffAlgorithm != DIFF_ALGORITHM_DEFAULT)
 		{
-			unsigned xdl_flags = make_xdl_flags(m_options);
-			*diffs = diff_2_files_xdiff(diffData->m_inf, (m_pMovedLines[0] != nullptr), xdl_flags);
+			const unsigned xdl_flags = make_xdl_flags(m_options);
+			*diffs = diff_2_files_xdiff(diffData->m_inf, bin_status,
+				(m_pMovedLines[0] != nullptr), bin_file, xdl_flags);
 			files[0] = diffData->m_inf[0];
 			files[1] = diffData->m_inf[1];
 		}
@@ -890,6 +1202,19 @@ bool CDiffWrapper::Diff2Files(struct change ** diffs, DiffFileData *diffData,
 		bRet = false;
 	}
 	return bRet;
+}
+
+bool CDiffWrapper::IsIdenticalOrIgnorable(struct change* script)
+{
+	bool diff = false;
+	struct change *e=nullptr, *p=nullptr;
+	for (e = script; e != nullptr; e = p)
+	{
+		if (!e->trivial)
+			diff = true;
+		p = e->link;
+	}
+	return !diff;
 }
 
 /**
@@ -919,7 +1244,7 @@ CDiffWrapper::FreeDiffUtilsScript(struct change * & script)
  * @param [in] FileNo File to match.
  * return true if any of the expressions matches.
  */
-bool CDiffWrapper::RegExpFilter(int StartPos, int EndPos, const file_data *pinf) const
+bool CDiffWrapper::RegExpFilter(std::string& lines) const
 {
 	if (m_pFilterList == nullptr)
 	{	
@@ -928,20 +1253,32 @@ bool CDiffWrapper::RegExpFilter(int StartPos, int EndPos, const file_data *pinf)
 	}
 
 	bool linesMatch = true; // set to false when non-matching line is found.
-	int line = StartPos;
 
-	while (line <= EndPos && linesMatch)
+	std::string replaced;
+	replaced.reserve(lines.length());
+	size_t pos = 0;
+	while (pos < lines.length())
 	{
-		size_t len = pinf->linbuf[line + 1] - pinf->linbuf[line];
-		const char *string = pinf->linbuf[line];
-		size_t stringlen = linelen(string, len);
-		if (!m_pFilterList->Match(std::string(string, stringlen)))
-
+		const char* string = lines.c_str() + pos;
+		while (pos < lines.length() && (lines[pos] != '\r' && lines[pos] != '\n'))
+			pos++;
+		size_t stringlen = lines.c_str() + pos - string;
+		std::string line = std::string(string, stringlen);
+		if (!m_pFilterList->Match(line, m_codepage))
 		{
 			linesMatch = false;
+			replaced += line;
 		}
-		++line;
+		else
+		{
+			replaced += FILTERED_LINE;
+		}
+		std::string eol;
+		while (pos < lines.length() && (lines[pos] == '\r' || lines[pos] == '\n'))
+			eol += lines[pos++];
+		replaced += eol;
 	}
+	lines = replaced;
 	return linesMatch;
 }
 
@@ -955,6 +1292,12 @@ CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript(struct change * script, const
 	PostFilterContext ctxt;
 
 	struct change *next = script;
+
+	const bool usefilters = m_options.m_filterCommentsLines ||
+		m_options.m_bIgnoreMissingTrailingEol ||
+		m_options.m_bIgnoreLineBreaks ||
+		(m_pFilterList && m_pFilterList->HasRegExps()) ||
+		(m_pSubstitutionList && m_pSubstitutionList->HasRegExps());
 	
 	while (next != nullptr)
 	{
@@ -976,6 +1319,10 @@ CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript(struct change * script, const
 			/* Determine range of line numbers involved in each file.  */
 			int first0=0, last0=0, first1=0, last1=0, deletes=0, inserts=0;
 			analyze_hunk (thisob, &first0, &last0, &first1, &last1, &deletes, &inserts, file_data_ary);
+		
+			/* Reconnect the script so it will all be freed properly.  */
+			end->link = next;
+
 			if (deletes || inserts || thisob->trivial)
 			{
 				OP_TYPE op = OP_NONE;
@@ -1015,50 +1362,87 @@ CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript(struct change * script, const
 						}
 					}
 				}
-				int QtyLinesLeft = (trans_b0 - trans_a0) + 1; //Determine quantity of lines in this block for left side
-				int QtyLinesRight = (trans_b1 - trans_a1) + 1;//Determine quantity of lines in this block for right side
-
-				if (m_options.m_filterCommentsLines ||
-					(m_pSubstitutionList && m_pSubstitutionList->HasRegExps()))
-					PostFilter(ctxt, trans_a0 - 1, QtyLinesLeft, trans_a1 - 1, QtyLinesRight, op, file_data_ary);
-
-				if (m_pFilterList != nullptr && m_pFilterList->HasRegExps())
+				int nTrivialInserts = 0;
+				if (op != OP_TRIVIAL && usefilters)
+					nTrivialInserts = PostFilter(ctxt, thisob, file_data_ary);
+				if (nTrivialInserts > 0)
 				{
-					// Match lines against regular expression filters
-					// Our strategy is that every line in both sides must
-					// match regexp before we mark difference as ignored.
-					bool match2 = false;
-					bool match1 = RegExpFilter(thisob->line0, thisob->line0 + QtyLinesLeft - 1, &file_data_ary[0]);
-					if (match1)
-						match2 = RegExpFilter(thisob->line1, thisob->line1 + QtyLinesRight - 1, &file_data_ary[1]);
-					if (match1 && match2)
+					while (thisob != next)
+					{
+						op = (thisob->trivial) ? OP_TRIVIAL : OP_DIFF;
+						first0 = thisob->line0;
+						first1 = thisob->line1;
+						last0 = first0 + thisob->deleted - 1;
+						last1 = first1 + thisob->inserted - 1;
+						translate_range (&file_data_ary[0], first0, last0, &trans_a0, &trans_b0);
+						translate_range (&file_data_ary[1], first1, last1, &trans_a1, &trans_b1);
+						if (op == OP_TRIVIAL && m_options.m_bCompletelyBlankOutIgnoredDiffereneces)
+						{
+							const bool adjustLeftForMissingNewline =
+								!thisob->link &&
+								thisob->deleted > 0 &&
+								thisob->line0 + thisob->deleted == file_data_ary[0].valid_lines &&
+								file_data_ary[0].missing_newline;
+							const bool adjustRightForMissingNewline =
+								!thisob->link &&
+								thisob->inserted > 0 &&
+								thisob->line1 + thisob->inserted == file_data_ary[1].valid_lines &&
+								file_data_ary[1].missing_newline;
+							const int qtyLinesLeft = (trans_b0 - trans_a0) + 1
+								- (adjustLeftForMissingNewline ? 1 : 0); // Determine quantity of lines in this block for left side
+							const int qtyLinesRight = (trans_b1 - trans_a1) + 1
+								- (adjustRightForMissingNewline ? 1 : 0); // Determine quantity of lines in this block for right side
+							if (qtyLinesLeft == qtyLinesRight)
+							{
+								op = OP_NONE;
+							}
+							else
+							{
+								trans_a0 += qtyLinesLeft < qtyLinesRight ? qtyLinesLeft : qtyLinesRight;
+								trans_a1 += qtyLinesLeft < qtyLinesRight ? qtyLinesLeft : qtyLinesRight;
+							}
+						}
+						if (op != OP_NONE)
+							AddDiffRange(m_pDiffList, trans_a0-1, trans_b0-1, trans_a1-1, trans_b1-1, op);
+
+						thisob = thisob->link;
+					}
+				}
+				else
+				{
+					if (thisob->trivial)
 						op = OP_TRIVIAL;
+					if (op == OP_TRIVIAL && m_options.m_bCompletelyBlankOutIgnoredDiffereneces)
+					{
+						const bool adjustLeftForMissingNewline =
+							!thisob->link &&
+							thisob->deleted > 0 &&
+							thisob->line0 + thisob->deleted == file_data_ary[0].valid_lines &&
+							file_data_ary[0].missing_newline;
+						const bool adjustRightForMissingNewline =
+							!thisob->link &&
+							thisob->inserted > 0 &&
+							thisob->line1 + thisob->inserted == file_data_ary[1].valid_lines &&
+							file_data_ary[1].missing_newline;
+						const int qtyLinesLeft = (trans_b0 - trans_a0) + 1
+							- (adjustLeftForMissingNewline ? 1 : 0); // Determine quantity of lines in this block for left side
+						const int qtyLinesRight = (trans_b1 - trans_a1) + 1
+							- (adjustRightForMissingNewline ? 1 : 0); // Determine quantity of lines in this block for right side
+						if (qtyLinesLeft == qtyLinesRight)
+						{
+							op = OP_NONE;
+						}
+						else
+						{
+							trans_a0 += qtyLinesLeft < qtyLinesRight ? qtyLinesLeft : qtyLinesRight;
+							trans_a1 += qtyLinesLeft < qtyLinesRight ? qtyLinesLeft : qtyLinesRight;
+						}
+					}
+					if (op != OP_NONE)
+						AddDiffRange(m_pDiffList, trans_a0-1, trans_b0-1, trans_a1-1, trans_b1-1, op);
 				}
-
-				if (op == OP_TRIVIAL && m_options.m_bCompletelyBlankOutIgnoredDiffereneces)
-				{
-					if (QtyLinesLeft == QtyLinesRight)
-					{
-						op = OP_NONE;
-					}
-					else if (QtyLinesLeft < QtyLinesRight)
-					{
-						trans_a0 += QtyLinesLeft;
-						trans_a1 += QtyLinesLeft;
-					}
-					else
-					{
-						trans_a0 += QtyLinesRight;
-						trans_a1 += QtyLinesRight;
-					}
-				}
-				if (op != OP_NONE)
-					AddDiffRange(m_pDiffList, trans_a0-1, trans_b0-1, trans_a1-1, trans_b1-1, op);
 			}
 		}
-		
-		/* Reconnect the script so it will all be freed properly.  */
-		end->link = next;
 	}
 }
 
@@ -1092,20 +1476,156 @@ struct Comp02Functor
 };
 
 /**
+ * @brief An inserted block of one of the two comparisons of a 3-way compare,
+ * and how far it can be moved.
+ *
+ * An inserted block whose first line equals the line after it is just as
+ * well the block that starts one line further down, and likewise upwards.
+ */
+struct SlidingInsertion
+{
+	SlidingInsertion(std::vector<DiffRangeInfo>& diffs, const file_data& inf,
+		const MovedLines* pMovedLines, MovedLines::SIDE side)
+		: m_diffs(diffs)
+		, m_pMovedLines(pMovedLines)
+		, m_side(side)
+		, m_linbuf(inf.linbuf + inf.linbuf_base)
+		, m_nLines(inf.valid_lines - inf.linbuf_base)
+	{
+	}
+
+	/** @brief Go to the next inserted block from the current index on. */
+	bool Find()
+	{
+		for (; m_index < m_diffs.size(); ++m_index)
+		{
+			const DiffRangeInfo& dr = m_diffs[m_index];
+			if (dr.op != OP_TRIVIAL && dr.end[0] == dr.begin[0] - 1 && dr.end[1] >= dr.begin[1])
+				break;
+		}
+		if (m_index >= m_diffs.size())
+			return false;
+		if (m_index == m_rangeIndex)
+			return true; // still the same block
+		m_rangeIndex = m_index;
+
+		// The lines between two differences are common to both files, so
+		// the block can move over them as long as the lines repeat
+		const DiffRangeInfo& dr = m_diffs[m_index];
+		const int nFirstFree = (m_index > 0) ? (std::max)(m_diffs[m_index - 1].end[1] + 1, 0) : 0;
+		const int nLimit = (m_index + 1 < m_diffs.size()) ? (std::min)(m_diffs[m_index + 1].begin[1], m_nLines) : m_nLines;
+		int nUp = 0, nDown = 0;
+		// a block with lines of a moved block stays: those lines are recorded by position
+		bool bMoved = false;
+		for (int line = dr.begin[1]; m_pMovedLines != nullptr && line <= dr.end[1] && !bMoved; ++line)
+			bMoved = m_pMovedLines->LineInBlock(line, m_side) != -1;
+		if (bMoved)
+		{
+			m_lowest = m_highest = dr.begin[0];
+			return true;
+		}
+		while (dr.begin[1] - nUp - 1 >= nFirstFree && LinesEqual(dr.begin[1] - nUp - 1, dr.end[1] - nUp))
+			++nUp;
+		while (dr.end[1] + nDown + 1 < nLimit && LinesEqual(dr.begin[1] + nDown, dr.end[1] + nDown + 1))
+			++nDown;
+		m_lowest = dr.begin[0] - nUp;
+		m_highest = dr.begin[0] + nDown;
+		return true;
+	}
+
+	/** @brief Move the block to the given position in the middle file. */
+	void MoveTo(int position)
+	{
+		DiffRangeInfo& dr = m_diffs[m_index];
+		const int nDelta = position - dr.begin[0];
+		for (int file = 0; file < 2; ++file)
+		{
+			dr.begin[file] += nDelta;
+			dr.end[file] += nDelta;
+		}
+	}
+
+	int Position() const { return m_diffs[m_index].begin[0]; }
+
+	bool LinesEqual(int line1, int line2) const
+	{
+		return line_cmp(m_linbuf[line1], m_linbuf[line1 + 1] - m_linbuf[line1],
+			m_linbuf[line2], m_linbuf[line2 + 1] - m_linbuf[line2]) == 0;
+	}
+
+	std::vector<DiffRangeInfo>& m_diffs; /**< differences of the middle file (index 0) and another file (index 1) */
+	const char **m_linbuf;               /**< lines of the other file */
+	const MovedLines* m_pMovedLines;     /**< moved lines of the other file, or nullptr */
+	MovedLines::SIDE m_side;
+	int m_nLines;
+	size_t m_index = 0;
+	size_t m_rangeIndex = static_cast<size_t>(-1); /**< block the range below is of */
+	int m_lowest = 0;  /**< first position in the middle file the block can be at */
+	int m_highest = 0; /**< last position in the middle file the block can be at */
+};
+
+/**
+ * @brief Bring blocks that the left and the right file insert in the same
+ * place of the middle file to the same position.
+ *
+ * The comparisons of the middle file with the left and with the right file
+ * do not always settle on the same of the positions an inserted block can
+ * be at. Blocks that both files insert in the same place then look like two
+ * unrelated insertions next to each other, instead of one difference in
+ * which the two files agree or conflict.
+ *
+ * Only blocks that can meet are moved, and only to where they meet: no
+ * difference that the two comparisons agreed on is pulled apart.
+ */
+static void AlignInsertions(std::vector<DiffRangeInfo>& diff10, const file_data& inf0, const MovedLines* pMovedLines0,
+	std::vector<DiffRangeInfo>& diff12, const file_data& inf2, const MovedLines* pMovedLines2)
+{
+	SlidingInsertion left(diff10, inf0, pMovedLines0, MovedLines::SIDE::RIGHT);
+	SlidingInsertion right(diff12, inf2, pMovedLines2, MovedLines::SIDE::LEFT);
+	while (left.Find() && right.Find())
+	{
+		if (left.m_highest < right.m_lowest)
+			++left.m_index;
+		else if (right.m_highest < left.m_lowest)
+			++right.m_index;
+		else
+		{
+			if (left.Position() != right.Position())
+			{
+				const int position = (std::min)(left.m_highest, right.m_highest);
+				left.MoveTo(position);
+				right.MoveTo(position);
+			}
+			++left.m_index;
+			++right.m_index;
+		}
+	}
+}
+
+/**
  * @brief Walk the diff utils change script, building the WinMerge list of diff blocks
  */
 void
 CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript3(
 	struct change * script10, 
 	struct change * script12,  
+	struct change * script02,  
 	const file_data * inf10, 
-	const file_data * inf12)
+	const file_data * inf12,
+	const file_data * inf02)
 {
-	DiffList diff10, diff12;
+	DiffList diff10, diff12, diff02;
 	diff10.Clear();
 	diff12.Clear();
+	diff02.Clear();
 
-	for (int file = 0; file < 2; file++)
+	const bool usefilters = m_options.m_filterCommentsLines ||
+		m_options.m_bIgnoreMissingTrailingEol ||
+		m_options.m_bIgnoreLineBreaks ||
+		(m_pFilterList && m_pFilterList->HasRegExps()) ||
+		(m_pSubstitutionList && m_pSubstitutionList->HasRegExps());
+	
+	for (int file = 0; file < 3; file++)
 	{
 		struct change *next = nullptr;
 		int trans_a0, trans_b0, trans_a1, trans_b1;
@@ -1119,6 +1639,7 @@ CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript3(
 		{
 		case 0: next = script10; pdiff = &diff10; pinf = inf10; break;
 		case 1: next = script12; pdiff = &diff12; pinf = inf12; break;
+		case 2: next = script02; pdiff = &diff02; pinf = inf02; break;
 		}
 
 		while (next != nullptr)
@@ -1140,6 +1661,10 @@ CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript3(
 			{					
 				/* Determine range of line numbers involved in each file.  */
 				analyze_hunk (thisob, &first0, &last0, &first1, &last1, &deletes, &inserts, pinf);
+			
+				/* Reconnect the script so it will all be freed properly.  */
+				end->link = next;
+
 				if (deletes || inserts || thisob->trivial)
 				{
 					if (deletes && inserts)
@@ -1154,7 +1679,7 @@ CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript3(
 					translate_range (&pinf[1], first1, last1, &trans_a1, &trans_b1);
 
 					// Store information about these blocks in moved line info
-					if (GetDetectMovedBlocks())
+					if (GetDetectMovedBlocks() && file != 2 /* diff02 */)
 					{
 						int index1 = 0;  // defaults for (file == 0 /* diff10 */)
 						int index2 = 1;
@@ -1192,38 +1717,101 @@ CDiffWrapper::LoadWinMergeDiffsFromDiffUtilsScript3(
 						}
 					}
 
-					int QtyLinesLeft = (trans_b0 - trans_a0) + 1; //Determine quantity of lines in this block for left side
-					int QtyLinesRight = (trans_b1 - trans_a1) + 1;//Determine quantity of lines in this block for right side
-
-					if (m_options.m_filterCommentsLines ||
-						(m_pSubstitutionList && m_pSubstitutionList->HasRegExps()))
-						PostFilter(ctxt, trans_a0 - 1, QtyLinesLeft, trans_a1 - 1, QtyLinesRight, op, pinf);
-
-					if (m_pFilterList != nullptr && m_pFilterList->HasRegExps())
+					int nTrivialInserts = 0;
+					if (op != OP_TRIVIAL && usefilters)
+						nTrivialInserts = PostFilter(ctxt, thisob, pinf);
+					if (nTrivialInserts)
 					{
-						// Match lines against regular expression filters
-						// Our strategy is that every line in both sides must
-						// match regexp before we mark difference as ignored.
-						bool match2 = false;
-						bool match1 = RegExpFilter(thisob->line0, thisob->line0 + QtyLinesLeft - 1, &pinf[0]);
-						if (match1)
-							match2 = RegExpFilter(thisob->line1, thisob->line1 + QtyLinesRight - 1, &pinf[1]);
-						if (match1 && match2)
-							op = OP_TRIVIAL;
-					}
+						while (thisob != next)
+						{
+							op = (thisob->trivial) ? OP_TRIVIAL : OP_DIFF;
+							first0 = thisob->line0;
+							first1 = thisob->line1;
+							last0 = first0 + thisob->deleted - 1;
+							last1 = first1 + thisob->inserted - 1;
+							translate_range (&pinf[0], first0, last0, &trans_a0, &trans_b0);
+							translate_range (&pinf[1], first1, last1, &trans_a1, &trans_b1);
 
-					AddDiffRange(pdiff, trans_a0-1, trans_b0-1, trans_a1-1, trans_b1-1, op);
+							AddDiffRange(pdiff, trans_a0-1, trans_b0-1, trans_a1-1, trans_b1-1, op);
+							thisob = thisob->link;
+						}
+					}
+					else
+					{
+						if (thisob->trivial)
+							op = OP_TRIVIAL;
+						AddDiffRange(pdiff, trans_a0-1, trans_b0-1, trans_a1-1, trans_b1-1, op);
+					}
 				}
 			}
-			
-			/* Reconnect the script so it will all be freed properly.  */
-			end->link = next;
 		}
 	}
 
+	const bool bMovedBlocks = GetDetectMovedBlocks();
+	AlignInsertions(diff10.GetDiffRangeInfoVector(), inf10[1], bMovedBlocks ? GetMovedLines(0) : nullptr,
+		diff12.GetDiffRangeInfoVector(), inf12[1], bMovedBlocks ? GetMovedLines(2) : nullptr);
+
 	Make3wayDiff(m_pDiffList->GetDiffRangeInfoVector(), diff10.GetDiffRangeInfoVector(), diff12.GetDiffRangeInfoVector(), 
 		Comp02Functor(inf10, inf12), 
-		(m_pFilterList != nullptr && m_pFilterList->HasRegExps()) || m_options.m_bIgnoreBlankLines || m_options.m_filterCommentsLines);
+		(usefilters || m_options.m_bIgnoreBlankLines));
+
+	if (GetDetectMovedBlocks())
+		m_pDiffList->GetDiffRangeInfoVector() = InsertMovedBlocks3Way();
+}
+
+std::vector<DiffRangeInfo> CDiffWrapper::InsertMovedBlocks3Way()
+{
+	std::vector<DiffRangeInfo> result;
+	const MovedLines* pMovedLines0 = GetMovedLines(0);
+	const MovedLines* pMovedLines1 = GetMovedLines(1);
+	const MovedLines* pMovedLines2 = GetMovedLines(2);
+	const std::vector<DiffRangeInfo> diffRangeList = m_pDiffList->GetDiffRangeInfoVector();
+	for (const auto& diffInfo : diffRangeList)
+	{
+		const std::array<int, 3> elms = { diffInfo.end[0] + 1 - diffInfo.begin[0], diffInfo.end[1] + 1 - diffInfo.begin[1], diffInfo.end[2] + 1 - diffInfo.begin[2] };
+		const int maxlines = *std::max_element(elms.begin(), elms.end());
+		DiffRangeInfo diffInfo2 = diffInfo;
+		int prevMovedLineI = -1;
+		for (int i = 0; i < maxlines; ++i)
+		{
+			bool movedLine = false;
+			if (diffInfo.begin[0] + i <= diffInfo.end[0])
+				movedLine |= pMovedLines0->LineInBlock(diffInfo.begin[0] + i, MovedLines::SIDE::RIGHT) != -1;
+			if (diffInfo.begin[1] + i <= diffInfo.end[1])
+			{
+				movedLine |= pMovedLines1->LineInBlock(diffInfo.begin[1] + i, MovedLines::SIDE::LEFT) != -1;
+				movedLine |= pMovedLines1->LineInBlock(diffInfo.begin[1] + i, MovedLines::SIDE::RIGHT) != -1;
+			}
+			if (diffInfo.begin[2] + i <= diffInfo.end[2])
+				movedLine |= pMovedLines2->LineInBlock(diffInfo.begin[2] + i, MovedLines::SIDE::LEFT) != -1;
+
+			if (movedLine)
+			{
+				if (prevMovedLineI + 1 < i)
+				{
+					DiffRangeInfo diffInfoT = diffInfo2;
+					for (int pane = 0; pane < 3; ++pane)
+						diffInfoT.end[pane] = std::clamp(diffInfo.begin[pane] + i - 1, -1, diffInfo.end[pane]);
+					result.push_back(diffInfoT);
+				}
+
+				DiffRangeInfo diffInfoM = diffInfo2;
+				for (int pane = 0; pane < 3; ++pane)
+				{
+					diffInfoM.begin[pane] = std::clamp(diffInfo.begin[pane] + i, 0, diffInfo.end[pane] + 1);
+					diffInfoM.end[pane] = std::clamp(diffInfo.begin[pane] + i, -1, diffInfo.end[pane]);
+				}
+				result.push_back(diffInfoM);
+
+				for (int pane = 0; pane < 3; ++pane)
+					diffInfo2.begin[pane] = std::clamp(diffInfo.begin[pane] + i + 1, 0, diffInfo.end[pane] + 1);
+				prevMovedLineI = i;
+			}
+		}
+		if (prevMovedLineI < maxlines - 1)
+			result.push_back(diffInfo2);
+	}
+	return result;
 }
 
 void CDiffWrapper::WritePatchFileHeader(enum output_style tOutput_style, bool bAppendFiles)
@@ -1231,8 +1819,8 @@ void CDiffWrapper::WritePatchFileHeader(enum output_style tOutput_style, bool bA
 	outfile = nullptr;
 	if (!m_sPatchFile.empty())
 	{
-		const TCHAR *mode = (bAppendFiles ? _T("a+") : _T("w+"));
-		if (_tfopen_s(&outfile, m_sPatchFile.c_str(), mode) != 0)
+		const tchar_t *mode = (bAppendFiles ? _T("a+") : _T("w+"));
+		if (cio::tfopen_s(&outfile, m_sPatchFile, mode) != 0)
 			outfile = nullptr;
 	}
 
@@ -1270,7 +1858,7 @@ void CDiffWrapper::WritePatchFileTerminator(enum output_style tOutput_style)
 	outfile = nullptr;
 	if (!m_sPatchFile.empty())
 	{
-		if (_tfopen_s(&outfile, m_sPatchFile.c_str(), _T("a+")) != 0)
+		if (cio::tfopen_s(&outfile, m_sPatchFile, _T("a+")) != 0)
 			outfile = nullptr;
 	}
 
@@ -1324,17 +1912,17 @@ void CDiffWrapper::WritePatchFile(struct change * script, file_data * inf)
 		path2 = m_files[1];
 	path1 = paths::ToUnixPath(path1);
 	path2 = paths::ToUnixPath(path2);
-	if ((inf_patch[0].linbuf && ucr::CheckForInvalidUtf8(inf_patch[0].buffer, inf_patch[0].buffered_chars)) ||
-		(inf_patch[1].linbuf && ucr::CheckForInvalidUtf8(inf_patch[1].buffer, inf_patch[1].buffered_chars)))
+	auto strdupPath = [](const String& path, const void *buffer, size_t buffered_chars) -> char*
 	{
-		inf_patch[0].name = _strdup(ucr::toThreadCP(path1).c_str());
-		inf_patch[1].name = _strdup(ucr::toThreadCP(path2).c_str());
-	}
-	else
-	{
-		inf_patch[0].name = _strdup(ucr::toUTF8(path1).c_str());
-		inf_patch[1].name = _strdup(ucr::toUTF8(path2).c_str());
-	}
+		FileTextEncoding encoding = codepage_detect::Guess(_T(""), buffer, buffered_chars, 1);
+		if (encoding.m_unicoding != ucr::NONE)
+			encoding.SetUnicoding(ucr::UTF8);
+		ucr::buffer buf(256);
+		ucr::convert(ucr::CP_TCHAR, reinterpret_cast<const unsigned char *>(path.c_str()), static_cast<int>(path.size() * sizeof(tchar_t)), encoding.m_codepage, &buf);
+		return strdup(reinterpret_cast<const char *>(buf.ptr));
+	};
+	inf_patch[0].name = strdupPath(path1, inf_patch[0].buffer, inf_patch[0].buffered_chars);
+	inf_patch[1].name = strdupPath(path2, inf_patch[1].buffer, inf_patch[1].buffered_chars);
 
 	// If paths in m_s1File and m_s2File point to original files, then we can use
 	// them to fix potentially meaningless stats from potentially temporary files,
@@ -1353,8 +1941,8 @@ void CDiffWrapper::WritePatchFile(struct change * script, file_data * inf)
 	outfile = nullptr;
 	if (!m_sPatchFile.empty())
 	{
-		const TCHAR *mode = (m_bAppendFiles ? _T("a+") : _T("w+"));
-		if (_tfopen_s(&outfile, m_sPatchFile.c_str(), mode) != 0)
+		const tchar_t *mode = (m_bAppendFiles ? _T("a+") : _T("w+"));
+		if (cio::tfopen_s(&outfile, m_sPatchFile, mode) != 0)
 			outfile = nullptr;
 	}
 
@@ -1364,25 +1952,23 @@ void CDiffWrapper::WritePatchFile(struct change * script, file_data * inf)
 		return;
 	}
 
+	if (paths::IsNullDeviceName(ucr::toTString(inf[0].name)))
+	{
+		free((void *)inf_patch[0].name);
+		inf_patch[0].name = strdup("/dev/null");
+	}
+	if (paths::IsNullDeviceName(ucr::toTString(inf[1].name)))
+	{
+		free((void *)inf_patch[1].name);
+		inf_patch[1].name = strdup("/dev/null");
+	}
+
 	// Print "command line"
 	if (m_bAddCmdLine && output_style != OUTPUT_HTML)
 	{
 		String switches = FormatSwitchString();
-		_ftprintf(outfile, _T("diff%s %s %s\n"),
-			switches.c_str(), 
-			path1 == _T("NUL") ? _T("/dev/null") : path1.c_str(),
-			path2 == _T("NUL") ? _T("/dev/null") : path2.c_str());
-	}
-
-	if (strcmp(inf[0].name, "NUL") == 0)
-	{
-		free((void *)inf_patch[0].name);
-		inf_patch[0].name = _strdup("/dev/null");
-	}
-	if (strcmp(inf[1].name, "NUL") == 0)
-	{
-		free((void *)inf_patch[1].name);
-		inf_patch[1].name = _strdup("/dev/null");
+		fprintf(outfile, "diff%S %s %s\n",
+			switches.c_str(), inf_patch[0].name, inf_patch[1].name);
 	}
 
 	// Output patchfile
@@ -1429,44 +2015,14 @@ void CDiffWrapper::WritePatchFile(struct change * script, file_data * inf)
 	free((void *)inf_patch[1].name);
 }
 
-/**
- * @brief Set line filters, given as one string.
- * @param [in] filterStr Filters.
- */
-void CDiffWrapper::SetFilterList(const String& filterStr)
+const FilterList* CDiffWrapper::GetFilterList() const
 {
-	// Remove filterlist if new filter is empty
-	if (filterStr.empty())
-	{
-		m_pFilterList.reset();
-		return;
-	}
-
-	// Adding new filter without previous filter
-	if (m_pFilterList == nullptr)
-	{
-		m_pFilterList.reset(new FilterList);
-	}
-
-	m_pFilterList->RemoveAllFilters();
-
-	std::string regexp_str = ucr::toUTF8(filterStr);
-
-	// Add every "line" of regexps to regexp list
-	StringTokenizer tokens(regexp_str, "\r\n");
-	for (StringTokenizer::Iterator it = tokens.begin(); it != tokens.end(); ++it)
-		m_pFilterList->AddRegExp(*it);
+	return m_pFilterList.get();
 }
 
-void CDiffWrapper::SetFilterList(const FilterList* pFilterList)
+void CDiffWrapper::SetFilterList(std::shared_ptr<FilterList> pFilterList)
 {
-	if (!pFilterList)
-		m_pFilterList.reset();
-	else
-	{
-		m_pFilterList.reset(new FilterList());
-		*m_pFilterList = *pFilterList;
-	}
+	m_pFilterList = std::move(pFilterList);
 }
 
 const SubstitutionList* CDiffWrapper::GetSubstitutionList() const
@@ -1476,12 +2032,12 @@ const SubstitutionList* CDiffWrapper::GetSubstitutionList() const
 
 void CDiffWrapper::SetSubstitutionList(std::shared_ptr<SubstitutionList> pSubstitutionList)
 {
-	m_pSubstitutionList = pSubstitutionList;
+	m_pSubstitutionList = std::move(pSubstitutionList);
 }
 
 void CDiffWrapper::SetFilterCommentsSourceDef(const String& ext)
 {
-	m_pFilterCommentsDef = CrystalLineParser::GetTextType(ext.c_str());
+	m_pFilterCommentsDef = LangServices::GetTextType(ext.c_str());
 }
 
 /**

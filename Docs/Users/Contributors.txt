@@ -29,8 +29,11 @@ Localization:
 * Arabic:
   Downzen team <https://downzen.com>
 
+* Azerbaijani
+  Jamal Ali
+
 * Basque:
-  Xabier Aramendi <Azpidatziak@gmail.com>  
+  Xabier Aramendi <Azpidatziak@gmail.com>
 
 * Bulgarian:
   Sld <sld|mail.bg>
@@ -41,17 +44,24 @@ Localization:
 * Catalan:
   Jordi Vilar <jvilar@users.sourceforge.net>
   Domènec <domenec72 at gmail.com>
+  Josep Maria Antolín Segura
+  Pere Orga <pere at orga.cat>
 
 * Simplified Chinese:
   Liaobin <liaobin@jite. net>
   xmpdhml <xmpdhml at users.sourceforge.net>
   MaysWind <i at mayswind.net>
   YFdyh000 <yfdyh000 at gmail.com>
+  CharlesMengCA <CharlesMeng at outlook.com>
+  Yin Gang <zenith.yin at gmail.com>
+  zuoyuanchun
 
 * Traditional Chinese:
   Koko <kokokoko@giga.net.tw>
   Calvin Lin <ylin77 at gmail.com>
   SiderealArt <admin at siderealart.me>
+  abc0922001
+  love80312
 
 * Corsican:
   Patriccollu di Santa Maria è Sichè
@@ -83,24 +93,36 @@ Localization:
   Matthieu Pupat
   gandf
   Lolo S. <slolo2000 at hotmail.com>
+  Need74
+  t3chnob0y
 
 * Galician:
   Medulio
   Luis A. Martínez Sobrino <luis.martinez.sobrino at gmail.com>
+  P0rsche-911
 
 * German:
   Tim Gerundt <tim@gerundt.de>
+  René Nicolaus <translation@havoc.de>
   Winfried Peter <winfried.peter@omicron.at>
   Joerg Schneider <tonda@users.sourceforge.net>
   Mr-Update
+  uliahn
 
 * Greek:
   Polyvios J. Simopoulos <polyvios.j.simopoulos@gmail.com>
+
+* Hebrew:
+  Y-Ploni
 
 * Hungarian:
   Márton Balázs <documan@users.sourceforge.net>
   Mihalicza József <jmihalicza@gmail.com>
   Egyed Ferenc <efi99 at freemail.hu>
+  boglarkla
+
+* Indonesian:
+  Yoruxyv
 
 * Italian:
   Andrea Decorte <deco1985@hotmail.com>
@@ -109,6 +131,11 @@ Localization:
   Michele Locati <michele@locati.it>
   bovirus
   Massimiliano Caniparoli
+  Simone Saviolo
+
+* Japanese:
+  Takashi Sawanaka <sdottaka@users.sourceforge.net>
+  Rukoto Luther <rukotolucies at hotmail.com>
 
 * Korean:
   Sukjoon <bbcool@gmail.com>
@@ -118,12 +145,15 @@ Localization:
   teamzamong <teamzamong at gmail.com>
   BrainS <29201475+BraINstinct0 at users.noreply.github.com>
   cynilyn <cynilyn at gmail.com>
+  gro00 <gheong.ro at gmail.com>
+  VenusGirl <https://github.com/VenusGirl>
 
 * Lithuanian:
   Dalius Guzauskas (aka Tichij) <tichij AT mail DOT com>
 
 * Norwegian:
   Hans Fredrik Nordhaug <hansfn@users.sourceforge.net>
+  FTno
 
 * Persian:
   Abolfazl Rostamzadeh <a.rostamzadeh at gmail.com>
@@ -141,6 +171,8 @@ Localization:
   Igor Rückert
   jota11
   Gabriel Camargo Fukushima
+  Marcello-mco
+  RicardoPC1967
 
 * Portuguese (Portugal):
   Nelson Simão
@@ -149,11 +181,13 @@ Localization:
 
 * Romanian:
   Cristian Arghiroiu <cristi.arghiroiu@gmail.com>
+  Daniel Dumitriu
 
 * Russian:
   Dmitriy S. Aleshkowskiy <wwarlock@mail.ru>
   Timon34
   wvxwxvw
+  Den1704
 
 * Serbian:
   Ozzii <ivanstar61@gmail.com>
@@ -177,22 +211,35 @@ Localization:
   Mario Angel <marioangel70@gmail.com>
   Nelson Ariza <njarizas@hotmail.com>
   borjafg
+  Mauricio Gracia Gutierrez
+  P0rsche-911
 
 * Swedish:
   Hans Eriksson <hans.ericson@bredband.net>
   Göran Håkansson <goran.x.hakansson@telia.com>
   pgert <pgert at yahoo.se>
   Timmy Almroth <timmy.almroth at tim-international.net>
+  Sweden12
+
+* Tamil:
+  தமிழ்நேரம் <https://TamilNeram.github.io>
 
 * Turkish:
   Afyonlu <afyonlu@users.sourceforge.net>
   Ozkan UNVER <turquaz37915@users.sourceforge.net>
   Kaya Zeren <kaya.zeren at zeron.net>
+  iLyax
+  bilimiyorum
 
 * Ukranian
   Vitaliy Stopchans'kyy <stopcha@gmail.com>
   Warrior <warr11r@rambler.ru>
+  Vlad
+  Serhii Romashko
+  sggua
 
+* Vietnamese
+  IoeCmcomc
 
 Other Contributors (code, ideas, testing..):
 * James Abbatiello <abbeyj@users.sourceforge.net>
@@ -251,11 +298,37 @@ Other Contributors (code, ideas, testing..):
 * devmynote
 * Michał Lipok
 * Samuel Plentz
+* Herman Semenov
+* stonee-K
+* yuanshouyan1823
+* Mauricio Gracia Gutierrez
+* HaroldPetersInskipp (Midnight color scheme)
+* srgank
+* baka0815
+* Yurii Hordiienko
+* wiera987
+* wilfzim
+* Mavaddat Javid
+* Yutaka-Sawada
+* myss
+* vlakoff
+* Tuomas Hietanen
+* Dirk Stolle
+* lededev
+* petacreepers23
+* libraplanet
+* Steve Lambillion
+* Rob Kodey (VS Dark color scheme)
+* ozone10 (darkmodelib)
+* Anthony Lee Stark
+* Gaurav Pasi
+* Ikkoru
+* regular-hopper-user
 
 WinMerge includes code from:
 * Jared Breland <jbreland@legroom.net> (Installer's modpath script)
 * Brent Corkum (BCMenu)
-* Paul DiLascia (CStaticLink) 
+* Paul DiLascia (CStaticLink)
 * Michael Dunn (CShellFileOp)
 * Francis Irving (original conflict file parser)
 * Michael P. Mehl (CMessageBoxDialog)
@@ -266,6 +339,54 @@ WinMerge includes code from:
 * Henry Spencer (CRegExp)
 * Andrei Stcherbatchenko (Author of Crystal Edit)
 * Sven Wiegand (Crystal Edit)
+
+External components used by WinMerge
+
+* POCO (BSL-1.0) (https://pocoproject.org/)
+* boost (BSL-1.0) (https://www.boost.org/)
+* frhed (GPL-2.0) (https://frhed.sourceforge.net/)
+* WinIMerge (GPL-2.0) (https://github.com/WinMerge/winimerge/)
+  * freeimage (GPL-2.0) (https://freeimage.sourceforge.io/)
+  * LibXDiff (LGPL-2.1) (https://github.com/git/git/tree/master/xdiff)
+* WinWebDiff (BSD-3-Clause) (https://github.com/WinMerge/winwebdiff/)
+  * WebView2 (BSD-3-Clause) (https://learn.microsoft.com/ja-jp/microsoft-edge/webview2/)
+  * wil (MIT) (https://github.com/microsoft/wil)
+  * rapidjson (MIT) (https://rapidjson.org/)
+  * LibXDiff (LGPL-2.1) (https://github.com/git/git/tree/master/xdiff)
+* darkmodelib (MPL-2.0) (https://github.com/ozone10/darkmodelib)
+* Google C++ Testing Framework (BSD-3-Clause) (http://google.github.io/googletest/)
+* GNU patch (msys2 package) (GPL-3.0) (https://savannah.gnu.org/projects/patch/, https://github.com/msys2/MSYS2-packages/tree/master/patch)
+* 7-zip (LGPL) (https://www.7-zip.org/)
+* LibXDiff (LGPL-2.1) (https://github.com/git/git/tree/master/xdiff)
+* StackWalker (BSD-2-Clause) (https://github.com/JochenKalmbach/StackWalker)
+* html-tidy5 (https://github.com/htacg/tidy-html5/blob/next/README/LICENSE.md) (http://www.html-tidy.org/)
+* jq (MIT) (https://stedolan.github.io/jq/)
+* wil (MIT) (https://github.com/microsoft/wil)
+* md4c (MIT) (https://github.com/mity/md4c)
+* Inno Setup (https://jrsoftware.org/files/is/license.txt) (https://jrsoftware.org/isinfo.php)
+* tree-sitter (MIT) (https://github.com/tree-sitter/tree-sitter)
+  * tree-sitter-fsharp     (MIT) (https://github.com/ionide/tree-sitter-fsharp)
+  * tree-sitter-ini        (MIT) (https://github.com/justinmk/tree-sitter-ini)
+  * tree-sitter-markdown   (MIT) (https://github.com/tree-sitter-grammars/tree-sitter-markdown)
+  * tree-sitter-properties (MIT) (https://github.com/tree-sitter-grammars/tree-sitter-properties)
+  * tree-sitter-toml       (MIT) (https://github.com/tree-sitter-grammars/tree-sitter-toml)
+  * tree-sitter-xml        (MIT) (https://github.com/tree-sitter-grammars/tree-sitter-xml)
+  * tree-sitter-yaml       (MIT) (https://github.com/tree-sitter-grammars/tree-sitter-yaml)
+  * tree-sitter-c          (MIT) (https://github.com/tree-sitter/tree-sitter-c)
+  * tree-sitter-cpp        (MIT) (https://github.com/tree-sitter/tree-sitter-cpp)
+  * tree-sitter-c-sharp    (MIT) (https://github.com/tree-sitter/tree-sitter-c-sharp)
+  * tree-sitter-python     (MIT) (https://github.com/tree-sitter/tree-sitter-python)
+  * tree-sitter-javascript (MIT) (https://github.com/tree-sitter/tree-sitter-javascript)
+  * tree-sitter-typescript (MIT) (https://github.com/tree-sitter/tree-sitter-typescript)
+  * tree-sitter-java       (MIT) (https://github.com/tree-sitter/tree-sitter-java)
+  * tree-sitter-go         (MIT) (https://github.com/tree-sitter/tree-sitter-go)
+  * tree-sitter-rust       (MIT) (https://github.com/tree-sitter/tree-sitter-rust)
+  * tree-sitter-json       (MIT) (https://github.com/tree-sitter/tree-sitter-json)
+  * tree-sitter-html       (MIT) (https://github.com/tree-sitter/tree-sitter-html)
+  * tree-sitter-css        (MIT) (https://github.com/tree-sitter/tree-sitter-css)
+  * tree-sitter-bash       (MIT) (https://github.com/tree-sitter/tree-sitter-bash)
+  * tree-sitter-ruby       (MIT) (https://github.com/tree-sitter/tree-sitter-ruby)
+  * tree-sitter-php        (MIT) (https://github.com/tree-sitter/tree-sitter-php)
 
 *** NOTE ***
 If your name is missing please let us know (or create a pull request).

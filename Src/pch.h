@@ -14,3 +14,9 @@
 #include <functional>
 #include <cassert>
 #include <ctime>
+#include <cctype>
+#include <array>
+#include <chrono>
+#if !defined(__cppcheck__)
+#include <boost/flyweight.hpp>
+#endif

@@ -22,15 +22,17 @@
 #include "Poco/AbstractObserver.h"
 #include "Poco/Mutex.h"
 
+#include <atomic>
+
 
 namespace Poco {
 
 
 template <class C, class N>
-class Observer: public AbstractObserver
+class POCO_DEPRECATED("use `NObserver` instead") Observer: public AbstractObserver
 	/// This template class implements an adapter that sits between
 	/// a NotificationCenter and an object receiving notifications
-	/// from it. It is quite similar in concept to the 
+	/// from it. It is quite similar in concept to the
 	/// RunnableAdapter, but provides some NotificationCenter
 	/// specific additional methods.
 	/// See the NotificationCenter class for information on how
@@ -40,27 +42,44 @@ class Observer: public AbstractObserver
 	/// use the NObserver class template, which uses an AutoPtr to
 	/// pass the Notification to the callback function, thus freeing
 	/// you from memory management issues.
+	///
+	/// Thread Safety:
+	///
+	/// The notify() method uses atomic load for _pObject and does not
+	/// hold any lock during callback invocation. This prevents
+	/// lock-order-inversion deadlocks when handlers call back into
+	/// NotificationCenter (e.g., to remove themselves during disconnect).
+	///
+	/// Callers must ensure:
+	///   - The observed object outlives all pending notifications.
+	///     This is inherent to the observer pattern: if object C is
+	///     destroyed while notifications are in flight (e.g., queued
+	///     in AsyncObserver), undefined behavior occurs.
+	///   - Assignment operators should not be used concurrently with
+	///     notification delivery. Observer instances are typically
+	///     created once and registered; concurrent modification during
+	///     active notification dispatch is not supported.
 {
 public:
-	typedef void (C::*Callback)(N*);
+	using Callback = void (C::*)(N *);
 
-	Observer(C& object, Callback method): 
-		_pObject(&object), 
+	Observer(C& object, Callback method):
+		_pObject(&object),
 		_method(method)
 	{
 	}
-	
+
 	Observer(const Observer& observer):
 		AbstractObserver(observer),
-		_pObject(observer._pObject), 
+		_pObject(observer._pObject.load()),
 		_method(observer._method)
 	{
 	}
-	
-	~Observer()
-	{
-	}
-	
+
+	~Observer() override = default;
+
+	Observer() = delete;
+
 	Observer& operator = (const Observer& observer)
 	{
 		if (&observer != this)
@@ -71,50 +90,46 @@ public:
 		return *this;
 	}
 
-	void notify(Notification* pNf) const
+	void notify(Notification *pNf) const override
 	{
-		Poco::Mutex::ScopedLock lock(_mutex);
-
-		if (_pObject)
+		C* pObject = _pObject.load();
+		if (pObject)
 		{
-			N* pCastNf = dynamic_cast<N*>(pNf);
-			if (pCastNf)
-			{
-				pCastNf->duplicate();
-				(_pObject->*_method)(pCastNf);
-			}
+			pNf->duplicate();
+			(pObject->*_method)(static_cast<N*>(pNf));
 		}
 	}
-	
-	bool equals(const AbstractObserver& abstractObserver) const
+
+	bool equals(const AbstractObserver& abstractObserver) const override
 	{
 		const Observer* pObs = dynamic_cast<const Observer*>(&abstractObserver);
 		return pObs && pObs->_pObject == _pObject && pObs->_method == _method;
 	}
 
-	bool accepts(Notification* pNf) const
+	POCO_DEPRECATED("use `bool accepts(const Notification::Ptr&)` instead")
+	bool accepts(Notification* pNf, const char* pName) const override
 	{
-		return dynamic_cast<N*>(pNf) != 0;
+		return (!pName || pNf->name() == pName) && (dynamic_cast<N*>(pNf) != nullptr);
 	}
-	
-	AbstractObserver* clone() const
+
+	bool accepts(const Notification::Ptr& pNf) const override
+	{
+		return (pNf.cast<N>() != nullptr);
+	}
+
+	AbstractObserver *clone() const override
 	{
 		return new Observer(*this);
 	}
-	
-	void disable()
-	{
-		Poco::Mutex::ScopedLock lock(_mutex);
-		
-		_pObject = 0;
-	}
-	
-private:
-	Observer();
 
-	C*       _pObject;
+	void disable() override
+	{
+		_pObject = nullptr;
+	}
+
+private:
+	std::atomic<C*> _pObject;
 	Callback _method;
-	mutable Poco::Mutex _mutex;
 };
 
 

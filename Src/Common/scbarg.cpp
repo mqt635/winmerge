@@ -68,14 +68,14 @@ void CSizingControlBarG::OnNcLButtonUp(UINT nHitTest, CPoint point)
     if (nHitTest == HTCLOSE)
         m_pDockSite->ShowControlBar(this, FALSE, FALSE); // hide
 
-    baseCSizingControlBarG::OnNcLButtonUp(nHitTest, point);
+    __super::OnNcLButtonUp(nHitTest, point);
 }
 
 void CSizingControlBarG::NcCalcClient(LPRECT pRc, UINT nDockBarID)
 {
     CRect rcBar(pRc); // save the bar rect
     // subtract edges
-    baseCSizingControlBarG::NcCalcClient(pRc, nDockBarID);
+    __super::NcCalcClient(pRc, nDockBarID);
 
     if (!HasGripper())
         return;
@@ -105,7 +105,7 @@ void CSizingControlBarG::NcCalcClient(LPRECT pRc, UINT nDockBarID)
     *pRc = rc;
 }
 
-void CSizingControlBarG::NcPaintGripper(CDC* pDC, CRect rcClient)
+void CSizingControlBarG::NcPaintGripper(CDC* pDC, const CRect& rcClient)
 {
     if (!HasGripper())
         return;
@@ -143,12 +143,12 @@ void CSizingControlBarG::NcPaintGripper(CDC* pDC, CRect rcClient)
     m_biHide.Paint(pDC);
 }
 
-NCHITTEST_RESULT CSizingControlBarG::OnNcHitTest(CPoint point)
+LRESULT CSizingControlBarG::OnNcHitTest(CPoint point)
 {
     CRect rcBar;
     GetWindowRect(rcBar);
 
-    LRESULT nRet = baseCSizingControlBarG::OnNcHitTest(point);
+    LRESULT nRet = __super::OnNcHitTest(point);
     if (nRet != HTCLIENT)
         return nRet;
 

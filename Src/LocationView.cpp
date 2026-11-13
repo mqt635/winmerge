@@ -15,7 +15,6 @@
 #include "StdAfx.h"
 #include "LocationView.h"
 #include <vector>
-#include "Merge.h"
 #include "OptionsMgr.h"
 #include "MergeEditView.h"
 #include "MergeDoc.h"
@@ -33,8 +32,6 @@ using std::vector;
 
 /** @brief Size of empty frame above and below bars (in pixels). */
 static const int Y_OFFSET = 5;
-/** @brief Size of y-margin for visible area indicator (in pixels). */
-static const long INDICATOR_MARGIN = 2;
 /** @brief Max pixels in view per line in file. */
 static const double MAX_LINEPIX = 4.0;
 /** @brief Top of difference marker, relative to difference start. */
@@ -77,6 +74,7 @@ CLocationView::CLocationView()
 	// There is no GUI to do this
 
 	SetConnectMovedBlocks(GetOptionsMgr()->GetBool(OPT_CMP_MOVED_BLOCKS));
+	SetMoveCursorOnClick(GetOptionsMgr()->GetBool(OPT_LOCBAR_MOVECURSOR_ONCLICK));
 
 	std::fill_n(m_nSubLineCount, std::size(m_nSubLineCount), 0);
 }
@@ -91,6 +89,7 @@ BEGIN_MESSAGE_MAP(CLocationView, CView)
 	ON_WM_LBUTTONUP()
 	ON_WM_MOUSEMOVE()
 	ON_WM_MOUSEACTIVATE()
+	ON_WM_MOUSEWHEEL()
 	ON_WM_LBUTTONDBLCLK()
 	ON_WM_CONTEXTMENU()
 	ON_WM_CLOSE()
@@ -253,7 +252,7 @@ void CLocationView::CalculateBlocks()
 	CMergeDoc *pDoc = GetDocument();
 	const int nDiffs = pDoc->m_diffList.GetSize();
 	if (nDiffs > 0)
-		m_diffBlocks.reserve(nDiffs); // Pre-allocate space for the list.
+		m_diffBlocks.reserve(nDiffs * 3 / 2); // Roughly pre-allocate space for the list.
 
 	int nGroup = pDoc->GetActiveMergeView()->m_nThisGroup;
 	int nLineCount = pDoc->GetView(nGroup, 0)->GetLineCount();
@@ -299,10 +298,10 @@ void CLocationView::CalculateBlocks()
 			CalculateBlocksPixel(
 				pView->GetSubLineIndex(bs[i]),
 				pView->GetSubLineIndex(bs[i + 1]),
-				pView->GetSubLines(bs[i + 1]), nBeginY, nEndY);
+				nBeginY, nEndY);
 
 			block.top_line = bs[i];
-			block.bottom_line = bs[i + 1];
+			block.bottom_line = bs[i + 1] - 1;
 			block.top_coord = nBeginY;
 			block.bottom_coord = nEndY;
 			block.diff_index = nDiff;
@@ -325,30 +324,14 @@ void CLocationView::CalculateBlocks()
 
  */
 void CLocationView::CalculateBlocksPixel(int nBlockStart, int nBlockEnd,
-		int nBlockLength, int &nBeginY, int &nEndY)
+		int &nBeginY, int &nEndY)
 {
 	// Count how many line does the diff block have.
-	const int nBlockHeight = nBlockEnd - nBlockStart + nBlockLength;
+	const int nBlockHeight = nBlockEnd - nBlockStart;
 
 	// Convert diff block size from lines to pixels.
 	nBeginY = (int)(nBlockStart * m_lineInPix + Y_OFFSET);
 	nEndY = (int)((nBlockStart + nBlockHeight) * m_lineInPix + Y_OFFSET);
-}
-
-static COLORREF GetIntermediateColor(COLORREF a, COLORREF b, float ratio)
-{
-	const int R = static_cast<int>((GetRValue(a) - GetRValue(b)) * ratio) + GetRValue(b);
-	const int G = static_cast<int>((GetGValue(a) - GetGValue(b)) * ratio) + GetGValue(b);
-	const int B = static_cast<int>((GetBValue(a) - GetBValue(b)) * ratio) + GetBValue(b);
-	return RGB(R, G, B);
-}
-
-static COLORREF GetDarkenColor(COLORREF a, double l)
-{
-	const int R = static_cast<int>(GetRValue(a) * l);
-	const int G = static_cast<int>(GetGValue(a) * l);
-	const int B = static_cast<int>(GetBValue(a) * l);
-	return RGB(R, G, B);
 }
 
 /** 
@@ -384,8 +367,8 @@ void CLocationView::OnDraw(CDC* pDC)
 
 	CMyMemDC dc(pDC, &rc);
 
-	COLORREF cr[3] = {CLR_NONE, CLR_NONE, CLR_NONE};
-	COLORREF crt = CLR_NONE; // Text color
+	CEColor cr[3] = {CLR_NONE, CLR_NONE, CLR_NONE};
+	CEColor crt = CLR_NONE; // Text color
 	bool bwh = false;
 
 	m_movedLines.RemoveAll();
@@ -395,10 +378,10 @@ void CLocationView::OnDraw(CDC* pDC)
 
 	COLORREF clrFace    = GetBackgroundColor();
 	COLORREF clrShadow  = GetSysColor(COLOR_BTNSHADOW);
-	COLORREF clrShadow2 = GetIntermediateColor(clrFace, clrShadow, 0.9f);
-	COLORREF clrShadow3 = GetIntermediateColor(clrFace, clrShadow2, 0.5f);
-	COLORREF clrShadow4 = GetIntermediateColor(clrFace, clrShadow3, 0.5f);
-	COLORREF clrShadow5 = GetIntermediateColor(clrFace, clrShadow4, 0.5f);
+	COLORREF clrShadow2 = CEColor::GetIntermediateColor(clrFace, clrShadow, 0.9f);
+	COLORREF clrShadow3 = CEColor::GetIntermediateColor(clrFace, clrShadow2, 0.5f);
+	COLORREF clrShadow4 = CEColor::GetIntermediateColor(clrFace, clrShadow3, 0.5f);
+	COLORREF clrShadow5 = CEColor::GetIntermediateColor(clrFace, clrShadow4, 0.5f);
 
 	// Draw bar outlines
 	CPen* oldObj = (CPen*)dc.SelectStockObject(NULL_PEN);
@@ -406,7 +389,6 @@ void CLocationView::OnDraw(CDC* pDC)
 	CBrush* oldBrush = (CBrush*)dc.SelectObject(&brush);
 	for (int pane = 0; pane < pDoc->m_nBuffers; pane++)
 	{
-		int nBottom = (int)(m_lineInPix * pDoc->GetView(nGroup, pane)->GetSubLineCount() + Y_OFFSET + 1);
 		CBrush *pOldBrush = nullptr;
 		if (pDoc->IsEditedAfterRescan(pane))
 			pOldBrush = (CBrush *)dc.SelectStockObject(HOLLOW_BRUSH);
@@ -479,7 +461,7 @@ void CLocationView::OnDraw(CDC* pDC)
 			{
 				int apparent0 = (*iter).top_line;
 				int apparent1 = pDoc->RightLineInMovedBlock(pane, apparent0);
-				const int nBlockHeight = (*iter).bottom_line - (*iter).top_line + 1;
+				const int nBlockHeight = (*iter).bottom_coord - (*iter).top_coord;
 				if (apparent1 != -1)
 				{
 					MovedLine line;
@@ -490,9 +472,9 @@ void CLocationView::OnDraw(CDC* pDC)
 					apparent1 = pView->GetSubLineIndex(apparent1);
 
 					int leftUpper = (int) (apparent0 * m_lineInPix + Y_OFFSET);
-					int leftLower = (int) ((nBlockHeight + apparent0) * m_lineInPix + Y_OFFSET - 1);
+					int leftLower = leftUpper + nBlockHeight - 1;
 					int rightUpper = (int) (apparent1 * m_lineInPix + Y_OFFSET);
-					int rightLower = (int) ((nBlockHeight + apparent1) * m_lineInPix + Y_OFFSET - 1);
+					int rightLower = rightUpper + nBlockHeight - 1;
 					line.ptLeftUpper.x = line.ptLeftLower.x = m_bar[pane].right - 1;
 					line.ptLeftUpper.y = leftUpper;
 					line.ptLeftLower.y = leftLower;
@@ -548,7 +530,6 @@ void CLocationView::DrawRect(CDC* pDC, const CRect& r, COLORREF cr, bool bSelect
 	// Draw only colored blocks
 	if (cr != CLR_NONE && cr != GetSysColor(COLOR_WINDOW))
 	{
-		CBrush brush(cr);
 		CRect drawRect(r);
 		drawRect.DeflateRect(1, 0);
 
@@ -558,9 +539,9 @@ void CLocationView::DrawRect(CDC* pDC, const CRect& r, COLORREF cr, bool bSelect
 			++drawRect.bottom;
 		pDC->FillSolidRect(drawRect, cr);
 		CRect drawRect2(drawRect.left, drawRect.top, drawRect.right, drawRect.top + 1);
-		pDC->FillSolidRect(drawRect2, GetDarkenColor(cr, 0.96));
+		pDC->FillSolidRect(drawRect2, CEColor::GetDarkenColor(cr, 0.96f));
 		CRect drawRect3(drawRect.left, drawRect.bottom - 1, drawRect.right, drawRect.bottom);
-		pDC->FillSolidRect(drawRect3, GetDarkenColor(cr, 0.91));
+		pDC->FillSolidRect(drawRect3, CEColor::GetDarkenColor(cr, 0.91f));
 
 		if (bSelected)
 		{
@@ -575,10 +556,13 @@ void CLocationView::DrawRect(CDC* pDC, const CRect& r, COLORREF cr, bool bSelect
 void CLocationView::OnLButtonDown(UINT nFlags, CPoint point) 
 {
 	SetCapture();
-
-	bool bShift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
-	if (!GotoLocation(point, false, !bShift))
-		CView::OnLButtonDown(nFlags, point);
+	if (m_bMoveCursorOnClick)
+	{
+		bool bShift = (GetKeyState(VK_SHIFT) & 0x8000) != 0;
+		if (!GotoLocation(point, false, !bShift))
+			CView::OnLButtonDown(nFlags, point);
+	}
+	OnMouseMove(nFlags, point);
 }
 
 /**
@@ -637,6 +621,15 @@ void CLocationView::OnMouseMove(UINT nFlags, CPoint point)
 int  CLocationView::OnMouseActivate(CWnd* pDesktopWnd, UINT nHitTest, UINT message)
 {
 	return MA_NOACTIVATE;
+}
+
+BOOL CLocationView::OnMouseWheel(UINT nFlags, short zDelta, CPoint pt)
+{
+	CMergeEditView* pView = GetDocument()->GetActiveMergeView();
+	if (pView)
+		return static_cast<BOOL>(pView->SendMessage(WM_MOUSEWHEEL,
+			MAKEWPARAM(nFlags, zDelta), MAKELPARAM(pt.x, pt.y)));
+	return CView::OnMouseWheel(nFlags, zDelta, pt);
 }
 
 /**
@@ -704,7 +697,7 @@ void CLocationView::OnVScroll(UINT nSBCode, UINT nPos, CScrollBar *pScrollBar)
 {
 	if (pScrollBar == nullptr)
 	{
-		// Scroll did not come frome a scroll bar
+		// Scroll did not come from a scroll bar
 		// Send it to the right view instead
  	  CMergeDoc *pDoc = GetDocument();
 		pDoc->GetActiveMergeGroupView(pDoc->m_nBuffers - 1)->SendMessage(WM_VSCROLL,
@@ -736,7 +729,7 @@ void CLocationView::OnContextMenu(CWnd* pWnd, CPoint point)
 	ScreenToClient(&pt);
 	BCMenu menu;
 	VERIFY(menu.LoadMenu(IDR_POPUP_LOCATIONBAR));
-	theApp.TranslateMenu(menu.m_hMenu);
+	I18n::TranslateMenu(menu.m_hMenu);
 
 	BCMenu* pPopup = static_cast<BCMenu *>(menu.GetSubMenu(0));
 	ASSERT(pPopup != nullptr);
@@ -754,6 +747,9 @@ void CLocationView::OnContextMenu(CWnd* pWnd, CPoint point)
 			break;
 		case ID_DISPLAY_MOVED_ALL:
 			cmdUI.SetRadio(m_displayMovedBlocks);
+			break;
+		case ID_LOCBAR_MOVECURSOR_ONCLICK:
+			cmdUI.SetCheck(m_bMoveCursorOnClick);
 			break;
 		}
 	}
@@ -800,6 +796,10 @@ void CLocationView::OnContextMenu(CWnd* pWnd, CPoint point)
 	case ID_DISPLAY_MOVED_ALL:
 		SetConnectMovedBlocks(true);
 		pDoc->SetDetectMovedBlocks(true);
+		break;
+	case ID_LOCBAR_MOVECURSOR_ONCLICK:
+		SetMoveCursorOnClick(!m_bMoveCursorOnClick);
+		GetOptionsMgr()->SaveOption(OPT_LOCBAR_MOVECURSOR_ONCLICK, m_bMoveCursorOnClick);
 		break;
 	}
 }
@@ -872,7 +872,7 @@ int CLocationView::IsInsideBar(const CRect& rc, const POINT& pt)
  *
  * @param [in] nTopLine New topline for indicator
  * @param [in] nBottomLine New bottomline for indicator
- * @todo This function dublicates too much DrawRect() code.
+ * @todo This function duplicates too much DrawRect() code.
  */
 void CLocationView::DrawVisibleAreaRect(CDC *pClientDC, int nTopLine, int nBottomLine)
 {
@@ -887,6 +887,9 @@ void CLocationView::DrawVisibleAreaRect(CDC *pClientDC, int nTopLine, int nBotto
 		const int nScreenLines = pDoc->GetView(nGroup, 1)->GetScreenLines();
 		nBottomLine = nTopLine + nScreenLines;
 	}
+
+	const int lpx = pClientDC->GetDeviceCaps(LOGPIXELSX);
+	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
 
 	CRect rc;
 	GetClientRect(rc);
@@ -914,14 +917,10 @@ void CLocationView::DrawVisibleAreaRect(CDC *pClientDC, int nTopLine, int nBotto
 			nBottomCoord += INDICATOR_MIN_HEIGHT - (nBottomCoord - nTopCoord);
 		else
 		{
-			// Make sure locationbox has min hight
-			if ((nBottomCoord - nTopCoord) < INDICATOR_MIN_HEIGHT)
-			{
-				// If we have a high number of lines, it may be better
-				// to keep the topline, otherwise the cursor can 
-				// jump up and down unexpected
-				nBottomCoord = nTopCoord + INDICATOR_MIN_HEIGHT;
-			}
+			// If we have a high number of lines, it may be better
+			// to keep the topline, otherwise the cursor can 
+			// jump up and down unexpected
+			nBottomCoord = nTopCoord + INDICATOR_MIN_HEIGHT;
 		}
 	}
 
@@ -931,7 +930,7 @@ void CLocationView::DrawVisibleAreaRect(CDC *pClientDC, int nTopLine, int nBotto
 
 	CRect rcVisibleArea(2, m_visibleTop, rc.right - 2, m_visibleBottom);
 	std::unique_ptr<CBitmap> pBitmap(CopyRectToBitmap(pClientDC, rcVisibleArea));
-	std::unique_ptr<CBitmap> pDarkenedBitmap(GetDarkenedBitmap(pClientDC, pBitmap.get(), IsColorDark(GetBackgroundColor())));
+	std::unique_ptr<CBitmap> pDarkenedBitmap(GetDarkenedBitmap(pClientDC, pBitmap.get(), pointToPixel(3), IsColorDark(GetBackgroundColor())));
 	DrawBitmap(pClientDC, rcVisibleArea.left, rcVisibleArea.top, pDarkenedBitmap.get());
 }
 
@@ -989,57 +988,59 @@ void CLocationView::OnClose()
 /** 
  * @brief Draw lines connecting moved blocks.
  */
-void CLocationView::DrawConnectLines(CDC *pClientDC)
+void CLocationView::DrawConnectLines(CDC* pClientDC)
 {
+	Gdiplus::Graphics graphics(pClientDC->GetSafeHdc());
 	COLORREF clrMovedBlock = GetOptionsMgr()->GetInt(OPT_CLR_MOVEDBLOCK);
 	COLORREF clrSelectedMovedBlock = GetOptionsMgr()->GetInt(OPT_CLR_SELECTED_MOVEDBLOCK);
-	CBrush brushMovedBlock(clrMovedBlock);
-	CBrush brushSelectedMovedBlock(clrSelectedMovedBlock);
-	CPen penMovedBlock(PS_SOLID, 0, clrMovedBlock);
-	CPen penSelectedMovedBlock(PS_SOLID, 0, clrSelectedMovedBlock);
+	Gdiplus::SolidBrush brushMovedBlock(Gdiplus::Color(255, GetRValue(clrMovedBlock), GetGValue(clrMovedBlock), GetBValue(clrMovedBlock)));
+	Gdiplus::SolidBrush brushSelectedMovedBlock(Gdiplus::Color(255, GetRValue(clrSelectedMovedBlock), GetGValue(clrSelectedMovedBlock), GetBValue(clrSelectedMovedBlock)));
+	Gdiplus::Pen penMovedBlock(Gdiplus::Color(255, GetRValue(clrMovedBlock), GetGValue(clrMovedBlock), GetBValue(clrMovedBlock)));
+	Gdiplus::Pen penSelectedMovedBlock(Gdiplus::Color(255, GetRValue(clrSelectedMovedBlock), GetGValue(clrSelectedMovedBlock), GetBValue(clrSelectedMovedBlock)));
 
 	POSITION pos = m_movedLines.GetHeadPosition();
-	int oldMode = pClientDC->SetPolyFillMode(ALTERNATE);
+	graphics.SetSmoothingMode(Gdiplus::SmoothingModeAntiAlias);
 
 	while (pos != nullptr)
 	{
 		MovedLine line = m_movedLines.GetNext(pos);
-		CPen *pOldPen = (CPen *)pClientDC->SelectObject(line.currentDiff ? &penSelectedMovedBlock : &penMovedBlock);
+		Gdiplus::Pen* pCurrentPen = line.currentDiff ? &penSelectedMovedBlock : &penMovedBlock;
+
 		if (line.ptLeftLower.y - line.ptLeftUpper.y <= 1)
 		{
-			CPoint points[4] = {
-				line.ptLeftUpper,
-				{(line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptLeftUpper.y},
-				{(line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptRightLower.y},
-				line.ptRightUpper };
-			pClientDC->PolyBezier(points, 4);
+			Gdiplus::Point points[4] = {
+				Gdiplus::Point(line.ptLeftUpper.x, line.ptLeftUpper.y),
+				Gdiplus::Point((line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptLeftUpper.y),
+				Gdiplus::Point((line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptRightLower.y),
+				Gdiplus::Point(line.ptRightUpper.x, line.ptRightUpper.y)
+			};
+			graphics.DrawBezier(pCurrentPen, points[0], points[1], points[2], points[3]);
 		}
 		else
 		{
-			BYTE types[9] = {
-				PT_MOVETO, PT_BEZIERTO, PT_BEZIERTO, PT_BEZIERTO,
-				PT_LINETO, PT_BEZIERTO, PT_BEZIERTO, PT_BEZIERTO, PT_LINETO };
-			CPoint points[9] = {
-				line.ptLeftUpper,
-				{(line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptLeftUpper.y},
-				{(line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptRightUpper.y},
-				line.ptRightUpper,
-				line.ptRightLower,
-				{(line.ptLeftLower.x + line.ptRightLower.x) / 2, line.ptRightLower.y},
-				{(line.ptLeftLower.x + line.ptRightLower.x) / 2, line.ptLeftLower.y},
-				line.ptLeftLower, line.ptLeftUpper };
-			pClientDC->BeginPath();
-			pClientDC->PolyDraw(points, types, 8);
-			pClientDC->EndPath();
-			CRgn rgn;
-			if (rgn.CreateFromPath(pClientDC))
-				pClientDC->FillRgn(&rgn, line.currentDiff ? &brushSelectedMovedBlock : &brushMovedBlock);
-			pClientDC->PolyDraw(points, types, 9);
-		}
-		pClientDC->SelectObject(pOldPen);
-	}
+			Gdiplus::Point points[9] = {
+				Gdiplus::Point(line.ptLeftUpper.x, line.ptLeftUpper.y),
+				Gdiplus::Point((line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptLeftUpper.y),
+				Gdiplus::Point((line.ptLeftUpper.x + line.ptRightUpper.x) / 2, line.ptRightUpper.y),
+				Gdiplus::Point(line.ptRightUpper.x, line.ptRightUpper.y),
+				Gdiplus::Point(line.ptRightLower.x, line.ptRightLower.y),
+				Gdiplus::Point((line.ptLeftLower.x + line.ptRightLower.x) / 2, line.ptRightLower.y),
+				Gdiplus::Point((line.ptLeftLower.x + line.ptRightLower.x) / 2, line.ptLeftLower.y),
+				Gdiplus::Point(line.ptLeftLower.x, line.ptLeftLower.y),
+				Gdiplus::Point(line.ptLeftUpper.x, line.ptLeftUpper.y)
+			};
+			Gdiplus::GraphicsPath path;
+			path.StartFigure();
+			path.AddBezier(points[0], points[1], points[2], points[3]);
+			path.AddLine(points[3], points[4]);
+			path.AddBezier(points[4], points[5], points[6], points[7]);
+			path.CloseFigure();
 
-	pClientDC->SetPolyFillMode(oldMode);
+			Gdiplus::SolidBrush* pCurrentBrush = line.currentDiff ? &brushSelectedMovedBlock : &brushMovedBlock;
+			graphics.FillPath(pCurrentBrush, &path);
+			graphics.DrawPath(pCurrentPen, &path);
+		}
+	}
 }
 
 /** 
@@ -1075,7 +1076,7 @@ void CLocationView::OnSize(UINT nType, int cx, int cy)
  * @brief Draw marker for top of currently selected difference.
  * This function draws marker for top of currently selected difference.
  * This marker makes it a lot easier to see where currently selected
- * difference is in location bar. Especially when selected diffence is
+ * difference is in location bar. Especially when selected difference is
  * small and it is not easy to find it otherwise.
  * @param [in] pDC Pointer to draw context.
  * @param [in] yCoord Y-coord of top of difference, -1 if no difference.
@@ -1093,7 +1094,7 @@ void CLocationView::DrawDiffMarker(CDC* pDC, int yCoord)
 	points[2].y = yCoord + DIFFMARKER_BOTTOM;
 
 	COLORREF clrBlue = GetSysColor(COLOR_ACTIVECAPTION);
-	CPen penDarkBlue(PS_SOLID, 0, GetDarkenColor(clrBlue, 0.9));
+	CPen penDarkBlue(PS_SOLID, 0, CEColor::GetDarkenColor(clrBlue, 0.9f));
 	CPen* oldObj = (CPen*)pDC->SelectObject(&penDarkBlue);
 	CBrush brushBlue(clrBlue);
 	CBrush* pOldBrush = pDC->SelectObject(&brushBlue);

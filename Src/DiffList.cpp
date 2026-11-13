@@ -8,21 +8,17 @@
 #include "pch.h"
 #include "DiffList.h"
 #include <cassert>
-#include <string>
 #include <sstream>
 #include <algorithm>
-
-using std::swap;
-using std::vector;
 
 /**
  * @brief Swap diff sides.
  */
 void DIFFRANGE::swap_sides(int index1, int index2)
 {
-	swap(begin[index1], begin[index2]);
-	swap(end[index1], end[index2]);
-	swap(blank[index1], blank[index2]);
+	std::swap(begin[index1], begin[index2]);
+	std::swap(end[index1], end[index2]);
+	std::swap(blank[index1], blank[index2]);
 }
 
 /**
@@ -107,6 +103,32 @@ int DiffList::GetSignificantDiffs() const
 }
 
 /**
+ * @brief Returns significant and ignored diff counts and the selected diff's
+ * significant index.
+ * @param [in] currentDiff Index of the selected diff in the full diff list,
+ * or -1 when no diff is selected.
+ * @return Counts and the selected diff's zero-based significant index.
+ */
+DiffList::DiffCounts DiffList::GetDiffCounts(int currentDiff) const
+{
+	DiffCounts counts;
+	for (int i = 0; i < GetSize(); ++i)
+	{
+		if (DiffRangeAt(i)->op == OP_TRIVIAL)
+		{
+			++counts.ignored;
+		}
+		else
+		{
+			if (i == currentDiff)
+				counts.currentSignificantIndex = counts.significant;
+			++counts.significant;
+		}
+	}
+	return counts;
+}
+
+/**
  * @brief Adds given diff to end of the list.
  * Adds given difference to end of the list (append).
  * @param [in] di Difference to add.
@@ -155,6 +177,29 @@ int DiffList::GetSignificantIndex(int nDiff) const
 		}
 	}
 	return significants;
+}
+
+/**
+ * @brief Get the full diff-list index for a significant diff index.
+ * @param [in] nSignificantIndex Zero-based index counting only significant diffs.
+ * @return Full diff-list index, or -1 if the index is out of range.
+ */
+int DiffList::GetDiffFromSignificantIndex(int nSignificantIndex) const
+{
+	if (nSignificantIndex < 0)
+		return -1;
+
+	int significantIndex = 0;
+	for (int i = 0; i < GetSize(); ++i)
+	{
+		if (IsDiffSignificant(i))
+		{
+			if (significantIndex == nSignificantIndex)
+				return i;
+			++significantIndex;
+		}
+	}
+	return -1;
 }
 
 /**
@@ -502,7 +547,6 @@ const DIFFRANGE * DiffList::LastSignificantDiffRange() const
 }
 
 /**
-<<<<<<< .mine
  * @brief Return previous diff index from given line.
  * @param [in] nLine First line searched.
  * @return Index for next difference or -1 if no difference is found.
@@ -731,7 +775,7 @@ int DiffList::LastSignificant3wayDiff(int nDiffType) const
 	case THREEWAYDIFFTYPE_RIGHTONLY:
 		return m_lastSignificantRightOnly;
 	case THREEWAYDIFFTYPE_CONFLICT:
-		return m_lastSignificantRightOnly;
+		return m_lastSignificantConflict;
 	}
 	return -1;
 }
@@ -807,8 +851,8 @@ const DIFFRANGE * DiffList::LastSignificant3wayDiffRange(int nDiffType) const
  */
 void DiffList::Swap(int index1, int index2)
 {
-	vector<DiffRangeInfo>::iterator iter = m_diffs.begin();
-	vector<DiffRangeInfo>::const_iterator iterEnd = m_diffs.end();
+	std::vector<DiffRangeInfo>::iterator iter = m_diffs.begin();
+	std::vector<DiffRangeInfo>::const_iterator iterEnd = m_diffs.end();
 	while (iter != iterEnd)
 	{
 		(*iter).swap_sides(index1, index2);
@@ -842,14 +886,14 @@ void DiffList::GetExtraLinesCounts(int nFiles, int extras[3])
 		for (file = 0; file < nFiles; file++)
 		{
 			nline[file] = curDiff.end[file]-curDiff.begin[file]+1;
-			nmaxline = std::max(nmaxline, nline[file]);
+			nmaxline = (std::max)(nmaxline, nline[file]);
 		}
 		for (file = 0; file < nFiles; file++)
 			extras[file] += nmaxline - nline[file];
 	}
 }
 
-void DiffList::AppendDiffList(const DiffList& list, int offset[] /*= nullptr*/, int doffset /*= 0*/)
+void DiffList::AppendDiffList(const DiffList& list, const int offset[] /*= nullptr*/, int doffset /*= 0*/)
 {
 	for (std::vector<DiffRangeInfo>::const_iterator it = list.m_diffs.begin(); it != list.m_diffs.end(); ++it)
 	{

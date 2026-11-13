@@ -25,7 +25,6 @@ public:
 	explicit PropRegistry(COptionsMgr *optionsMgr);
 
 // Implement IOptionsPanel
-	virtual void ReadOptions() override;
 	virtual void WriteOptions() override;
 
 // Dialog Data
@@ -33,6 +32,7 @@ public:
 	enum { IDD = IDD_PROPPAGE_SYSTEM };
 	String  m_strEditorPath;
 	bool    m_bUseRecycleBin;
+	int     m_nUserDataLocation;
 	String  m_strUserFilterPath;
 	int     m_tempFolderType;
 	String  m_tempFolder;
@@ -43,7 +43,6 @@ public:
 	// ClassWizard generated virtual function overrides
 	//{{AFX_VIRTUAL(PropRegistry)
 	protected:
-	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 	virtual BOOL PreTranslateMessage(MSG* pMsg);
 	virtual BOOL OnInitDialog() override;
 	//}}AFX_VIRTUAL
@@ -52,6 +51,7 @@ public:
 protected:
 	// Generated message map functions
 	//{{AFX_MSG(PropRegistry)
+	afx_msg void OnDefaults();
 	afx_msg void OnBrowseEditor();
 	afx_msg void OnBrowseFilterPath();
 	afx_msg void OnBrowseTmpFolder();

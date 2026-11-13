@@ -11,10 +11,10 @@
 #include <climits>
 #include <Poco/Thread.h>
 #include <Poco/Semaphore.h>
-#include "UnicodeString.h"
 #include "CompareStats.h"
 #include "IAbortable.h"
 #include "Plugins.h"
+#include "MergeAppCOMClass.h"
 #include "DebugNew.h"
 
 using Poco::Thread;
@@ -73,7 +73,7 @@ bool CDiffThread::ShouldAbort() const
  */
 unsigned CDiffThread::CompareDirectories()
 {
-	assert(m_pDiffParm->nThreadState != THREAD_COMPARING);
+	assert(m_pDiffParm->nThreadState != THREAD_COMPARING && m_pDiffParm->nCollectThreadState != THREAD_COMPARING);
 
 	m_pDiffParm->context = m_pDiffContext;
 	m_pDiffParm->m_pAbortgate = m_pAbortgate.get();
@@ -81,9 +81,12 @@ unsigned CDiffThread::CompareDirectories()
 	m_bPaused = false;
 
 	m_pDiffParm->nThreadState = THREAD_COMPARING;
+	m_pDiffParm->nCollectThreadState = THREAD_COMPARING;
 
 	delete m_pDiffParm->pSemaphore;
 	m_pDiffParm->pSemaphore = new Semaphore(0, LONG_MAX);
+
+	m_pDiffParm->m_collectCompletedEvent.reset();
 
 	m_pDiffParm->context->m_pCompareStats->SetCompareState(CompareStats::STATE_START);
 
@@ -115,8 +118,10 @@ static void DiffThreadCollect(void *pParam)
 	myStruct->pSemaphore->set();
 
 	// Send message to UI to update
+	myStruct->nCollectThreadState = CDiffThread::THREAD_COMPLETED;
 	int event = CDiffThread::EVENT_COLLECT_COMPLETED;
 	myStruct->m_listeners.notify(myStruct, event);
+	myStruct->m_collectCompletedEvent.set();
 };
 
 /**
@@ -130,7 +135,7 @@ static void DiffThreadCollect(void *pParam)
 static void DiffThreadCompare(void *pParam)
 {
 	DiffFuncStruct *myStruct = static_cast<DiffFuncStruct *>(pParam);
-	CAssureScriptsForThread scriptsForRescan;
+	CAssureScriptsForThread scriptsForRescan(new MergeAppCOMClass());
 
 	// Stash abortable interface into context
 	myStruct->context->SetAbortable(myStruct->m_pAbortgate);

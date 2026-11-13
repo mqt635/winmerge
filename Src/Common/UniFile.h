@@ -9,6 +9,7 @@
 #pragma once
 
 #include "unicoder.h"
+#include <cstdio>
 
 namespace Poco { class SharedMemory; }
 
@@ -29,7 +30,7 @@ public:
 		UniError();
 		bool HasError() const;
 		void ClearError();
-		String GetError() const;
+		const String& GetError() const;
 	};
 
 	virtual ~UniFile() { }
@@ -85,14 +86,14 @@ inline bool UniFile::UniError::HasError() const
  */
 inline void UniFile::UniError::ClearError()
 {
-	desc.erase();
+	desc.clear();
 }
 
 /**
  * @brief Get the error string.
  * @return Error string.
  */
-inline String UniFile::UniError::GetError() const
+inline const String& UniFile::UniError::GetError() const
 {
 	return desc;
 }
@@ -149,15 +150,15 @@ protected:
 
 protected:
 	int m_statusFetched; // 0 not fetched, -1 error, +1 success
+	int m_lineno; // current 0-based line of m_current
 	int64_t m_filesize;
 	String m_filepath;
 	String m_filename;
-	int m_lineno; // current 0-based line of m_current
 	UniError m_lastError;
-	ucr::UNICODESET m_unicoding;
 	int m_charsize; // 2 for UCS-2, else 1
 	int m_codepage; // only valid if m_unicoding==ucr::NONE;
 	txtstats m_txtstats;
+	ucr::UNICODESET m_unicoding;
 	bool m_bom; /**< Did the file have a BOM when reading? */
 	bool m_bUnicodingChecked; /**< Has unicoding been checked for the file? */
 	bool m_bUnicode; /**< Is the file unicode file? */
@@ -201,6 +202,7 @@ public:
 // Implementation methods
 protected:
 	virtual bool DoOpen(const String& filename, AccessMode mode);
+	virtual bool DoGetFileStatus();
 
 // Implementation data
 private:
@@ -254,6 +256,7 @@ public:
 	virtual bool OpenCreate(const String& filename);
 	virtual bool OpenCreateUtf8(const String& filename);
 	virtual bool Open(const String& filename, const String& mode);
+	virtual bool SetVBuf(int mode, size_t size);
 	void Close() override;
 
 	virtual bool IsOpen() const override;

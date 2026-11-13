@@ -8,11 +8,10 @@
 #include "pch.h"
 #include "FileFilterMgr.h"
 #include <vector>
-#include <Poco/String.h>
 #include <Poco/Glob.h>
 #include <Poco/RegularExpression.h>
 #include "DirTravel.h"
-#include "DirItem.h"
+#include "DiffItem.h"
 #include "UnicodeString.h"
 #include "FileFilter.h"
 #include "UniFile.h"
@@ -20,10 +19,7 @@
 
 using std::vector;
 using Poco::Glob;
-using Poco::icompare;
 using Poco::RegularExpression;
-
-static void AddFilterPattern(vector<FileFilterElementPtr> *filterList, String & str);
 
 /**
  * @brief Destructor, frees all filters.
@@ -58,7 +54,7 @@ void FileFilterMgr::LoadFromDirectory(const String& dir, const String& szPattern
 	try
 	{
 		DirItemArray dirs, files;
-		LoadAndSortFiles(dir, &dirs, &files, false);
+		DirTravel::LoadAndSortFiles(dir, &dirs, &files, false);
 		Glob glb(ucr::toUTF8(szPattern));
 	
 		for (DirItem& item: files)
@@ -113,13 +109,7 @@ void FileFilterMgr::DeleteAllFilters()
 	m_filters.clear();
 }
 
-/**
- * @brief Add a single pattern (if nonempty & valid) to a pattern list.
- *
- * @param [in] filterList List where pattern is added.
- * @param [in] str Temporary variable (ie, it may be altered)
- */
-static void AddFilterPattern(vector<FileFilterElementPtr> *filterList, String & str)
+static bool RemoveComment(String& str)
 {
 	const String& commentLeader = _T("##"); // Starts comment
 	str = strutils::trim_ws_begin(str);
@@ -127,7 +117,7 @@ static void AddFilterPattern(vector<FileFilterElementPtr> *filterList, String & 
 	// Ignore lines beginning with '##'
 	size_t pos = str.find(commentLeader);
 	if (pos == 0)
-		return;
+		return true;
 
 	// Find possible comment-separator '<whitespace>##'
 	while (pos != std::string::npos && !(str[pos - 1] == ' ' || str[pos - 1] == '\t'))
@@ -135,22 +125,39 @@ static void AddFilterPattern(vector<FileFilterElementPtr> *filterList, String & 
 
 	// Remove comment and whitespaces before it
 	if (pos != std::string::npos)
-		str = str.substr(0, pos);
+		str.resize(pos);
 	str = strutils::trim_ws_end(str);
-	if (str.empty())
-		return;
+	return (str.empty());
+}
 
-	int re_opts = RegularExpression::RE_CASELESS;
-	std::string regexString = ucr::toUTF8(str);
-	re_opts |= RegularExpression::RE_UTF8;
-	try
-	{
-		filterList->push_back(FileFilterElementPtr(new FileFilterElement(regexString, re_opts)));
-	}
-	catch (...)
-	{
-		// TODO:
-	}
+/**
+ * @brief Add a single pattern (if nonempty & valid) to a pattern list.
+ *
+ * @param [in] pfilter Pointer to file filter, used for error reporting.
+ * @param [in] filterList List where pattern is added.
+ * @param [in] str Temporary variable (ie, it may be altered)
+ * @param [in] lineNumber Line number in filter file, used for error reporting.
+ */
+static void AddFilterPattern(FileFilter* pfilter, vector<FileFilterElementPtr> *filterList, String & str, bool fileFilter, int lineNumber)
+{
+	if (RemoveComment(str))
+		return;
+	pfilter->AddFilterPattern(filterList, str, fileFilter, lineNumber);
+}
+
+/**
+ * @brief Add a single expression (if nonempty & valid) to a expression list.
+ *
+ * @param [in] pfilter Pointer to file filter, used for error reporting.
+ * @param [in] filterList List where expression is added.
+ * @param [in] str Temporary variable (ie, it may be altered)
+ * @param [in] lineNumber Line number in filter file, used for error reporting.
+*/
+static void AddFilterExpression(FileFilter* pfilter, vector<FilterExpressionPtr>* filterList, String& str, int lineNumber)
+{
+	if (RemoveComment(str))
+		return;
+	pfilter->AddFilterExpression(filterList, str, lineNumber);
 }
 
 /**
@@ -170,22 +177,26 @@ FileFilter * FileFilterMgr::LoadFilterFile(const String& szFilepath, int & error
 	}
 
 	file.ReadBom(); // in case it is a Unicode file, let UniMemFile handle BOM
+	if (!file.IsUnicode() && !ucr::CheckForInvalidUtf8(
+		reinterpret_cast<const char*>(file.GetBase()), static_cast<size_t>(file.GetFileSize())))
+		file.SetUnicoding(ucr::UTF8);
 
 	String fileName;
 	paths::SplitFilename(szFilepath, nullptr, &fileName, nullptr);
 	FileFilter *pfilter = new FileFilter;
 	pfilter->fullpath = szFilepath;
-	pfilter->name = fileName; // Filename is the default name
+	pfilter->name = std::move(fileName); // Filename is the default name
 
 	String sLine;
 	bool lossy = false;
 	bool bLinesLeft = true;
+	int lineNumber = 0;
 	do
 	{
 		// Returns false when last line is read
 		String tmpLine;
 		bLinesLeft = file.ReadString(tmpLine, &lossy);
-		sLine = tmpLine;
+		sLine = std::move(tmpLine);
 		sLine = strutils::trim_ws(sLine);
 
 		if (0 == sLine.compare(0, 5, _T("name:"), 5))
@@ -194,7 +205,7 @@ FileFilter * FileFilterMgr::LoadFilterFile(const String& szFilepath, int & error
 			String str = sLine.substr(5);
 			str = strutils::trim_ws_begin(str);
 			if (!str.empty())
-				pfilter->name = str;
+				pfilter->name = std::move(str);
 		}
 		else if (0 == sLine.compare(0, 5, _T("desc:"), 5))
 		{
@@ -202,7 +213,7 @@ FileFilter * FileFilterMgr::LoadFilterFile(const String& szFilepath, int & error
 			String str = sLine.substr(5);
 			str = strutils::trim_ws_begin(str);
 			if (!str.empty())
-				pfilter->description = str;
+				pfilter->description = std::move(str);
 		}
 		else if (0 == sLine.compare(0, 4, _T("def:"), 4))
 		{
@@ -218,14 +229,67 @@ FileFilter * FileFilterMgr::LoadFilterFile(const String& szFilepath, int & error
 		{
 			// file filter
 			String str = sLine.substr(2);
-			AddFilterPattern(&pfilter->filefilters, str);
+			AddFilterPattern(pfilter, &pfilter->filefilters, str, true, lineNumber);
 		}
 		else if (0 == sLine.compare(0, 2, _T("d:"), 2))
 		{
 			// directory filter
 			String str = sLine.substr(2);
-			AddFilterPattern(&pfilter->dirfilters, str);
+			AddFilterPattern(pfilter, &pfilter->dirfilters, str, false, lineNumber);
 		}
+		else if (0 == sLine.compare(0, 3, _T("fe:"), 3))
+		{
+			// file expression filter
+			String str = sLine.substr(3);
+			AddFilterExpression(pfilter, &pfilter->fileExpressionFilters, str, lineNumber);
+		}
+		else if (0 == sLine.compare(0, 3, _T("de:"), 3))
+		{
+			// directory expression filter
+			String str = sLine.substr(3);
+			AddFilterExpression(pfilter, &pfilter->dirExpressionFilters, str, lineNumber);
+		}
+		else if (0 == sLine.compare(0, 2, _T("e:"), 2))
+		{
+			// file expression filter
+			String str = sLine.substr(2);
+			AddFilterExpression(pfilter, &pfilter->fileExpressionFilters, str, lineNumber);
+			// directory expression filter
+			AddFilterExpression(pfilter, &pfilter->dirExpressionFilters, str, lineNumber);
+		}
+		else if (0 == sLine.compare(0, 3, _T("f!:"), 3))
+		{
+			// file filter
+			String str = sLine.substr(3);
+			AddFilterPattern(pfilter, &pfilter->filefiltersExclude, str, true, lineNumber);
+		}
+		else if (0 == sLine.compare(0, 3, _T("d!:"), 3))
+		{
+			// directory filter
+			String str = sLine.substr(3);
+			AddFilterPattern(pfilter, &pfilter->dirfiltersExclude, str, false, lineNumber);
+		}
+		else if (0 == sLine.compare(0, 4, _T("fe!:"), 4))
+		{
+			// file expression filter
+			String str = sLine.substr(4);
+			AddFilterExpression(pfilter, &pfilter->fileExpressionFiltersExclude, str, lineNumber);
+		}
+		else if (0 == sLine.compare(0, 4, _T("de!:"), 4))
+		{
+			// directory expression filter
+			String str = sLine.substr(4);
+			AddFilterExpression(pfilter, &pfilter->dirExpressionFiltersExclude, str, lineNumber);
+		}
+		else if (0 == sLine.compare(0, 3, _T("e!:"), 3))
+		{
+			// file expression filter
+			String str = sLine.substr(3);
+			AddFilterExpression(pfilter, &pfilter->fileExpressionFiltersExclude, str, lineNumber);
+			// directory expression filter
+			AddFilterExpression(pfilter, &pfilter->dirExpressionFiltersExclude, str, lineNumber);
+		}
+		lineNumber++;
 	} while (bLinesLeft);
 
 	return pfilter;
@@ -262,82 +326,6 @@ FileFilter * FileFilterMgr::GetFilterByIndex(int i)
 		return nullptr;
 
 	return m_filters[i].get();
-}
-
-/**
- * @brief Test given string against given regexp list.
- *
- * @param [in] filterList List of regexps to test against.
- * @param [in] szTest String to test against regexps.
- * @return true if string passes
- * @note Matching stops when first match is found.
- */
-bool TestAgainstRegList(const vector<FileFilterElementPtr> *filterList, const String& szTest)
-{
-	if (filterList->size() == 0)
-		return false;
-
-	std::string compString;
-	ucr::toUTF8(szTest, compString);
-	vector<FileFilterElementPtr>::const_iterator iter = filterList->begin();
-	while (iter != filterList->end())
-	{
-		RegularExpression::Match match;
-		try
-		{
-			if ((*iter)->regexp.match(compString, 0, match) > 0)
-				return true;
-		}
-		catch (...)
-		{
-			// TODO:
-		}
-		
-		++iter;
-	}
-	return false;
-}
-
-/**
- * @brief Test given filename against filefilter.
- *
- * Test filename against active filefilter. If matching rule is found
- * we must first determine type of rule that matched. If we return false
- * from this function directory scan marks file as skipped.
- *
- * @param [in] pFilter Pointer to filefilter
- * @param [in] szFileName Filename to test
- * @return true if file passes the filter
- */
-bool FileFilterMgr::TestFileNameAgainstFilter(const FileFilter * pFilter,
-	const String& szFileName) const
-{
-	if (pFilter == nullptr)
-		return true;
-	if (TestAgainstRegList(&pFilter->filefilters, szFileName))
-		return !pFilter->default_include;
-	return pFilter->default_include;
-}
-
-/**
- * @brief Test given directory name against filefilter.
- *
- * Test directory name against active filefilter. If matching rule is found
- * we must first determine type of rule that matched. If we return false
- * from this function directory scan marks file as skipped.
- *
- * @param [in] pFilter Pointer to filefilter
- * @param [in] szDirName Directory name to test
- * @return true if directory name passes the filter
- */
-bool FileFilterMgr::TestDirNameAgainstFilter(const FileFilter * pFilter,
-	const String& szDirName) const
-{
-	if (pFilter == nullptr)
-		return true;
-	if (TestAgainstRegList(&pFilter->dirfilters, szDirName))
-		return !pFilter->default_include;
-	return pFilter->default_include;
 }
 
 /**
@@ -406,9 +394,10 @@ void FileFilterMgr::CloneFrom(const FileFilterMgr* fileFilterMgr)
 	m_filters.clear();
 
 	size_t count = fileFilterMgr->m_filters.size();
+	m_filters.reserve(count);
 	for (size_t i = 0; i < count; i++)
 	{
-		FileFilterPtr ptr(new FileFilter());
+		auto ptr = std::make_shared<FileFilter>(FileFilter());
 		ptr->CloneFrom(fileFilterMgr->m_filters[i].get());
 		m_filters.push_back(ptr);
 	}

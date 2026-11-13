@@ -40,7 +40,7 @@
     <RootNamespace>MergeLang</RootNamespace>
     <Keyword>Win32Proj</Keyword>
     <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' == '15'">10.0.17763.0</WindowsTargetPlatformVersion>
-    <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' &gt;= '16'">$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' &gt;= '16'">10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -49,6 +49,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141_xp</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -57,6 +58,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141_xp</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
@@ -66,6 +68,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141_xp</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
@@ -74,6 +77,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
@@ -82,6 +86,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -90,6 +95,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141_xp</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
@@ -98,6 +104,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
@@ -106,6 +113,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -183,7 +191,7 @@ date /t &gt; MergeLang.lastbuild
 attrib -a English.pot
 del English.pot.prev English.pot.flt English.pot.prev.flt 2&gt; NUL
 move English.pot English.pot.prev 2&gt; NUL
-cscript CreateMasterPotFile.vbs
+cscript CreateMasterPotFile.js
 attrib -a English.pot
 findstr /v POT-Creation-Date English.pot &gt; English.pot.flt
 findstr /v POT-Creation-Date English.pot.prev &gt; English.pot.prev.flt
@@ -212,13 +220,15 @@ popd
   </ItemGroup>
   <ItemGroup>
     <None Include="..\Translations\ShellExtension\Arabic.po" />
+    <None Include="..\Translations\ShellExtension\Azerbaijani.po" />
     <None Include="..\Translations\ShellExtension\Basque.po" />
     <None Include="..\Translations\ShellExtension\Brazilian.po" />
     <None Include="..\Translations\ShellExtension\Bulgarian.po" />
     <None Include="..\Translations\ShellExtension\Catalan.po" />
     <None Include="..\Translations\ShellExtension\ChineseSimplified.po" />
     <None Include="..\Translations\ShellExtension\ChineseTraditional.po" />
-    <None Include="..\Translations\ShellExtension\CreateMasterPotFile.vbs" />
+    <None Include="..\Translations\ShellExtension\Corsican.po" />
+    <None Include="..\Translations\ShellExtension\CreateMasterPotFile.js" />
     <None Include="..\Translations\ShellExtension\Croatian.po" />
     <None Include="..\Translations\ShellExtension\Czech.po" />
     <None Include="..\Translations\ShellExtension\Danish.po" />
@@ -229,7 +239,9 @@ popd
     <None Include="..\Translations\ShellExtension\Galician.po" />
     <None Include="..\Translations\ShellExtension\German.po" />
     <None Include="..\Translations\ShellExtension\Greek.po" />
+    <None Include="..\Translations\ShellExtension\Hebrew.po" />
     <None Include="..\Translations\ShellExtension\Hungarian.po" />
+    <None Include="..\Translations\ShellExtension\Indonesian.po" />
     <None Include="..\Translations\ShellExtension\Italian.po" />
     <None Include="..\Translations\ShellExtension\Japanese.po" />
     <None Include="..\Translations\ShellExtension\Korean.po" />
@@ -246,17 +258,22 @@ popd
     <None Include="..\Translations\ShellExtension\Slovenian.po" />
     <None Include="..\Translations\ShellExtension\Spanish.po" />
     <None Include="..\Translations\ShellExtension\Swedish.po" />
+    <None Include="..\Translations\ShellExtension\Tamil.po" />
     <None Include="..\Translations\ShellExtension\Turkish.po" />
     <None Include="..\Translations\ShellExtension\Ukrainian.po" />
+    <None Include="..\Translations\ShellExtension\Vietnamese.po" />
     <None Include="..\Translations\ShellExtension\UpdatePoFilesFromPotFile.ps1" />
+    <None Include="..\Translations\StripPoComments.ps1" />
     <None Include="..\Translations\WinMerge\Arabic.po" />
+    <None Include="..\Translations\WinMerge\Azerbaijani.po" />
     <None Include="..\Translations\WinMerge\Basque.po" />
     <None Include="..\Translations\WinMerge\Brazilian.po" />
     <None Include="..\Translations\WinMerge\Bulgarian.po" />
     <None Include="..\Translations\WinMerge\Catalan.po" />
     <None Include="..\Translations\WinMerge\ChineseSimplified.po" />
     <None Include="..\Translations\WinMerge\ChineseTraditional.po" />
-    <None Include="..\Translations\WinMerge\CreateMasterPotFile.vbs" />
+    <None Include="..\Translations\WinMerge\Corsican.po" />
+    <None Include="..\Translations\WinMerge\CreateMasterPotFile.js" />
     <None Include="..\Translations\WinMerge\Croatian.po" />
     <None Include="..\Translations\WinMerge\Czech.po" />
     <None Include="..\Translations\WinMerge\Danish.po" />
@@ -267,7 +284,9 @@ popd
     <None Include="..\Translations\WinMerge\Galician.po" />
     <None Include="..\Translations\WinMerge\German.po" />
     <None Include="..\Translations\WinMerge\Greek.po" />
+    <None Include="..\Translations\WinMerge\Hebrew.po" />
     <None Include="..\Translations\WinMerge\Hungarian.po" />
+    <None Include="..\Translations\WinMerge\Indonesian.po" />
     <None Include="..\Translations\WinMerge\Italian.po" />
     <None Include="..\Translations\WinMerge\Japanese.po" />
     <None Include="..\Translations\WinMerge\Korean.po" />
@@ -284,8 +303,10 @@ popd
     <None Include="..\Translations\WinMerge\Slovenian.po" />
     <None Include="..\Translations\WinMerge\Spanish.po" />
     <None Include="..\Translations\WinMerge\Swedish.po" />
+    <None Include="..\Translations\WinMerge\Tamil.po" />
     <None Include="..\Translations\WinMerge\Turkish.po" />
     <None Include="..\Translations\WinMerge\Ukrainian.po" />
+    <None Include="..\Translations\WinMerge\Vietnamese.po" />
     <None Include="..\Translations\WinMerge\UpdatePoFilesFromPotFile.ps1" />
   </ItemGroup>
   <ItemGroup>
@@ -297,7 +318,7 @@ date /t &gt; MergeLang.lastbuild
 attrib -a English.pot
 del English.pot.prev English.pot.flt English.pot.prev.flt 2&gt; NUL
 move English.pot English.pot.prev 2&gt; NUL
-cscript CreateMasterPotFile.vbs
+cscript CreateMasterPotFile.js
 attrib -a English.pot
 findstr /v POT-Creation-Date English.pot &gt; English.pot.flt
 findstr /v POT-Creation-Date English.pot.prev &gt; English.pot.prev.flt
@@ -322,6 +343,12 @@ if "%POT_UPDATED%" == "true" (
 popd
 </Command>
     </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="resource.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="..\Translations\WinMerge\StringBlacklist.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

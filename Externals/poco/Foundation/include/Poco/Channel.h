@@ -46,29 +46,42 @@ public:
 		/// the reference count to one.
 
 	virtual void open();
-		/// Does whatever is necessary to open the channel. 
+		/// Does whatever is necessary to open the channel.
 		/// The default implementation does nothing.
-		
+
 	virtual void close();
 		/// Does whatever is necessary to close the channel.
 		/// The default implementation does nothing.
-		
+
 	virtual void log(const Message& msg) = 0;
 		/// Logs the given message to the channel. Must be
 		/// overridden by subclasses.
 		///
 		/// If the channel has not been opened yet, the log()
 		/// method will open it.
-		
-	void setProperty(const std::string& name, const std::string& value);
+
+	virtual void log(Message&& msg);
+		/// Logs the given message to the channel by moving it.
+		///
+		/// This overload allows channels that need to store or queue
+		/// messages (such as AsyncChannel) to avoid copying the message.
+		///
+		/// The default implementation simply calls log(const Message&),
+		/// which is appropriate for channels that immediately process
+		/// and discard the message (e.g., ConsoleChannel, FileChannel).
+		///
+		/// Subclasses that buffer or queue messages should override
+		/// this method to take advantage of move semantics.
+
+	void setProperty(const std::string& name, const std::string& value) override;
 		/// Throws a PropertyNotSupportedException.
 
-	std::string getProperty(const std::string& name) const;
+	std::string getProperty(const std::string& name) const override;
 		/// Throws a PropertyNotSupportedException.
-		
+
 protected:
-	virtual ~Channel();
-	
+	~Channel() override;
+
 private:
 	Channel(const Channel&);
 	Channel& operator = (const Channel&);

@@ -1,11 +1,11 @@
 /**
  * @file  GhostTextView.h
  *
- * @brief Declaration of CGhostTextView (subclasses CCrystalEditViewEx to handle ghost lines)
+ * @brief Declaration of CGhostTextView (subclasses CCrystalEditView to handle ghost lines)
  */
 #pragma once
 
-#include "crystalEditViewex.h"
+#include "ccrystaleditview.h"
 
 ////////////////////////////////////////////////////////////////////////////
 // Forward class declarations
@@ -17,7 +17,7 @@ class CGhostTextBuffer;
 // CCrystalTextView class declaration
 
 /** 
-This class hooks CCrystalEditViewEx to work with ghost lines. 
+This class hooks CCrystalEditView to work with ghost lines. 
 
 Use a CGhostTextBuffer buffer and virtualize some functions 
 to handle apparent/real lines differences. 
@@ -27,7 +27,7 @@ real lines is correct, as they are empty and have no EOL.
 WinMerge also paints the ghost lines in a custom color through virtualizing 
 GetLineColors (in MergeEditView).
 */
-class EDITPADC_CLASS CGhostTextView : public CCrystalEditViewEx
+class EDITPADC_CLASS CGhostTextView : public CCrystalEditView
 {
 	DECLARE_DYNCREATE (CGhostTextView)
 protected:
@@ -62,13 +62,13 @@ private:
 	 * @note We can only push/pop valid positions
 	 * For positions which are sometimes invalid, use a flag
 	 */
-	void pushPosition(SCursorPushed & Sdest, CPoint pt);
+	void pushPosition(SCursorPushed & Sdest, CEPoint pt);
 	/** 
 	 * @brief Restore cursors after Rescan.
 	 *
 	 * @note : also scroll to the old top line
 	 */
-	void popPosition(SCursorPushed Ssrc, CPoint & pt);
+	void popPosition(const SCursorPushed& Ssrc, CEPoint & pt);
 
 	/// basic cursor
 	SCursorPushed m_ptCursorPosPushed;
@@ -90,7 +90,7 @@ private:
 	 * initialized with (-1,-1), so don't assert for this invalid value
 	 */
 	SCursorPushed m_ptLastChangePushed;
-	// Other CPoint used but not preserved :
+	// Other CEPoint used but not preserved :
 	//   m_ptDrawSelStart, m_ptDrawSelEnd : built from m_ptSelStart and m_ptSelEnd
 	//   m_ptDropPos : only used inside one function which does not change the buffer
 
@@ -118,5 +118,14 @@ public:
 	int ComputeApparentLine (int nRealLine) const;
 	int ComputeRealLine (int nApparentLine) const;
 	virtual void DrawMargin (const CRect & rect, int nLineIndex, int nLineNumber) override;
+
+	std::pair<int, int> GetSelectedLineAndCharacterCount();
+
+protected:
+	/**
+	 * @brief Helper method to handle horizontal scrolling via mouse wheel
+	 * @param [in] zDelta The mouse wheel delta (positive/negative for scroll direction)
+	 */
+	void HandleHorizontalScrollWheel(short zDelta);
 
 };

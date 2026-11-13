@@ -1,7 +1,7 @@
 /** 
  * @file  OpenTableDlg.h
  *
- * @brief Declaration of the dialog used to select codepages
+ * @brief Declaration of the dialog used to select table properties
  */
 #pragma once
 
@@ -21,6 +21,8 @@ public:
 	//{{AFX_DATA(COpenTableDlg)
 	enum { IDD = IDD_OPEN_TABLE };
 	int m_nFileType;
+	String m_sCSVDelimiterChar;
+	String m_sDSVDelimiterChar;
 	String m_sDelimiterChar;
 	String m_sQuoteChar;
 	bool m_bAllowNewlinesInQuotes;

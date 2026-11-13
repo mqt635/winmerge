@@ -28,6 +28,22 @@ String DIFFITEM::getFilepath(int nIndex, const String &sRoot) const
 	return _T("");
 }
 
+/** @brief Return the relative path to file/folder including the item name*/
+String DIFFITEM::getItemRelativePath() const
+{
+	String resp = _T("");
+	int compareIndex ;
+
+	//determine what is the trees contain the item to be hidden
+	for (compareIndex = 0; (compareIndex < 3) && (diffFileInfo[compareIndex].size == -1); compareIndex++);
+
+	if (compareIndex < 3) 
+	{
+		resp = paths::ConcatPath(diffFileInfo[compareIndex].path, diffFileInfo[compareIndex].filename);
+	}
+
+	return resp; 
+}
 /** @brief Return depth of path */
 int DIFFITEM::GetDepth() const
 {
@@ -50,6 +66,24 @@ bool DIFFITEM::IsAncestor(const DIFFITEM *pdi) const
 			return true;
 	}
 	return false;
+}
+
+/**
+ * @brief Return all ancestors of the current item.
+ */
+std::vector<const DIFFITEM*> DIFFITEM::GetAncestors() const
+{
+	int depth = GetDepth();
+	std::vector<const DIFFITEM*> ancestors(depth);
+
+	const DIFFITEM* cur;
+	int i;
+	for (i = 0, cur = parent; cur->parent != nullptr; i++, cur = cur->parent)
+	{
+		assert(depth - i - 1 >= 0 && depth - i - 1 < depth);
+		ancestors[depth - i - 1] = cur;
+	}
+	return ancestors;
 }
 
 /** @brief Remove and delete all children DIFFITEM entries */
@@ -80,7 +114,7 @@ void DIFFITEM::Swap(int idx1, int idx2)
 
 void DIFFITEM::ClearAllAdditionalProperties()
 {
-	const int n = ((diffcode.diffcode & DIFFCODE::THREEWAY) != 0) ? 3 : 2;
+	const int n = diffcode.isThreeway() ? 3 : 2;
 	for (int i = 0; i < n; ++i)
 		diffFileInfo[i].m_pAdditionalProperties.reset();
 	if (HasChildren())
@@ -189,7 +223,7 @@ void DIFFCODE::swap(int idx1, int idx2)
 	bool binflag2 = (diffcode & (BINSIDE1 << idx2));
 	Set(BINSIDE1 << idx1, binflag2 ? (BINSIDE1 << idx1) : 0);
 	Set(BINSIDE1 << idx2, binflag1 ? (BINSIDE1 << idx2) : 0);
-	if ((diffcode & THREEWAY) != 0)
+	if (isThreeway())
 	{
 		int idx = -1;
 		switch (diffcode & COMPAREFLAGS3WAY)

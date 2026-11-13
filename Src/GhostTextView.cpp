@@ -20,7 +20,7 @@
 #endif
 
 
-IMPLEMENT_DYNCREATE (CGhostTextView, CCrystalEditViewEx)
+IMPLEMENT_DYNCREATE (CGhostTextView, CCrystalEditView)
 
 /** 
  * @brief Constructor, initializes members.
@@ -51,7 +51,7 @@ ReAttachToBuffer (CCrystalTextBuffer * pBuf /*= nullptr*/ )
 		// ...
 	}
 	m_pGhostTextBuffer = dynamic_cast<CGhostTextBuffer*> (pBuf);
-	CCrystalEditViewEx::ReAttachToBuffer(pBuf);
+	CCrystalEditView::ReAttachToBuffer(pBuf);
 }
 
 void CGhostTextView::
@@ -63,17 +63,17 @@ AttachToBuffer (CCrystalTextBuffer * pBuf /*= nullptr*/ )
 		// ...
 	}
 	m_pGhostTextBuffer = dynamic_cast<CGhostTextBuffer*> (pBuf);
-	CCrystalEditViewEx::AttachToBuffer(pBuf);
+	CCrystalEditView::AttachToBuffer(pBuf);
 }
 
 void CGhostTextView::
 DetachFromBuffer ()
 {
 	m_pGhostTextBuffer = nullptr;
-	CCrystalEditViewEx::DetachFromBuffer();
+	CCrystalEditView::DetachFromBuffer();
 }
 
-void CGhostTextView::popPosition(SCursorPushed Ssrc, CPoint & pt)
+void CGhostTextView::popPosition(const SCursorPushed& Ssrc, CEPoint & pt)
 {
 	pt.x = Ssrc.x;
 	pt.y = m_pGhostTextBuffer->ComputeApparentLine(Ssrc.y, Ssrc.nToFirstReal);
@@ -88,7 +88,7 @@ void CGhostTextView::popPosition(SCursorPushed Ssrc, CPoint & pt)
 		pt.y = 0;
 }
 
-void CGhostTextView::pushPosition(SCursorPushed & Sdest, CPoint pt)
+void CGhostTextView::pushPosition(SCursorPushed & Sdest, CEPoint pt)
 {
 	Sdest.x = pt.x;
 	if (m_pGhostTextBuffer)
@@ -99,7 +99,7 @@ void CGhostTextView::pushPosition(SCursorPushed & Sdest, CPoint pt)
 
 void CGhostTextView::PopCursors ()
 {
-	CPoint ptCursorLast = m_ptCursorLast;
+	CEPoint ptCursorLast = m_ptCursorLast;
 	popPosition(m_ptCursorPosPushed, ptCursorLast);
 
 	ASSERT_VALIDTEXTPOS (ptCursorLast);
@@ -136,9 +136,9 @@ void CGhostTextView::PopCursors ()
 		ASSERT_VALIDTEXTPOS(m_ptSavedSelEnd);
 	}
 
-	CPoint ptLastChange;
+	CEPoint ptLastChange;
 	if (m_ptLastChangePushed.y == 0 && m_ptLastChangePushed.nToFirstReal > 0)
-		ptLastChange = CPoint(-1,-1);
+		ptLastChange = CEPoint(-1,-1);
 	else 
 	{
 		popPosition(m_ptLastChangePushed, ptLastChange);
@@ -181,7 +181,7 @@ void CGhostTextView::PushCursors ()
 		pushPosition(m_ptSavedSelEndPushed, m_ptSavedSelEnd);
 	}
 
-	pushPosition(m_ptLastChangePushed, m_pGhostTextBuffer ? m_pGhostTextBuffer->GetLastChangePos() : CPoint{0, 0});
+	pushPosition(m_ptLastChangePushed, m_pGhostTextBuffer ? m_pGhostTextBuffer->GetLastChangePos() : CEPoint{0, 0});
 
 	// and top line positions
 	m_nTopSubLinePushed = m_nTopSubLine;
@@ -208,17 +208,21 @@ void CGhostTextView::GetTextWithoutEmptys (int nStartLine, int nStartChar,
 		CRLFSTYLE nCrlfStyle /*= CRLFSTYLE::AUTOMATIC*/,
 		bool bExcludeInvisibleLines /*= true*/)
 {
-  if (m_pGhostTextBuffer != nullptr)
-    m_pGhostTextBuffer->GetTextWithoutEmptys (nStartLine, nStartChar, nEndLine, nEndChar, text, nCrlfStyle, bExcludeInvisibleLines);
-  else
-    text = _T ("");
+	if (m_pGhostTextBuffer != nullptr)
+	{
+		String sText;
+		m_pGhostTextBuffer->GetTextWithoutEmptys(nStartLine, nStartChar, nEndLine, nEndChar, sText, nCrlfStyle, bExcludeInvisibleLines);
+		text.SetString(sText.c_str(), static_cast<int>(sText.length())); // TODO: Use String instead of CString
+	}
+	else
+		text.Empty();
 }
 
 void CGhostTextView::GetTextWithoutEmptysInColumnSelection (CString & text, bool bExcludeInvisibleLines /*= true*/)
 {
 	if (m_pGhostTextBuffer == nullptr)
 	{
-		text = _T ("");
+		text.Empty();
 		return;
 	}
 
@@ -229,7 +233,7 @@ void CGhostTextView::GetTextWithoutEmptysInColumnSelection (CString & text, bool
 	int nBufSize = 1;
 	for (int L = m_ptDrawSelStart.y; L <= m_ptDrawSelEnd.y; L++)
 		nBufSize += GetLineLength (L) + sEol.GetLength ();
-	LPTSTR pszBuf = text.GetBuffer (nBufSize);
+	tchar_t* pszBuf = text.GetBuffer (nBufSize);
 
 	for (int I = m_ptDrawSelStart.y; I <= m_ptDrawSelEnd.y; I++)
 	{
@@ -239,9 +243,9 @@ void CGhostTextView::GetTextWithoutEmptysInColumnSelection (CString & text, bool
 
 		int nSelLeft, nSelRight;
 		GetColumnSelection (I, nSelLeft, nSelRight);
-		memcpy (pszBuf, GetLineChars (I) + nSelLeft, sizeof (TCHAR) * (nSelRight - nSelLeft));
+		memcpy (pszBuf, GetLineChars (I) + nSelLeft, sizeof (tchar_t) * (nSelRight - nSelLeft));
 		pszBuf += (nSelRight - nSelLeft);
-		memcpy (pszBuf, sEol, sizeof (TCHAR) * sEol.GetLength ());
+		memcpy (pszBuf, sEol, sizeof (tchar_t) * sEol.GetLength ());
 		pszBuf += sEol.GetLength ();
 	}
 	pszBuf[0] = 0;
@@ -258,12 +262,12 @@ HGLOBAL CGhostTextView::PrepareDragData ()
 	CString text;
 	GetTextWithoutEmptys (m_ptDrawSelStart.y, m_ptDrawSelStart.x, m_ptDrawSelEnd.y, m_ptDrawSelEnd.x, text);
 	int cchText = text.GetLength();
-	SIZE_T cbData = (cchText + 1) * sizeof(TCHAR);
+	SIZE_T cbData = (cchText + 1) * sizeof(tchar_t);
 	HGLOBAL hData =::GlobalAlloc (GMEM_MOVEABLE | GMEM_DDESHARE, cbData);
 	if (hData == nullptr)
 		return nullptr;
 
-	LPTSTR pszData = (LPTSTR)::GlobalLock (hData);
+	tchar_t* pszData = (tchar_t*)::GlobalLock (hData);
 	if (pszData != nullptr)
 		memcpy (pszData, text, cbData);
 	::GlobalUnlock (hData);
@@ -289,3 +293,54 @@ void CGhostTextView::DrawMargin (const CRect & rect, int nLineIndex, int nLineNu
 		nRealLineNumber = ComputeRealLine(nLineIndex) + 1;
 	CCrystalTextView::DrawMargin(rect, nLineIndex, nRealLineNumber);
 }
+
+std::pair<int, int> CGhostTextView::GetSelectedLineAndCharacterCount()
+{
+	auto [ptStart, ptEnd] = GetSelection();
+	int nCharsOrColumns =0;
+	int nSelectedLines = 0;
+	for (int nLine = ptStart.y; nLine <= ptEnd.y; ++nLine)
+	{
+		if ((GetLineFlags(nLine) & (LF_GHOST | LF_INVISIBLE)) == 0)
+		{
+			int nLineLength = GetLineLength(nLine);
+			if (nLineLength < GetFullLineLength(nLine))
+				nLineLength++; // Add 1 for the EOL char
+			nCharsOrColumns += (nLine == ptEnd.y) ? ptEnd.x : nLineLength;
+			if (nLine == ptStart.y)
+				nCharsOrColumns -= ptStart.x;
+			if (nLine < ptEnd.y || (ptStart != ptEnd && ptEnd.x > 0))
+				++nSelectedLines;
+		}
+	}
+	if (m_bRectangularSelection)
+	{
+		int nStartLeft, nStartRight, nEndLeft, nEndRight;
+		GetColumnSelection(ptStart.y, nStartLeft, nStartRight);
+		GetColumnSelection(ptEnd.y, nEndLeft, nEndRight);
+		nCharsOrColumns = (std::max)(nStartRight, nEndRight) - (std::min)(nStartLeft, nEndLeft);
+	}
+	return { nSelectedLines, nCharsOrColumns };
+}
+
+/**
+ * @brief Helper method to handle horizontal scrolling via mouse wheel
+ */
+void CGhostTextView::HandleHorizontalScrollWheel(short zDelta)
+{
+	SCROLLINFO si = { sizeof SCROLLINFO };
+	si.fMask = SIF_PAGE | SIF_POS | SIF_RANGE;
+
+	VERIFY(GetScrollInfo(SB_HORZ, &si));
+
+	// new horz pos
+	si.nPos += zDelta / 40;
+	if (si.nPos > si.nMax) si.nPos = si.nMax;
+	if (si.nPos < si.nMin) si.nPos = si.nMin;
+
+	SetScrollInfo(SB_HORZ, &si);
+
+	// for update
+	SendMessage(WM_HSCROLL, MAKEWPARAM(SB_THUMBPOSITION, si.nPos), NULL);
+}
+

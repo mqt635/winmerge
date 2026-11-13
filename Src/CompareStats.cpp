@@ -7,8 +7,6 @@
 #include "pch.h"
 #include "CompareStats.h"
 #include <cassert>
-#include <cstring>
-#include <atomic>
 #include "DiffItem.h"
 
 /** 
@@ -21,15 +19,14 @@ CompareStats::CompareStats(int nDirs)
 , m_bCompareDone(false)
 , m_nDirs(nDirs)
 , m_counts()
+, m_nIdleCompareThreadCount(0)
 {
 }
 
 /** 
  * @brief Destructor, deletes critical section.
  */
-CompareStats::~CompareStats()
-{
-}
+CompareStats::~CompareStats() = default;
 
 /** 
  * @brief Add compared item.
@@ -41,7 +38,7 @@ void CompareStats::AddItem(int code)
 	{
 		RESULT res = GetResultFromCode(code);
 		int index = static_cast<int>(res);
-		m_counts[index] += 1;
+		m_counts[index]++;
 	}
 	++m_nComparedItems;
 	assert(m_nComparedItems <= m_nTotalItems);
@@ -52,6 +49,8 @@ void CompareStats::AddItem(int code)
 */
 const DIFFITEM *CompareStats::GetCurDiffItem()
 {
+	if (m_rgThreadState.empty())
+		return nullptr;
 	int nHitCountMax = 0;
 	const DIFFITEM *cdi = m_rgThreadState.front().m_pDiffItem;
 	std::vector<ThreadState>::iterator it = m_rgThreadState.begin();
@@ -83,6 +82,7 @@ void CompareStats::Reset()
 	m_nTotalItems = 0;
 	m_nComparedItems = 0;
 	m_bCompareDone = false;
+	m_rgThreadState.clear();
 }
 
 /** 
@@ -110,21 +110,22 @@ CompareStats::RESULT CompareStats::GetResultFromCode(unsigned diffcode) const
 {
 	DIFFCODE di(diffcode);
 	
+	bool is_dir = di.isDirectory();
 	// Test first for skipped so we pick all skipped items as such 
 	if (di.isResultFiltered())
 	{
 		// skipped
-		return di.isDirectory() ? RESULT_DIRSKIP : RESULT_SKIP;
+		return is_dir ? RESULT_DIRSKIP : RESULT_SKIP;
 	}
 	else if (di.isSideFirstOnly())
 	{
 		// left-only
-		return di.isDirectory() ? RESULT_LDIRUNIQUE : RESULT_LUNIQUE;
+		return is_dir ? RESULT_LDIRUNIQUE : RESULT_LUNIQUE;
 	}
 	else if (di.isSideSecondOnly())
 	{
 		// right-only
-		if (di.isDirectory())
+		if (is_dir)
 			return (m_nDirs < 3) ? RESULT_RDIRUNIQUE : RESULT_MDIRUNIQUE;
 		else
 			return (m_nDirs < 3) ? RESULT_RUNIQUE : RESULT_MUNIQUE;
@@ -132,15 +133,18 @@ CompareStats::RESULT CompareStats::GetResultFromCode(unsigned diffcode) const
 	else if (di.isSideThirdOnly())
 	{
 		// right-only
-		return di.isDirectory() ? RESULT_RDIRUNIQUE : RESULT_RUNIQUE;
+		return is_dir ? RESULT_RDIRUNIQUE : RESULT_RUNIQUE;
 	}
-	else if (m_nDirs > 2 && !di.exists(0) && di.exists(1) && di.exists(2))
-		return di.isDirectory() ? RESULT_LDIRMISSING : RESULT_LMISSING;
-	else if (m_nDirs > 2 && di.exists(0) && !di.exists(1) && di.exists(2))
-		return di.isDirectory() ? RESULT_MDIRMISSING : RESULT_MMISSING;
-	else if (m_nDirs > 2 && di.exists(0) && di.exists(1) && !di.exists(2))
-		return di.isDirectory() ? RESULT_RDIRMISSING : RESULT_RMISSING;
-	else if (di.isResultError())
+	else if (m_nDirs > 2)
+	{
+		switch (diffcode & DIFFCODE::ALL)
+		{
+		case (DIFFCODE::SECOND | DIFFCODE::THIRD) : return is_dir ? RESULT_LDIRMISSING : RESULT_LMISSING;
+		case (DIFFCODE::FIRST  | DIFFCODE::THIRD) : return is_dir ? RESULT_MDIRMISSING : RESULT_MMISSING;
+		case (DIFFCODE::FIRST  | DIFFCODE::SECOND): return is_dir ? RESULT_RDIRMISSING : RESULT_RMISSING;
+		}
+	}
+	if (di.isResultError())
 	{
 		// could be directory error ?
 		return RESULT_ERROR;
@@ -149,7 +153,7 @@ CompareStats::RESULT CompareStats::GetResultFromCode(unsigned diffcode) const
 	else if (di.isResultSame())
 	{
 		// same
-		if (di.isDirectory())
+		if (is_dir)
 		{
 			return RESULT_DIRSAME;
 		}
@@ -160,7 +164,7 @@ CompareStats::RESULT CompareStats::GetResultFromCode(unsigned diffcode) const
 	}
 	else
 	{
-		if (di.isDirectory())
+		if (is_dir)
 		{
 			return RESULT_DIRDIFF;
 		}

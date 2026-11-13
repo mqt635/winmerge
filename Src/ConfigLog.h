@@ -21,12 +21,12 @@ public:
 	CConfigLog();
 	~CConfigLog();
 
-	String GetFileName() const;
+	const String& GetFileName() const;
 	bool WriteLogFile(String &sError);
 
 	// Implementation methods
 protected:
-	void WriteItem(int indent, const String& key, const TCHAR *value = nullptr);
+	void WriteItem(int indent, const String& key, const tchar_t *value = nullptr);
 	void WriteItem(int indent, const String& key, const String &str);
 	void WriteItem(int indent, const String& key, long value);
 	void WriteVersionOf1(int indent, const String& path);
@@ -51,7 +51,7 @@ private:
 /**
  * @brief Return logfile name and path
  */
-inline String CConfigLog::GetFileName() const
+inline const String& CConfigLog::GetFileName() const
 {
 	return m_sFileName;
 }

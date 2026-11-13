@@ -14,7 +14,7 @@
 //  - LEAVE THIS HEADER INTACT
 ////////////////////////////////////////////////////////////////////////////
 
-#include "StdAfx.h"
+#include "pch.h"
 #include "crystallineparser.h"
 #include "../SyntaxColors.h"
 #include "../utils/string_util.h"
@@ -24,7 +24,7 @@
 #endif
 
 // Ruby reserved words.
-static const TCHAR * s_apszRubyKeywordList[] =
+static const tchar_t * s_apszRubyKeywordList[] =
   {
     _T ("BEGIN"),
     _T ("END"),
@@ -77,7 +77,7 @@ static const TCHAR * s_apszRubyKeywordList[] =
   };
 
 // Ruby constants (preprocessor color).
-static const TCHAR * s_apszRubyConstantsList[] =
+static const tchar_t * s_apszRubyConstantsList[] =
   {
     _T ("$defout"),
     _T ("$deferr"),
@@ -109,31 +109,56 @@ static const TCHAR * s_apszRubyConstantsList[] =
   };
 
 static bool
-IsXKeyword (const TCHAR *apszKeywords[], const TCHAR *pszChars, int nLength)
-{
-  for (int L = 0; apszKeywords[L] != nullptr; L++)
-    {
-      if (_tcsnicmp (apszKeywords[L], pszChars, nLength) == 0
-            && apszKeywords[L][nLength] == 0)
-        return true;
-    }
-  return false;
-}
-
-static bool
-IsRubyKeyword (const TCHAR *pszChars, int nLength)
+IsRubyKeyword (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORD (s_apszRubyKeywordList, pszChars, nLength);
 }
 
 static bool
-IsRubyConstant (const TCHAR *pszChars, int nLength)
+IsRubyConstant (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORD (s_apszRubyConstantsList, pszChars, nLength);
 }
 
+static inline void
+DefineIdentiferBlock(const tchar_t *pszChars, int nLength, std::vector<CrystalLineParser::TEXTBLOCK>* pBuf, int nIdentBegin, int I)
+{
+  if (IsRubyKeyword (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
+    }
+  else if (IsRubyConstant (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_PREPROCESSOR);
+    }
+  else if (CrystalLineParser::IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
+    }
+  else
+    {
+      bool bFunction = false;
+
+      for (int j = I; j < nLength; j++)
+        {
+          if (!xisspace (pszChars[j]))
+            {
+              if (pszChars[j] == '(')
+                {
+                  bFunction = true;
+                }
+              break;
+            }
+        }
+      if (bFunction)
+        {
+          DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
+        }
+    }
+}
+
 unsigned
-CrystalLineParser::ParseLineRuby(unsigned dwCookie, const TCHAR *pszChars, int nLength, TEXTBLOCK * pBuf, int &nActualItems)
+CrystalLineParser::ParseLineRuby(unsigned dwCookie, const tchar_t *pszChars, int nLength, std::vector<TEXTBLOCK>* pBuf)
 {
   if (nLength == 0)
     return dwCookie & COOKIE_EXT_COMMENT;
@@ -143,7 +168,7 @@ CrystalLineParser::ParseLineRuby(unsigned dwCookie, const TCHAR *pszChars, int n
   int nIdentBegin = -1;
   int nPrevI = -1;
   int I=0;
-  for (I = 0;; nPrevI = I, I = static_cast<int>(::CharNext(pszChars+I) - pszChars))
+  for (I = 0;; nPrevI = I, I = static_cast<int>(tc::tcharnext(pszChars+I) - pszChars))
     {
       if (I == nPrevI)
         {
@@ -171,7 +196,7 @@ CrystalLineParser::ParseLineRuby(unsigned dwCookie, const TCHAR *pszChars, int n
             }
           else
             {
-              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*::CharPrev(pszChars, pszChars + nPos)) && !xisalpha (*::CharNext(pszChars + nPos))))
+              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*tc::tcharprev(pszChars, pszChars + nPos)) && !xisalpha (*tc::tcharnext(pszChars + nPos))))
                 {
                   DEFINE_BLOCK (nPos, COLORINDEX_NORMALTEXT);
                 }
@@ -203,7 +228,7 @@ out:
       //  String constant "...."
       if (dwCookie & COOKIE_STRING)
         {
-          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *::CharPrev(pszChars, pszChars + nPrevI) == '\\')))
+          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *tc::tcharprev(pszChars, pszChars + nPrevI) == '\\')))
             {
               dwCookie &= ~COOKIE_STRING;
               bRedefineBlock = true;
@@ -214,7 +239,7 @@ out:
       //  Char constant '..'
       if (dwCookie & COOKIE_CHAR)
         {
-          if (pszChars[I] == '\'' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *::CharPrev(pszChars, pszChars + nPrevI) == '\\')))
+          if (pszChars[I] == '\'' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *tc::tcharprev(pszChars, pszChars + nPrevI) == '\\')))
             {
               dwCookie &= ~COOKIE_CHAR;
               bRedefineBlock = true;
@@ -280,38 +305,7 @@ out:
         {
           if (nIdentBegin >= 0)
             {
-              if (IsRubyKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-                }
-              else if (IsRubyConstant (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_PREPROCESSOR);
-                }
-              else if (IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-                }
-              else
-                {
-                  bool bFunction = false;
-
-                  for (int j = I; j < nLength; j++)
-                    {
-                      if (!xisspace (pszChars[j]))
-                        {
-                          if (pszChars[j] == '(')
-                            {
-                              bFunction = true;
-                            }
-                          break;
-                        }
-                    }
-                  if (bFunction)
-                    {
-                      DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-                    }
-                }
+              DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I);
               bRedefineBlock = true;
               bDecIndex = true;
               nIdentBegin = -1;
@@ -321,38 +315,7 @@ out:
 
   if (nIdentBegin >= 0)
     {
-      if (IsRubyKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-        }
-      else if (IsRubyConstant (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_PREPROCESSOR);
-        }
-      else if (IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-        }
-      else
-        {
-          bool bFunction = false;
-
-          for (int j = I; j < nLength; j++)
-            {
-              if (!xisspace (pszChars[j]))
-                {
-                  if (pszChars[j] == '(')
-                    {
-                      bFunction = true;
-                    }
-                  break;
-                }
-            }
-          if (bFunction)
-            {
-              DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-            }
-        }
+      DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I);
     }
 
   if (pszChars[nLength - 1] != '\\' || IsMBSTrail(pszChars, nLength - 1))

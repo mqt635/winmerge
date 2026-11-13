@@ -7,13 +7,10 @@
 
 #include "pch.h"
 #include "PluginManager.h"
-#include <Poco/ScopedLock.h>
 
 using Poco::FastMutex;
 
-PluginManager::~PluginManager()
-{
-}
+PluginManager::~PluginManager() = default;
 
 /**
  * @brief retrieve relevant plugin settings for specified comparison

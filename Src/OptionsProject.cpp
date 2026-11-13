@@ -6,13 +6,13 @@ namespace Options { namespace Project
 {
 
 /** @brief Setting name for project options. */
-const TCHAR Section[] = _T("Project");
+const tchar_t Section[] = _T("Project");
 
 /** @brief Setting name for operations */
 const String OperationKeyword[OperationCount] = { _T("Open"), _T("Load"), _T("Save") };
 
 /** @brief Setting name for items */
-const String ItemKeyword[ItemCount] = { _T("FileFilter"), _T("IncludeSubfolders"), _T("UnpackerPlugin"), _T("CompareOptions") };
+const String ItemKeyword[ItemCount] = { _T("FileFilter"), _T("IncludeSubfolders"), _T("UnpackerPlugin"), _T("CompareOptions"), _T("HiddenItems") };
 
 /**
  * @brief Initialize project settings.
@@ -82,6 +82,22 @@ bool Get(COptionsMgr* pOptionsMgr, Operation operation, Item item)
 
 	String name = strutils::format(_T("%s/%s.%s"), Section, OperationKeyword[static_cast<int>(operation)], ItemKeyword[static_cast<int>(item)]);
 	return pOptionsMgr->GetBool(name);
+}
+
+/**
+ * @brief Get the default project setting from OptionsMgr.
+ * @param [in] pOptionsMgr Pointer to OptionsMgr
+ * @param [in] operation Operation for project files
+ * @param [in] item Item to save to or restore from the project file
+ * @return Default project setting
+ */
+bool GetDefault(COptionsMgr* pOptionsMgr, Operation operation, Item item)
+{
+	if (pOptionsMgr == nullptr)
+		return false;
+
+	String name = strutils::format(_T("%s/%s.%s"), Section, OperationKeyword[static_cast<int>(operation)], ItemKeyword[static_cast<int>(item)]);
+	return pOptionsMgr->GetDefault<bool>(name);
 }
 
 }}

@@ -14,19 +14,21 @@
 #include "EditorFilepathBar.h"
 #include "PathContext.h"
 #include "DiffFileInfo.h"
+#include "IMDITab.h"
 #include "IMergeDoc.h"
 #include "WinIMergeLib.h"
 #include "LocationBar.h"
 #include "FileLocation.h"
 #include "MergeFrameCommon.h"
 #include "FileTransform.h"
+#include "BasicFlatStatusBar.h"
 
-class CDirDoc;
+struct IDirDoc;
 
 /** 
  * @brief Frame class for file compare, handles panes, statusbar etc.
  */
-class CImgMergeFrame : public CMergeFrameCommon,public IMergeDoc
+class CImgMergeFrame : public CMergeFrameCommon, public IMergeDoc, public IMDITab
 {
 	private:
 	enum class BUFFERTYPE
@@ -48,34 +50,43 @@ public:
 public:
 	bool OpenDocs(int nFiles, const FileLocation fileloc[], const bool bRO[], const String strDesc[], CMDIFrameWnd *pParent);
 	void MoveOnLoad(int nPane = -1, int nLineIndex = -1);
-	void ChangeFile(int pane, const String& path);
-	CDirDoc* GetDirDoc() const override { return m_pDirDoc; };
-	void SetDirDoc(CDirDoc * pDirDoc) override;
+	bool ChangeFile(int pane, const String& path, const String& description = _T(""));
+	IDirDoc* GetDirDoc() const override { return m_pDirDoc; };
+	void SetDirDoc(IDirDoc * pDirDoc) override;
 	void UpdateResources();
+	void RefreshOptions();
 	bool CloseNow() override;
-	void DirDocClosing(CDirDoc * pDirDoc) override { m_pDirDoc = nullptr; }
-	void UpdateLastCompareResult();
+	void DirDocClosing(IDirDoc * pDirDoc) override { m_pDirDoc = nullptr; }
+	int UpdateLastCompareResult();
 	void UpdateAutoPaneResize();
 	void UpdateSplitter();
-	bool GenerateReport(const String& sFileName) const override;
+	bool GenerateReport(ReportContext& reportContext) const override;
 	bool GenerateReport(const String& sFileName, bool allPages) const;
+	IMergeDoc::DocumentType GetDocumentType() const override { return IMergeDoc::DocumentType::Image; }
 	const PackingInfo* GetUnpacker() const override { return &m_infoUnpacker; };
 	void SetUnpacker(const PackingInfo* infoUnpacker) override { if (infoUnpacker) m_infoUnpacker = *infoUnpacker; };
 	const PrediffingInfo* GetPrediffer() const override { return nullptr; };
+	const EditorScriptInfo* GetEditorScript() const override { return nullptr; };
 	int GetFileCount() const override { return m_filePaths.GetSize(); }
 	String GetPath(int pane) const override { return m_filePaths[pane]; }
 	bool GetReadOnly(int pane) const override { return m_bRO[pane]; }
+	CString GetTooltipString() const override;
+	int GetDiffCount() const override;
+	int GetTrivialCount() const override { return 0; }
 	void DoAutoMerge(int dstPane);
 	bool IsModified() const;
 	IMergeDoc::FileChange IsFileChangedOnDisk(int pane) const;
 	void CheckFileChanged(void) override;
-	String GetDescription(int pane) const { return m_strDesc[pane]; }
+	String GetDescription(int pane) const override { return m_strDesc[pane]; }
 	static bool IsLoadable();
+	String GetSaveAsPath() const { return m_strSaveAsPath; }
+	void SetSaveAsPath(const String& strSaveAsPath) { m_strSaveAsPath = strSaveAsPath; }
+	IHeaderBar* GetHeaderInterface() override { return &m_wndFilePathBar; }
 
 // Attributes
 protected:
 	CEditorFilePathBar m_wndFilePathBar;
-	CStatusBar m_wndStatusBar[3];
+	CBasicFlatStatusBar m_wndStatusBar[3];
 // Overrides
 public:
 	// ClassWizard generated virtual function overrides
@@ -91,17 +102,14 @@ public:
 
 // Implementation
 private:
-	bool EnsureValidDockState(CDockState& state);
 	void LoadOptions();
 	void SaveOptions();
 	void SavePosition();
 	void SaveActivePane();
 	virtual ~CImgMergeFrame();
 	void CreateImgWndStatusBar(CStatusBar &, CWnd *);
-// Generated message map functions
 private:
 	bool OpenImages();
-	int UpdateDiffItem(CDirDoc * pDirDoc);
 	void UpdateHeaderSizes();
 	void UpdateHeaderPath(int pane);
 	void SetTitle(LPCTSTR lpszTitle);
@@ -111,6 +119,7 @@ private:
 	bool MergeModeKeyDown(MSG* pMsg);
 	static void OnChildPaneEvent(const IImgMergeWindow::Event& evt);
 	void OnDropFiles(int pane, const std::vector<String>& files);
+	bool m_bInOnClose = false;
 	static void TranslateLocationPane(int id, const wchar_t *org, size_t dstbufsize, wchar_t *dst);
 	CLocationBar m_wndLocationBar;
 	IImgMergeWindow *m_pImgMergeWindow;
@@ -120,12 +129,14 @@ private:
 	BUFFERTYPE m_nBufferType[3];
 	DiffFileInfo m_fileInfo[3];
 	bool m_bRO[3];
+	String m_strSaveAsPath; /**< "3rd path" where output saved if given */
 	bool m_bAutoMerged;
-	CDirDoc *m_pDirDoc;
+	IDirDoc *m_pDirDoc;
 	int m_nActivePane;
 	PackingInfo m_infoUnpacker;
 	std::vector<int> m_unpackerSubcodes[3];
-
+// Generated message map functions
+protected:
 	//{{AFX_MSG(CImgMergeFrame)
 	afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
 	afx_msg void OnMDIActivate(BOOL bActivate, CWnd* pActivateWnd, CWnd* pDeactivateWnd);
@@ -152,7 +163,9 @@ private:
 	afx_msg void OnFileRecompareAs(UINT nID);
 	afx_msg void OnUpdateFileRecompareAs(CCmdUI* pCmdUI);
 	afx_msg void OnOpenWithUnpacker();
-	afx_msg void OnWindowChangePane();
+	afx_msg void OnWindowChangePane(UINT nID);
+	afx_msg void OnWindowPreserveSplitterPosition();
+	afx_msg void OnUpdateWindowPreserveSplitterPosition(CCmdUI* pCmdUI);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
 	afx_msg void OnIdleUpdateCmdUI();
 	afx_msg void OnUpdateStatusNum(CCmdUI* pCmdUI);
@@ -234,12 +247,18 @@ private:
 	afx_msg void OnImgUseBackColor();
 	afx_msg void OnImgVectorImageScaling(UINT nId);
 	afx_msg void OnUpdateImgVectorImageScaling(CCmdUI* pCmdUI);
+	afx_msg void OnImgBlinkInterval(UINT nId);
+	afx_msg void OnUpdateImgBlinkInterval(CCmdUI* pCmdUI);
+	afx_msg void OnImgOverlayAnimationInterval(UINT nId);
+	afx_msg void OnUpdateImgOverlayAnimationInterval(CCmdUI* pCmdUI);
 	afx_msg void OnUpdateImgUseBackColor(CCmdUI* pCmdUI);
 	afx_msg void OnImgCompareExtractedText();
-	afx_msg void OnToolsGenerateReport();
+	afx_msg void OnShellMenu();
+	afx_msg void OnUpdateShellMenu(CCmdUI* pCmdUI);
 	afx_msg void OnRefresh();
 	afx_msg void OnSetFocus(CWnd *pNewWnd);
 	afx_msg void OnHelp();
+	afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

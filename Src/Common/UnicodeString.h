@@ -9,35 +9,30 @@
 
 #include <string>
 #include <string_view>
-#include <tchar.h>
-
-#ifdef _UNICODE
-#define std_tchar(type) std::w##type
-#else
-#define std_tchar(type) std::type
-#endif // _UNICODE
+#include "../Externals/crystaledit/editlib/utils/ctchar.h"
 
 using namespace std::string_literals;
 
-typedef std_tchar(string) String;
-typedef std_tchar(string_view) StringView;
+typedef std::basic_string<tchar_t> String;
+typedef std::basic_string_view<tchar_t> StringView;
 
 namespace strutils
 {
-
 String makelower(const String &str);
 String makeupper(const String &str);
 
 String strip_hot_key(const String& str);
 
-TCHAR from_charstr(const String& str);
-String to_charstr(TCHAR ch);
+tchar_t from_charstr(const String& str);
+String to_charstr(tchar_t ch);
+String to_regex(const String& text);
 
 void replace(String &target, const String &find, const String &replace);
-void replace_chars(String& str, const TCHAR* chars, const TCHAR* rep);
+void replace_chars(String& str, const tchar_t* chars, const tchar_t* rep);
 
 // Comparing
 int compare_nocase(const String &str1, const String &str2);
+int compare_logical(const String& str1, const String& str2);
 
 // Trimming
 String trim_ws(const String & str);
@@ -45,15 +40,15 @@ String trim_ws_begin(const String & str);
 String trim_ws_end(const String & str);
 
 // Formatting
-String format_arg_list(const TCHAR *fmt, va_list args);
-String format_varg(const TCHAR *fmt, ...);
+String format_arg_list(const tchar_t *fmt, va_list args);
+String format_varg(const tchar_t *fmt, ...);
 namespace detail
 {
 	template <typename T> inline T arg(T value) { return value; }
 	template <typename T> inline T const * arg(std::basic_string<T> const & value) { return value.c_str(); }
 }
 template <typename ... Args>
-inline String format(TCHAR const * const fmt, Args const & ... args)
+inline String format(tchar_t const * const fmt, Args const & ... args)
 {
 	return format_varg(fmt, detail::arg(args) ...);
 }
@@ -65,6 +60,7 @@ inline String format(String const & fmt, Args const & ... args)
 String format_strings(const String& fmt, const String *args[], size_t nargs);
 String format_string1(const String& fmt, const String& arg1);
 String format_string2(const String& fmt, const String& arg1, const String& arg2);
+String format_string3(const String& fmt, const String& arg1, const String& arg2, const String& arg3);
 
 template <class InputIterator>
 String join(const InputIterator& begin, const InputIterator& end, const String& delim)
@@ -98,7 +94,7 @@ String join(const InputIterator& begin, const InputIterator& end, const String& 
 }
 
 template<class T = std::vector<StringView>>
-T split(StringView str, TCHAR delim)
+T split(StringView str, tchar_t delim)
 {
 	T result;
 	size_t start = 0;

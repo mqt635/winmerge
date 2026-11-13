@@ -2,9 +2,11 @@
 //
 #include "stdafx.h"
 #include "OpenFrm.h"
+#include "OpenView.h"
 #include "OptionsDef.h"
 #include "OptionsMgr.h"
 #include "MergeFrameCommon.h"
+#include "DarkModeLib.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -39,7 +41,7 @@ COpenFrame::~COpenFrame()
 BOOL COpenFrame::PreCreateWindow(CREATESTRUCT& cs)
 {
 	// TODO: Modify the Window class or styles here by modifying the CREATESTRUCT cs
-	if( !CMDIChildWnd::PreCreateWindow(cs) )
+	if( !__super::PreCreateWindow(cs) )
 		return FALSE;
 	cs.style |= WS_CLIPCHILDREN;
 	return TRUE;
@@ -49,7 +51,7 @@ BOOL COpenFrame::OnEraseBkgnd(CDC* pDC)
 {
 	CRect rect;
 	GetClientRect(&rect);
-	pDC->FillSolidRect(&rect, ::GetSysColor(COLOR_APPWORKSPACE));
+	pDC->FillSolidRect(&rect, DarkMode::isEnabled() ? DarkMode::getBackgroundColor() : ::GetSysColor(COLOR_APPWORKSPACE));
 	return TRUE;
 }
 
@@ -71,15 +73,33 @@ LRESULT COpenFrame::OnNcHitTest(CPoint point)
 	}
 }
 
+void COpenFrame::ResizeToView()
+{
+	if (!IsZoomed())
+	{
+		if (COpenView* const pView = static_cast<COpenView*>(GetActiveView()))
+		{
+			CRect rc;
+			GetClientRect(&rc);
+			rc.bottom = rc.top + pView->GetFormHeight();
+			CalcWindowRect(&rc, CWnd::adjustOutside);
+
+			SetWindowPos(nullptr, 0, 0, rc.Width(), rc.Height(), SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+		}
+	}
+	RecalcLayout();
+}
+
 void COpenFrame::OnWindowPosChanging(WINDOWPOS* lpwndpos)
 {
 	// Retain frame sizes during tile operations (tolerate overlapping)
 	if ((lpwndpos->flags & (SWP_NOSIZE | SWP_NOOWNERZORDER)) == 0 && !IsZoomed())
 	{
-		if (CScrollView *const pView = static_cast<CScrollView*>(GetActiveView()))
+		if (COpenView* const pView = static_cast<COpenView*>(GetActiveView()))
 		{
 			CRect rc;
 			pView->GetWindowRect(&rc);
+			rc.bottom = rc.top + pView->GetFormHeight();
 			CalcWindowRect(&rc, CWnd::adjustOutside);
 			lpwndpos->cx = rc.Width();
 			lpwndpos->cy = rc.Height();
@@ -89,19 +109,22 @@ void COpenFrame::OnWindowPosChanging(WINDOWPOS* lpwndpos)
 
 void COpenFrame::ActivateFrame(int nCmdShow) 
 {
-	CMergeFrameCommon::ActivateFrame(nCmdShow);
-	if (CView *const pView = GetActiveView())
+	__super::ActivateFrame(nCmdShow);
+	if (COpenView *const pView = static_cast<COpenView*>(GetActiveView()))
 	{
-		WINDOWPLACEMENT wp = {};
-		wp.length = sizeof wp;
-		GetWindowPlacement(&wp);
-		CRect rc;
-		pView->GetWindowRect(&rc);
-		CalcWindowRect(&rc, CWnd::adjustOutside);
-		wp.rcNormalPosition.right = wp.rcNormalPosition.left + rc.Width();
-		wp.rcNormalPosition.bottom = wp.rcNormalPosition.top + rc.Height();
-		SetWindowPlacement(&wp);
-		pView->ShowWindow(SW_SHOW);
+		if (!IsZoomed())
+		{
+			WINDOWPLACEMENT wp = { sizeof wp };
+			GetWindowPlacement(&wp);
+			CRect rc;
+			pView->GetWindowRect(&rc);
+			rc.bottom = rc.top + pView->GetFormHeight();
+			CalcWindowRect(&rc, CWnd::adjustOutside);
+			wp.rcNormalPosition.right = wp.rcNormalPosition.left + rc.Width();
+			wp.rcNormalPosition.bottom = wp.rcNormalPosition.top + rc.Height();
+			SetWindowPlacement(&wp);
+			pView->ShowWindow(SW_SHOW);
+		}
 	}
 }
 
@@ -118,7 +141,7 @@ void COpenFrame::UpdateResources()
 BOOL COpenFrame::DestroyWindow() 
 {
 	SaveWindowState();
-	return CMDIChildWnd::DestroyWindow();
+	return __super::DestroyWindow();
 }
 
 // COpenFrame message handlers

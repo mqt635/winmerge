@@ -1,56 +1,56 @@
 WINMERGE
 
-WinMerge es una herramienta Open Source de comparaciÛn y combinaciÛn para
+WinMerge es una herramienta de c√≥digo abierto de comparaci√≥n y combinaci√≥n para
 Windows. WinMerge puede comparar tanto ficheros como carpetas, presentando las
-diferencias en un formato de texto visual que es muy f·cil de entender y de
+diferencias en un formato de texto visual que es muy f√°cil de entender y de
 manejar. WinMerge puede emplearse como una herramienta externa de
-diferenciaciÛn/combinaciÛn o como una aplicaciÛn independiente.
+diferenciaci√≥n/combinaci√≥n o como una aplicaci√≥n independiente.
 
 WinMerge tiene varias funcionalidades de gran utilidad para hacer comparaciones,
-sincronizar y combinar de la forma m·s f·cil e ˙til posible. Incluso resalta el
-texto seg˙n la sintaxis para diversos lenguajes de programaciÛn y otros formatos
+sincronizar y combinar de la forma m√°s f√°cil y √∫til posible. Incluso resalta el
+texto seg√∫n la sintaxis para diversos lenguajes de programaci√≥n y otros formatos
 de archivo.
 
-Tanto la informaciÛn como la ˙ltima versiÛn de WinMerge est·n disponibles en
+Tanto la informaci√≥n como la √∫ltima versi√≥n de WinMerge est√°n disponibles en
 https://winmerge.org/
 
-Comienzo r·pido
-===============
-Para aprender a llevar a cabo las operaciones b·sicas tras instalar WinMerge,
-pulsa en Axuda>Axuda de WinMerge y vete al tema Quick start. O tambiÈn puedes
-visitar la versiÛn Web en https://manual.winmerge.org/QuickStart.html
+Inicio r√°pido
+==========
+Para aprender a llevar a cabo las operaciones b√°sicas tras instalar WinMerge,
+pulse en Ayuda>Ayuda de WinMerge y vaya al tema Quick start. O tambi√©n puede
+visitar la versi√≥n web en https://manual.winmerge.org/Quick_start.html
 
 Ayuda de WinMerge
 =================
 La ayuda de WinMerge se instala localmente como un arquivo de ayuda Microsoft
-HTML, WinMerge.chm, al instalar WinMerge. Para abrirla, pulsa en Ayuda>Ayuda de
-WinMerge o pulsa F1 en la ventana de WinMerge. Si usas la lÌnea de comandos,
-ejecuta WinMerge con la opciÛn de ayuda /?.
+HTML, WinMerge.chm, al instalar WinMerge. Para abrirla, pulse en Ayuda>Ayuda de
+WinMerge o pulse F1 en la ventana de WinMerge. Si usa la l√≠nea de comandos,
+ejecute WinMerge con la opci√≥n de ayuda /?.
 
-TambiÈn puedes explorar la versiÛn HTML de la ayuda de WinMerge en
+Tambi√©n puede explorar la versi√≥n HTML de la ayuda de WinMerge en
 https://manual.winmerge.org/
 
-Soporte WinMerge
+Soporte de WinMerge
 ================
-øPreguntas o sugerencias sobre WinMerge? Un buen lugar para comenzar es el foro
-de la comunidad de WinMerge en https://forums.winmerge.org/ Los desarrolladores
+¬øPreguntas o sugerencias sobre WinMerge? Un buen lugar para comenzar es el foro
+de la comunidad de WinMerge en https://github.com/WinMerge/winmerge/discussions Los desarrolladores
 leen y responden de forma frecuente a las preguntas presentadas en ambos foros.
-Utiliza el foro de DiscusiÛn Abierta para cuestiones generales como los temas
-relacionados con el uso de WinMerge. Usa el foro de Desarrolladores para las
+Utilice el foro de discusi√≥n abierta para cuestiones generales como los temas
+relacionados con el uso de WinMerge. Use el foro de desarrolladores para las
 preguntas relativas al desarrollo de WinMerge.
 
 Errores y peticiones de funcionalidades
-=======================================
-Si una cuestiÛn no se resuelve en los foros de WinMerge, comprueba los
-rastreadores del proyecto: vete a https://project.winmerge.org/ y pulsa en el
-men˙ de los Rastreadores, como Errores y Peticiones de Funcionalidades, donde
-podr·s explorar o enviar los temas que te interesen.
+================================
+Si una cuesti√≥n no se resuelve en los foros de WinMerge, compruebe los
+rastreadores del proyecto: vaya a https://github.com/WinMerge/winmerge/issues y pulse en el
+men√∫ de los rastreadores, como errores y peticiones de funcionalidades, donde
+podr√° explorar o enviar los temas que le interesen.
 
-Si envÌas una notificaciÛn de error, por favor, incluye la versiÛn de WinMerge
-en la misma. Puedes generar un registro de la configuraciÛn pulsando en
-Ayuda>ConfiguraciÛn. Por favor, adjunta a la notificaciÛn de error el registro
-de la configuraciÛn generado, ya que contiene una gran cantidad de informaciÛn
-muy ˙til para los desarrolladores.
+Si env√≠a una notificaci√≥n de error, por favor, incluya la versi√≥n de WinMerge
+en la misma. Puede generar un registro de la configuraci√≥n pulsando en
+Ayuda>Configuraci√≥n. Por favor, adjunte a la notificaci√≥n de error el registro
+de la configuraci√≥n generado, ya que contiene una gran cantidad de informaci√≥n
+muy √∫til para los desarrolladores.
 
 
 - The WinMerge Developers

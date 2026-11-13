@@ -12,6 +12,7 @@
 //
 
 
+#include "Poco/ProcessOptions.h"
 #include "Poco/Process_WIN32U.h"
 #include "Poco/Exception.h"
 #include "Poco/NumberFormatter.h"
@@ -84,7 +85,7 @@ void ProcessHandleImpl::closeHandle()
 	if (_hProcess)
 	{
 		CloseHandle(_hProcess);
-		_hProcess = NULL;
+		_hProcess = nullptr;
 	}
 }
 
@@ -160,6 +161,30 @@ void ProcessImpl::timesImpl(long& userTime, long& kernelTime)
 }
 
 
+void ProcessImpl::timesMicrosecondsImpl(Poco::Int64& userTime, Poco::Int64& kernelTime)
+{
+	FILETIME ftCreation;
+	FILETIME ftExit;
+	FILETIME ftKernel;
+	FILETIME ftUser;
+
+	if (GetProcessTimes(GetCurrentProcess(), &ftCreation, &ftExit, &ftKernel, &ftUser) != 0)
+	{
+		ULARGE_INTEGER time;
+		time.LowPart = ftKernel.dwLowDateTime;
+		time.HighPart = ftKernel.dwHighDateTime;
+		kernelTime = Poco::Int64(time.QuadPart/10);
+		time.LowPart = ftUser.dwLowDateTime;
+		time.HighPart = ftUser.dwHighDateTime;
+		userTime = Poco::Int64(time.QuadPart/10);
+	}
+	else
+	{
+		userTime = kernelTime = -1;
+	}
+}
+
+
 bool ProcessImpl::mustEscapeArg(const std::string& arg)
 {
 	bool result = false;
@@ -227,7 +252,7 @@ std::string ProcessImpl::escapeArg(const std::string& arg)
 }
 
 
-ProcessHandleImpl* ProcessImpl::launchImpl(const std::string& command, const ArgsImpl& args, const std::string& initialDirectory, Pipe* inPipe, Pipe* outPipe, Pipe* errPipe, const EnvImpl& env)
+ProcessHandleImpl* ProcessImpl::launchImpl(const std::string& command, const ArgsImpl& args, const std::string& initialDirectory, Pipe* inPipe, Pipe* outPipe, Pipe* errPipe, const EnvImpl& env, int options)
 {
 	std::string commandLine = escapeArg(command);
 	for (const auto& a: args)
@@ -255,12 +280,12 @@ ProcessHandleImpl* ProcessImpl::launchImpl(const std::string& command, const Arg
 	STARTUPINFOW startupInfo;
 	GetStartupInfoW(&startupInfo); // take defaults from current process
 	startupInfo.cb = sizeof(STARTUPINFOW);
-	startupInfo.lpReserved = NULL;
-	startupInfo.lpDesktop = NULL;
-	startupInfo.lpTitle = NULL;
+	startupInfo.lpReserved = nullptr;
+	startupInfo.lpDesktop = nullptr;
+	startupInfo.lpTitle = nullptr;
 	startupInfo.dwFlags = STARTF_FORCEOFFFEEDBACK;
 	startupInfo.cbReserved2 = 0;
-	startupInfo.lpReserved2 = NULL;
+	startupInfo.lpReserved2 = nullptr;
 
 	HANDLE hProc = GetCurrentProcess();
 	bool mustInheritHandles = false;
@@ -279,6 +304,12 @@ ProcessHandleImpl* ProcessImpl::launchImpl(const std::string& command, const Arg
 	{
 		startupInfo.hStdInput = 0;
 	}
+	if (options & PROCESS_CLOSE_STDIN)
+	{
+		if (startupInfo.hStdInput) CloseHandle(startupInfo.hStdInput);
+		startupInfo.hStdInput = 0;
+	}
+
 	// outPipe may be the same as errPipe, so we duplicate first and close later.
 	if (outPipe)
 	{
@@ -309,7 +340,17 @@ ProcessHandleImpl* ProcessImpl::launchImpl(const std::string& command, const Arg
 		startupInfo.hStdError = 0;
 	}
 	if (outPipe) outPipe->close(Pipe::CLOSE_WRITE);
+	if (options & PROCESS_CLOSE_STDOUT)
+	{
+		if (startupInfo.hStdOutput) CloseHandle(startupInfo.hStdOutput);
+		startupInfo.hStdOutput = 0;
+	}
 	if (errPipe) errPipe->close(Pipe::CLOSE_WRITE);
+	if (options & PROCESS_CLOSE_STDERR)
+	{
+		if (startupInfo.hStdError) CloseHandle(startupInfo.hStdError);
+		startupInfo.hStdError = 0;
+	}
 
 	if (mustInheritHandles)
 	{
@@ -334,8 +375,8 @@ ProcessHandleImpl* ProcessImpl::launchImpl(const std::string& command, const Arg
 	BOOL rc = CreateProcessW(
 		applicationName,
 		const_cast<wchar_t*>(ucommandLine.c_str()),
-		NULL, // processAttributes
-		NULL, // threadAttributes
+		nullptr, // processAttributes
+		nullptr, // threadAttributes
 		mustInheritHandles,
 		creationFlags,
 		(LPVOID)pEnv,
@@ -411,9 +452,17 @@ bool ProcessImpl::isRunningImpl(PIDImpl pid)
 {
 	HANDLE hProc = OpenProcess(PROCESS_QUERY_INFORMATION, FALSE, pid);
 	bool result = true;
-	DWORD exitCode;
-	BOOL rc = GetExitCodeProcess(hProc, &exitCode);
-	if (!rc || exitCode != STILL_ACTIVE) result = false;
+	if (hProc)
+	{
+		DWORD exitCode;
+		BOOL rc = GetExitCodeProcess(hProc, &exitCode);
+		if (!rc || exitCode != STILL_ACTIVE) result = false;
+		CloseHandle(hProc);
+	}
+	else
+	{
+		result = false;
+	}
 	return result;
 }
 

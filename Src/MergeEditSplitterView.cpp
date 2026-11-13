@@ -12,10 +12,8 @@
 
 #include "StdAfx.h"
 #include "MergeEditSplitterView.h"
-#include "Merge.h"
 #include "MergeDoc.h"
 #include "MergeEditview.h"
-#include "MainFrm.h"
 #include "OptionsMgr.h"
 #include "OptionsDef.h"
 
@@ -30,13 +28,15 @@
 
 IMPLEMENT_DYNCREATE(CMergeEditSplitterView, CView)
 
-CMergeEditSplitterView::CMergeEditSplitterView(): m_bDetailView(false), m_nThisGroup(0)
+CMergeEditSplitterView::CMergeEditSplitterView(): m_bDetailView(false)
 {
 }
 
 CMergeEditSplitterView::~CMergeEditSplitterView()
 {
-	dynamic_cast<CMergeDoc *>(GetDocument())->RemoveMergeViews(m_nThisGroup);
+	auto* pDoc = dynamic_cast<CMergeDoc*>(GetDocument());
+	if (pDoc)
+		pDoc->RemoveMergeViews(this);
 }
 
 
@@ -57,7 +57,11 @@ END_MESSAGE_MAP()
 
 BOOL CMergeEditSplitterView::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowName, DWORD dwStyle, const RECT& rect, CWnd* pParentWnd, UINT nID, CCreateContext* pContext)
 {
-	CView::Create(lpszClassName, lpszWindowName, dwStyle, rect, pParentWnd, nID, pContext);
+	if (!CView::Create(lpszClassName, lpszWindowName, dwStyle, rect, pParentWnd, nID, pContext))
+	{
+		TRACE0("Failed to CView::Create\n");
+		return FALSE;
+	}
 
 	bool bSplitVert = !GetOptionsMgr()->GetBool(OPT_SPLIT_HORIZONTALLY);
 	if (m_bDetailView)
@@ -88,8 +92,6 @@ BOOL CMergeEditSplitterView::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowNam
 	m_wndSplitter.ResizablePanes(true);
 	m_wndSplitter.AutoResizePanes(GetOptionsMgr()->GetBool(OPT_RESIZE_PANES));
 
-	m_nThisGroup = pDoc->m_nGroups;
-
 	// stash left & right pointers into the mergedoc
 	CMergeEditView * pView[3];
 	for (int nBuffer = 0; nBuffer < pDoc->m_nBuffers; nBuffer++)
@@ -97,10 +99,10 @@ BOOL CMergeEditSplitterView::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowNam
 		pView[nBuffer] = static_cast<CMergeEditView *>(m_wndSplitter.GetPane(SWAPPARAMS_IF(bSplitVert, 0, nBuffer)));
 		// connect merge views up to display of status info
 		pView[nBuffer]->m_nThisPane = nBuffer;
-		pView[nBuffer]->m_nThisGroup = m_nThisGroup;
+		pView[nBuffer]->m_nThisGroup = pDoc->m_nGroups;
 		pView[nBuffer]->m_bDetailView = m_bDetailView;
 	}
-	pDoc->AddMergeViews(pView);
+	pDoc->AddMergeViews(this, pView);
 	if (!m_bDetailView && pDoc->m_nGroups > 1)
 	{
 		for (int nBuffer = 0; nBuffer < pDoc->m_nBuffers; nBuffer++)
@@ -118,8 +120,6 @@ BOOL CMergeEditSplitterView::Create(LPCTSTR lpszClassName, LPCTSTR lpszWindowNam
 void CMergeEditSplitterView::OnInitialUpdate()
 {
 	CView::OnInitialUpdate();
-	CMergeDoc * pDoc = dynamic_cast<CMergeDoc *>(GetDocument());
-
 }
 
 void CMergeEditSplitterView::OnDraw(CDC* pDC)

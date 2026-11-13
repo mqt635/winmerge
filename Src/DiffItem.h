@@ -7,6 +7,10 @@
 
 #include "DiffFileInfo.h"
 
+// Uncomment this to show debug information in the folder comparison window.
+// We don't use _DEBUG since the mapping of the setting (OPT_DIRVIEW_COLUMN_ORDERS or OPT_DIRVIEW3_COLUMN_ORDERS) shifts if this feature is enabled.
+//#define SHOW_DIFFITEM_DEBUG_INFO
+
 /**
  * @brief Bitfield values for binary file sides.
  * These values are used as bitfield values when determining which file(s)
@@ -55,6 +59,8 @@ struct DIFFCODE
 		FILTERFLAGS=0x20000U, INCLUDED=0x00000U, SKIPPED=0x20000U,
 		SCANFLAGS=0x100000U, NEEDSCAN=0x100000U,
 		THREEWAYFLAGS=0x200000U, THREEWAY=0x200000U,
+		EXPRFLAGS = 0x400000U, EXPRDIFF = 0x400000U,
+		PATHFLAGS = 0x800000U, PATHMISMATCH = 0x800000U,
 		SIDEFLAGS=0x70000000U, FIRST=0x10000000U, SECOND=0x20000000U, THIRD=0x40000000U, BOTH=0x30000000U, ALL=0x70000000U,
 	};
 
@@ -133,13 +139,15 @@ public:
 	}
 	bool existAll() const
 	{
-		if ((diffcode & DIFFCODE::THREEWAY) == 0)
-			return (existsFirst() && existsSecond());
-		else
-			return (existsFirst() && existsSecond() && existsThird());
+		return (isThreeway() ? DIFFCODE::ALL : DIFFCODE::BOTH) == (diffcode & DIFFCODE::ALL);
+	}
+	bool isThreeway() const
+	{
+		return (diffcode & DIFFCODE::THREEWAY) != 0;
 	}
 
 	// compare result
+	bool isResultNone() const { return CheckCompare(diffcode, 0); }
 	bool isResultSame() const { return CheckCompare(diffcode, DIFFCODE::SAME); }
 	bool isResultDiff() const { return (CheckCompare(diffcode, DIFFCODE::DIFF) && !isResultFiltered() &&
 			existAll()); }
@@ -150,6 +158,7 @@ public:
 	// filter status
 	bool isResultFiltered() const { return CheckFilter(diffcode, DIFFCODE::SKIPPED); }
 	// type
+	bool isExprDiff() const { return Check(diffcode, DIFFCODE::EXPRFLAGS, DIFFCODE::EXPRDIFF); }
 	bool isText() const { return Check(diffcode, DIFFCODE::TEXTFLAGS, DIFFCODE::TEXT); }
 	bool isBin() const { return (diffcode & DIFFCODE::BIN) != 0; }
 	bool isImage() const { return (diffcode & DIFFCODE::IMAGE) != 0; }
@@ -243,8 +252,11 @@ public:
 									// (see `DirColInfo` arrays in `DirViewColItems.cpp`) *>
 	DIFFCODE diffcode;				/**< Compare result */
 	unsigned customFlags;			/**< ViewCustomFlags flags */
+	int renameMoveGroupId;				/**< ID of moved group, or -1 if not part of a moved group */
 
 	String getFilepath(int nIndex, const String &sRoot) const;
+	String getItemRelativePath() const;
+
 	void Swap(int idx1, int idx2);
 	void ClearAllAdditionalProperties();
 
@@ -265,14 +277,18 @@ public:
 	void RemoveChildren();
 	int GetDepth() const;
 	bool IsAncestor(const DIFFITEM *pdi) const;
+	std::vector<const DIFFITEM*> GetAncestors() const;
 	inline DIFFITEM *GetFwdSiblingLink() const { return Flink; }
 	inline DIFFITEM *GetFirstChild() const { return children; }
 	inline DIFFITEM *GetParentLink() const { return parent; }
+#ifdef SHOW_DIFFITEM_DEBUG_INFO
+	inline DIFFITEM *GetBackwardSiblingLink() const { return Blink; }
+#endif // SHOW_DIFFITEM_DEBUG_INFO
 
 	/** @brief Return whether the current DIFFITEM has children */
-	inline bool DIFFITEM::HasChildren() const { return (children != nullptr); }
+	inline bool HasChildren() const { return (children != nullptr); }
 	/** @brief Return whether the current DIFFITEM has children */
-	inline bool DIFFITEM::HasParent() const { return (parent != nullptr); }
+	inline bool HasParent() const { return (parent != nullptr); }
 
 //**** The `emptyitem` and its access procedures
 private:
@@ -285,7 +301,8 @@ public:
 //**** CTOR, DTOR
 public:
 	DIFFITEM() : parent(nullptr), children(nullptr), Flink(nullptr), Blink(nullptr), 
-					nidiffs(-1), nsdiffs(-1), customFlags(ViewCustomFlags::INVALID_CODE) 
+					nidiffs(-1), nsdiffs(-1), customFlags(ViewCustomFlags::INVALID_CODE),
+					renameMoveGroupId(-1)
 					// `DiffFileInfo` and `DIFFCODE` have their own initializers. 
 					{}
 	~DIFFITEM();

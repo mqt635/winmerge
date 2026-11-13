@@ -29,9 +29,15 @@ public:
 	void EqualizeRows(); 
 	void EqualizeCols(); 
 
+	// Splitter ratio methods for persistence
+	double GetSplitterRatio(int index, bool horizontal) const;
+	void SetSplitterRatios(const double* ratios, int count, bool horizontal);
+	void ResetSplitterRatios(bool horizontal);
+
 	virtual void RecalcLayout() override;
 	virtual void TrackRowSize(int y, int row) override;
 	virtual void TrackColumnSize(int x, int col) override;
+	virtual CWnd* GetActivePane(int* pRow = NULL, int* pCol = NULL) override;
 
 	CScrollBar* GetScrollBarCtrl(CWnd* pWnd, int nBar) const;
 
@@ -43,10 +49,13 @@ private:
 	std::vector<int> m_rowRatios;
 	std::vector<int> m_colRatios;
 
+	BOOL CreateScrollBarCtrl(DWORD dwStyle, UINT nID) override;
+
 protected:
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	afx_msg void OnVScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
 	afx_msg void OnSize(UINT nType, int cx, int cy);
+    afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
 	virtual void OnDrawSplitter(CDC* pDC, ESplitType nType, const CRect& rect);
 	DECLARE_MESSAGE_MAP()
 };

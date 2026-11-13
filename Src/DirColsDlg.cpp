@@ -250,15 +250,20 @@ void CDirColsDlg::OnOK()
 {
 	SanitizeOrder();
 
+	size_t colssize = m_cols.size();
 	for (int i = 0; i < m_listColumns.GetItemCount(); i++)
 	{
 		bool checked = !!m_listColumns.GetCheck(i);
 		DWORD_PTR data = m_listColumns.GetItemData(i);
-		column & col1 = m_cols[data];
-		if (checked)
-			col1.phy_col = i;
-		else
-			col1.phy_col = -1;
+		assert(data < colssize);
+		if (data < colssize)
+		{
+			column& col1 = m_cols[data];
+			if (checked)
+				col1.phy_col = i;
+			else
+				col1.phy_col = -1;
+		}
 	}
 
 	CTrDialog::OnOK();
@@ -272,6 +277,9 @@ void CDirColsDlg::OnDefaults()
 	m_listColumns.DeleteAllItems();
 	m_bReset = true;
 	LoadDefLists();
+
+	// Set first item to selected state
+	SelectItem(0);
 }
 
 /**
@@ -292,12 +300,31 @@ void CDirColsDlg::OnLvnItemchangedColdlgList(NMHDR *pNMHDR, LRESULT *pResult)
 			if (static_cast<DWORD_PTR>(m_cols[j].log_col) == data)
 				break;
 		}
-		SetDlgItemText(IDC_COLDLG_DESC, m_cols[j].desc);
+		if (j < m_cols.size())
+			SetDlgItemText(IDC_COLDLG_DESC, m_cols[j].desc);
 
 		// Disable Up/Down -buttons when first/last items are selected.
 		EnableDlgItem(IDC_UP, ind != 0);
 		EnableDlgItem(IDC_DOWN,
 			ind != m_listColumns.GetItemCount() - static_cast<int>(m_listColumns.GetSelectedCount()));
 	}
+	else
+	{
+		// Clear the column description and disable "Move Up" and "Move Down" buttons when no item is selected.
+		SetDlgItemText(IDC_COLDLG_DESC, _T(""));
+		EnableDlgItem(IDC_UP, false);
+		EnableDlgItem(IDC_DOWN, false);
+	}
+
+	// Disable the "OK" button when no items are checked.
+	bool bChecked = false;
+	for (int i = 0; i < m_listColumns.GetItemCount(); i++)
+		if (!!m_listColumns.GetCheck(i))
+		{
+			bChecked = true;
+			break;
+		}
+	EnableDlgItem(IDOK, bChecked);
+
 	*pResult = 0;
 }

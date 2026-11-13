@@ -1,0 +1,206 @@
+/** 
+ * @file  ValidatingEdit.cpp
+ *
+ * @brief Implementation file for CValidatingEdit
+ *
+ */
+#include "stdafx.h"
+#include "ValidatingEdit.h"
+
+IMPLEMENT_DYNAMIC(CValidatingEdit, CEdit)
+
+#define ID_VALIDATE_TIMER 1001
+#define ID_UPDATE_TIMER 1002
+#define VALIDATE_DELAY_MS 700
+#define UPDATE_DELAY_MS 200
+
+
+static COLORREF getDefaultErrorColor()
+{
+	const COLORREF sysBk = GetSysColor(COLOR_WINDOW);
+	if ((GetRValue(sysBk) + GetGValue(sysBk) + GetBValue(sysBk)) / 3 < 128)
+		return RGB(80, 40, 40);
+	return RGB(255, 200, 200);
+}
+
+static COLORREF getDefaultAppliedColor()
+{
+	const COLORREF sysBk = GetSysColor(COLOR_WINDOW);
+	if ((GetRValue(sysBk) + GetGValue(sysBk) + GetBValue(sysBk)) / 3 < 128)
+		return RGB(60, 60, 40);
+	return RGB(255, 255, 220);
+}
+
+CValidatingEdit::CValidatingEdit()
+	: m_hasError(false)
+	, m_isApplied(false)
+	, m_errorColor(getDefaultErrorColor())
+	, m_appliedColor(getDefaultAppliedColor())
+	, m_errorBrush(m_errorColor)
+	, m_appliedBrush(m_appliedColor)
+	, m_toolItem{}
+{
+}
+
+CValidatingEdit::~CValidatingEdit()
+{
+	m_errorBrush.DeleteObject();
+	m_appliedBrush.DeleteObject();
+}
+
+BEGIN_MESSAGE_MAP(CValidatingEdit, CEdit)
+	ON_WM_CTLCOLOR_REFLECT()
+	ON_WM_KILLFOCUS()
+	ON_WM_TIMER()
+END_MESSAGE_MAP()
+
+void CValidatingEdit::SetBackColor(COLORREF color)
+{
+	m_errorColor = color;
+	m_errorBrush.DeleteObject();
+	m_errorBrush.CreateSolidBrush(m_errorColor);
+}
+
+void CValidatingEdit::SetAppliedColor(COLORREF color)
+{
+	m_appliedColor = color;
+	m_appliedBrush.DeleteObject();
+	m_appliedBrush.CreateSolidBrush(m_appliedColor);
+}
+
+void CValidatingEdit::SetApplied(bool applied)
+{
+	if (m_isApplied != applied)
+	{
+		m_isApplied = applied;
+		Invalidate();
+	}
+}
+
+void CValidatingEdit::Validate()
+{
+	CString text;
+	GetWindowText(text);
+
+	const CString prevErrorMessage = m_errorMessage;
+	m_hasError = false;
+	m_errorMessage.Empty();
+
+	if (m_validator)
+	{
+		CString msg;
+		if (!m_validator(text, msg))
+		{
+			m_hasError = true;
+			m_errorMessage = msg;
+		}
+	}
+
+	if (prevErrorMessage != m_errorMessage)
+	{
+		KillTimer(ID_UPDATE_TIMER);
+		SetTimer(ID_UPDATE_TIMER, UPDATE_DELAY_MS, nullptr);
+	}
+
+	Invalidate();
+}
+
+HBRUSH CValidatingEdit::CtlColor(CDC* pDC, UINT /*nCtlColor*/)
+{
+	if (m_hasError)
+	{
+		pDC->SetTextColor(GetSysColor(COLOR_WINDOWTEXT));
+		pDC->SetBkColor(m_errorColor);
+		return (HBRUSH)m_errorBrush.GetSafeHandle();
+	}
+	if (m_isApplied)
+	{
+		pDC->SetTextColor(GetSysColor(COLOR_WINDOWTEXT));
+		pDC->SetBkColor(m_appliedColor);
+		return (HBRUSH)m_appliedBrush.GetSafeHandle();
+	}
+	return nullptr;
+}
+
+BOOL CValidatingEdit::PreTranslateMessage(MSG* pMsg)
+{
+	if (m_toolTip.m_hWnd)
+		m_toolTip.RelayEvent(pMsg);
+	if (pMsg->message == WM_KEYDOWN && (GetKeyState(VK_CONTROL) & 0x8000))
+	{
+		switch (pMsg->wParam)
+		{
+		case 'X': SendMessage(WM_CUT);   return TRUE;
+		case 'C': SendMessage(WM_COPY);  return TRUE;
+		case 'V': SendMessage(WM_PASTE); return TRUE;
+		case 'Z': SendMessage(EM_UNDO);  return TRUE;
+		case 'A': SendMessage(EM_SETSEL, 0, -1); return TRUE;
+		}
+	}
+	return CEdit::PreTranslateMessage(pMsg);
+}
+
+void CValidatingEdit::OnKillFocus(CWnd* pNewWnd)
+{
+	CEdit::OnKillFocus(pNewWnd);
+	Validate();
+}
+
+void CValidatingEdit::OnEnChange()
+{
+	if (!m_hWnd)
+		return;
+	KillTimer(ID_VALIDATE_TIMER);
+	SetTimer(ID_VALIDATE_TIMER, VALIDATE_DELAY_MS, nullptr);
+}
+
+void CValidatingEdit::OnTimer(UINT_PTR nIDEvent)
+{
+	if (nIDEvent == ID_VALIDATE_TIMER)
+	{
+		KillTimer(ID_VALIDATE_TIMER);
+		Validate();
+		return;
+	}
+	if (nIDEvent == ID_UPDATE_TIMER)
+	{
+		KillTimer(ID_UPDATE_TIMER);
+
+		if (m_hasError)
+		{
+			CRect rc;
+			GetWindowRect(&rc);
+
+			if (!m_toolTip.GetSafeHwnd())
+			{
+				m_toolTip.Create(this, TTS_NOPREFIX | TTS_BALLOON | TTS_ALWAYSTIP);
+				m_toolItem.cbSize = sizeof(TOOLINFO);
+				m_toolItem.uFlags = TTF_TRACK | TTF_ABSOLUTE;
+				m_toolItem.hwnd = m_hWnd;
+				m_toolItem.uId = 1;
+				m_toolItem.lpszText = _T("");
+				m_toolTip.SendMessage(TTM_ADDTOOL, 0, (LPARAM)&m_toolItem);
+				m_toolTip.SetMaxTipWidth(rc.Width());
+			}
+
+			m_toolItem.lpszText = (LPTSTR)(LPCTSTR)m_errorMessage;
+			m_toolTip.SetToolInfo(&m_toolItem);
+
+			POINT pt{ rc.left, rc.bottom };
+			m_toolTip.SendMessage(TTM_TRACKPOSITION, 0, (LPARAM)MAKELONG(pt.x, pt.y));
+
+			m_toolTip.SendMessage(TTM_TRACKACTIVATE, TRUE, (LPARAM)&m_toolItem);
+		}
+		else
+		{
+			if (m_toolTip.GetSafeHwnd())
+			{
+				m_toolTip.UpdateTipText(_T(""), this);
+				m_toolTip.SendMessage(TTM_TRACKACTIVATE, FALSE, (LPARAM)&m_toolItem);
+			}
+		}
+		return;
+	}
+	CEdit::OnTimer(nIDEvent);
+}
+

@@ -14,7 +14,7 @@
 //  - LEAVE THIS HEADER INTACT
 ////////////////////////////////////////////////////////////////////////////
 
-#include "StdAfx.h"
+#include "pch.h"
 #include "crystallineparser.h"
 #include "../SyntaxColors.h"
 #include "../utils/string_util.h"
@@ -24,7 +24,7 @@
 #endif
 
 //  Pascal keywords
-static const TCHAR * s_apszPascalKeywordList[] =
+static const tchar_t * s_apszPascalKeywordList[] =
   {
     _T ("Abstract"),
     _T ("and"),
@@ -51,6 +51,7 @@ static const TCHAR * s_apszPascalKeywordList[] =
     _T ("external"),
     _T ("far"),
     _T ("file"),
+    _T ("finalization"),
     _T ("Finally"),
     _T ("for"),
     _T ("function"),
@@ -60,6 +61,7 @@ static const TCHAR * s_apszPascalKeywordList[] =
     _T ("In"),
     _T ("Index"),
     _T ("inherited"),
+    _T ("initialization"),
     _T ("inline"),
     _T ("interface"),
     _T ("Is"),
@@ -107,23 +109,56 @@ static const TCHAR * s_apszPascalKeywordList[] =
   };
 
 static bool
-IsPascalKeyword (const TCHAR *pszChars, int nLength)
+IsPascalKeyword (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORDI (s_apszPascalKeywordList, pszChars, nLength);
 }
 
+static inline void
+DefineIdentiferBlock(const tchar_t *pszChars, int nLength, std::vector<CrystalLineParser::TEXTBLOCK>* pBuf, int nIdentBegin, int I)
+{
+  if (IsPascalKeyword (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
+    }
+  else if (CrystalLineParser::IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
+    }
+  else
+    {
+      bool bFunction = false;
+
+      for (int j = I; j < nLength; j++)
+        {
+          if (!xisspace (pszChars[j]))
+            {
+              if (pszChars[j] == '(')
+                {
+                  bFunction = true;
+                }
+              break;
+            }
+        }
+      if (bFunction)
+        {
+          DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
+        }
+    }
+}
+
 unsigned
-CrystalLineParser::ParseLinePascal (unsigned dwCookie, const TCHAR *pszChars, int nLength, TEXTBLOCK * pBuf, int &nActualItems)
+CrystalLineParser::ParseLinePascal (unsigned dwCookie, const tchar_t *pszChars, int nLength, std::vector<TEXTBLOCK>* pBuf)
 {
   if (nLength == 0)
-    return dwCookie & (COOKIE_EXT_COMMENT | COOKIE_EXT_COMMENT2);
+    return dwCookie & (COOKIE_EXT_COMMENT | COOKIE_EXT_COMMENT2 | COOKIE_RAWSTRING);
 
   bool bRedefineBlock = true;
   bool bDecIndex = false;
   int nIdentBegin = -1;
   int nPrevI = -1;
   int I=0;
-  for (I = 0;; nPrevI = I, I = static_cast<int>(::CharNext(pszChars+I) - pszChars))
+  for (I = 0;; nPrevI = I, I = static_cast<int>(tc::tcharnext(pszChars+I) - pszChars))
     {
       if (I == nPrevI)
         {
@@ -141,13 +176,17 @@ CrystalLineParser::ParseLinePascal (unsigned dwCookie, const TCHAR *pszChars, in
             {
               DEFINE_BLOCK (nPos, COLORINDEX_COMMENT);
             }
-          else if (dwCookie & (COOKIE_CHAR | COOKIE_STRING))
+          else if (dwCookie & (COOKIE_PREPROCESSOR))
+            {
+              DEFINE_BLOCK (nPos, COLORINDEX_PREPROCESSOR);
+            }
+          else if (dwCookie & (COOKIE_CHAR | COOKIE_STRING | COOKIE_RAWSTRING))
             {
               DEFINE_BLOCK (nPos, COLORINDEX_STRING);
             }
           else
             {
-              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*::CharPrev(pszChars, pszChars + nPos)) && !xisalpha (*::CharNext(pszChars + nPos))))
+              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*tc::tcharprev(pszChars, pszChars + nPos)) && !xisalpha (*tc::tcharnext(pszChars + nPos))))
                 {
                   DEFINE_BLOCK (nPos, COLORINDEX_NORMALTEXT);
                 }
@@ -179,7 +218,7 @@ out:
       //  String constant "...."
       if (dwCookie & COOKIE_STRING)
         {
-          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *::CharPrev(pszChars, pszChars + nPrevI) == '\\')))
+          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *tc::tcharprev(pszChars, pszChars + nPrevI) == '\\')))
             {
               dwCookie &= ~COOKIE_STRING;
               bRedefineBlock = true;
@@ -187,13 +226,83 @@ out:
           continue;
         }
 
-      //  Char constant '..'
-      if (dwCookie & COOKIE_CHAR)
+      //  Char constant '..' or inside a multiline string
+      if (dwCookie & COOKIE_CHAR || dwCookie & COOKIE_RAWSTRING)
         {
-          if (pszChars[I] == '\'' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *::CharPrev(pszChars, pszChars + nPrevI) == '\\')))
+          if (pszChars[I] == '\'' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *tc::tcharprev(pszChars, pszChars + nPrevI) == '\\')))
             {
-              dwCookie &= ~COOKIE_CHAR;
-              bRedefineBlock = true;
+              // Multiline string ('''...''')?
+              const bool isMultilineStartOrEnd = ((pszChars[nPrevI] == '\'') && (nLength >= I + 1) && (pszChars[I + 1] == '\''));
+              if ((isMultilineStartOrEnd && ((nLength < I + 2) || (pszChars[I + 2] != '\''))) || (dwCookie & COOKIE_RAWSTRING))
+                {
+                  // Inside a multiline string there is no other syntax highlighting
+                  if (!isMultilineStartOrEnd)
+                    continue;
+
+                  if (dwCookie & COOKIE_RAWSTRING)
+                    {
+                      // End of multiline string? Check if there is only space in front
+                      bool lineStartReached = true;
+                      for (int nLineStart = I - 2; nLineStart > 0; nLineStart--)
+                        {
+                          if (pszChars[nLineStart] == '\r' || pszChars[nLineStart] == '\n')
+                            {
+                              // line start found
+                              break;
+                            }
+                          // space or tab are valid before the end
+                          else if (pszChars[nLineStart] != ' ' && pszChars[nLineStart] != '\t')
+                            {
+                              lineStartReached = false;
+                              break;
+                            }
+                        }
+
+                      if (lineStartReached)
+                        {
+                          dwCookie &= ~COOKIE_RAWSTRING;
+                          bRedefineBlock = true;
+                          I++;
+                        }
+                    }
+                  else 
+                    {
+                      // Start of multiline string? Check if the rest of the line is "empty"
+                      bool lineEndReached = true;
+                      for (int nLineBreak = I+2; nLineBreak < nLength; nLineBreak++)
+                        {
+                          if (pszChars[nLineBreak] == '\r' || pszChars[nLineBreak] == '\n')
+                            {
+                              // line end found
+                              break;
+                            }
+                          // space or tab are valid behind the start
+                          else if (pszChars[nLineBreak] != ' ' && pszChars[nLineBreak] != '\t')
+                            {
+                              lineEndReached = false;
+                              break;
+                            }
+                        }
+
+                      if (lineEndReached)
+                        {
+                          dwCookie |= COOKIE_RAWSTRING;
+                          // Skip one
+                          I++;
+                        }
+                      else
+                        {
+                          dwCookie &= ~COOKIE_CHAR;
+                          bRedefineBlock = true;
+                        }
+                    }
+                }
+              else
+                {
+                  dwCookie &= ~COOKIE_CHAR;
+                  
+                  bRedefineBlock = true;
+                }
             }
           continue;
         }
@@ -202,7 +311,7 @@ out:
       if (dwCookie & COOKIE_EXT_COMMENT)
         {
           // if (I > 0 && pszChars[I] == ')' && pszChars[nPrevI] == '*')
-          if ((I > 1 && pszChars[I] == ')' && pszChars[nPrevI] == '*' && *::CharPrev(pszChars, pszChars + nPrevI) != '(') || (I == 1 && pszChars[I] == ')' && pszChars[nPrevI] == '*'))
+          if ((I > 1 && pszChars[I] == ')' && pszChars[nPrevI] == '*' && *tc::tcharprev(pszChars, pszChars + nPrevI) != '(') || (I == 1 && pszChars[I] == ')' && pszChars[nPrevI] == '*'))
             {
               dwCookie &= ~COOKIE_EXT_COMMENT;
               bRedefineBlock = true;
@@ -216,6 +325,22 @@ out:
           if (pszChars[I] == '}')
             {
               dwCookie &= ~COOKIE_EXT_COMMENT2;
+              bRedefineBlock = true;
+            }
+          continue;
+        }
+
+      //  Compiler directives {$....} or (*$...*)
+      if (dwCookie & COOKIE_PREPROCESSOR)
+        {
+          if (pszChars[I] == '}')
+            {
+              dwCookie &= ~COOKIE_PREPROCESSOR;
+              bRedefineBlock = true;
+            }
+          else if ((I > 1 && pszChars[I] == ')' && pszChars[nPrevI] == '*' && *tc::tcharprev(pszChars, pszChars + nPrevI) != '(') || (I == 1 && pszChars[I] == ')' && pszChars[nPrevI] == '*'))
+            {
+              dwCookie &= ~COOKIE_PREPROCESSOR;
               bRedefineBlock = true;
             }
           continue;
@@ -245,15 +370,29 @@ out:
               continue;
             }
         }
-      if (I > 0 && pszChars[I] == '*' && pszChars[nPrevI] == '(')
+      if (I > 0 && pszChars[I] == '*' && pszChars[nPrevI] == '(') // (*
         {
+          if (I + 1 < nLength && pszChars[I + 1] == '$') // (*$
+            {
+              //  Compiler directives (*$....*)
+              DEFINE_BLOCK (I, COLORINDEX_PREPROCESSOR);
+              dwCookie |= COOKIE_PREPROCESSOR;
+              continue;
+            }
           DEFINE_BLOCK (nPrevI, COLORINDEX_COMMENT);
           dwCookie |= COOKIE_EXT_COMMENT;
           continue;
         }
 
-      if (pszChars[I] == '{')
+      if (pszChars[I] == '{') // {
         {
+          if (I + 1 < nLength && pszChars[I + 1] == '$') // {$
+            {
+              //  Compiler directives {$....}
+              DEFINE_BLOCK (I, COLORINDEX_PREPROCESSOR);
+              dwCookie |= COOKIE_PREPROCESSOR;
+              continue;
+            }
           DEFINE_BLOCK (I, COLORINDEX_COMMENT);
           dwCookie |= COOKIE_EXT_COMMENT2;
           continue;
@@ -272,34 +411,7 @@ out:
         {
           if (nIdentBegin >= 0)
             {
-              if (IsPascalKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-                }
-              else if (IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-                }
-              else
-                {
-                  bool bFunction = false;
-
-                  for (int j = I; j < nLength; j++)
-                    {
-                      if (!xisspace (pszChars[j]))
-                        {
-                          if (pszChars[j] == '(')
-                            {
-                              bFunction = true;
-                            }
-                          break;
-                        }
-                    }
-                  if (bFunction)
-                    {
-                      DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-                    }
-                }
+              DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I);
               bRedefineBlock = true;
               bDecIndex = true;
               nIdentBegin = -1;
@@ -309,37 +421,10 @@ out:
 
   if (nIdentBegin >= 0)
     {
-      if (IsPascalKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-        }
-      else if (IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-        }
-      else
-        {
-          bool bFunction = false;
-
-          for (int j = I; j < nLength; j++)
-            {
-              if (!xisspace (pszChars[j]))
-                {
-                  if (pszChars[j] == '(')
-                    {
-                      bFunction = true;
-                    }
-                  break;
-                }
-            }
-          if (bFunction)
-            {
-              DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-            }
-        }
+      DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I);
     }
 
   if (pszChars[nLength - 1] != '\\' || IsMBSTrail(pszChars, nLength - 1))
-    dwCookie &= (COOKIE_EXT_COMMENT | COOKIE_EXT_COMMENT2);
+    dwCookie &= (COOKIE_EXT_COMMENT | COOKIE_EXT_COMMENT2 | COOKIE_RAWSTRING);
   return dwCookie;
 }

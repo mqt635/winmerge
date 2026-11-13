@@ -9,16 +9,6 @@
  */
 #pragma once
 
-#if defined _M_IX86
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#elif defined _M_IA64
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='ia64' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#elif defined _M_X64
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#else
-#pragma comment(linker, "/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
-#endif
-
 // On Win XP, with VS2008, do not use default WINVER 0x0600 because of 
 // some windows structure used in API (on VISTA they are longer)
 #if !defined(WINVER)
@@ -57,6 +47,10 @@
 #include <functional>
 #include <cassert>
 #include <ctime>
+#include <chrono>
+#if !defined(__cppcheck__)
+#include <boost/flyweight.hpp>
+#endif
 
 /**
  * @name User-defined Windows-messages
@@ -75,12 +69,26 @@ static const UINT SmallTimeDiff = 2;
 
 #include "UnicodeString.h"
 #include "MergeApp.h"
+#include "I18n.h"
+#include "I18nGUI.h"
 
-	/** @brief Wrapper around CMergeApp::TranslateDialog() */
-void NTAPI LangTranslateDialog(HWND);
+/**
+ * @brief Load string resource and return as CString.
+ * @param [in] id Resource string ID.
+ * @return Resource string as CString.
+ */
+inline String LoadResString(unsigned id)
+{
+	return I18n::LoadString(id);
+}
 
-	/** @brief Lang aware version of AfxMessageBox() */
-int NTAPI LangMessageBox(UINT, UINT nType = MB_OK, UINT nIDHelp = (UINT)-1);
+/**
+ * @brief Wrapper around CMergeApp::TranslateDialog()
+ */
+inline void NTAPI LangTranslateDialog(HWND h)
+{
+	I18n::TranslateDialog(h);
+}
 
 	/** @brief include for the custom dialog boxes, with do not ask/display again */
 #include "MessageBoxDialog.h"
@@ -88,17 +96,17 @@ int NTAPI LangMessageBox(UINT, UINT nType = MB_OK, UINT nIDHelp = (UINT)-1);
 #ifdef _MAX_PATH
 #  undef _MAX_PATH
 #endif
-#define _MAX_PATH (260 * sizeof(wchar_t) / sizeof(TCHAR))
+#define _MAX_PATH (260 * sizeof(wchar_t) / sizeof(tchar_t))
 
 #ifdef MAX_PATH
 #  undef MAX_PATH
 #endif
-#define MAX_PATH (260 * sizeof(wchar_t) / sizeof(TCHAR))
+#define MAX_PATH (260 * sizeof(wchar_t) / sizeof(tchar_t))
 
 #ifdef MAX_PATH_FULL
 #  undef MAX_PATH_FULL
 #endif
-#define MAX_PATH_FULL (32767 * sizeof(wchar_t) / sizeof(TCHAR))
+#define MAX_PATH_FULL (32767 * sizeof(wchar_t) / sizeof(tchar_t))
 
 #define WMPROFILE(x) CWinMergeProfile __wmtl__(x)
 
@@ -110,10 +118,10 @@ private:
 	static LARGE_INTEGER origin;
 	LARGE_INTEGER li[2];
 	LARGE_INTEGER freq;
-	TCHAR funcname[256];
+	tchar_t funcname[256];
 public:
-	explicit CWinMergeProfile(LPCTSTR pFuncName) {
-		TCHAR buf[256];
+	explicit CWinMergeProfile(const tchar_t* pFuncName) {
+		tchar_t buf[256];
 		_stprintf_s(buf, _T("%-*s funcname=%s Start\n"), level, L"", pFuncName);
 		OutputDebugString(buf);
 		lstrcpy(funcname, pFuncName);
@@ -125,7 +133,7 @@ public:
 	}
 	~CWinMergeProfile() {
 		QueryPerformanceCounter(&li[1]);
-		TCHAR buf[256];
+		tchar_t buf[256];
 		level--;
 		int elapsed = (int)((double)(li[1].QuadPart - li[0].QuadPart) / freq.QuadPart*1000.0*1000.0);
 		int tim = (int)((double)(li[1].QuadPart - origin.QuadPart) / freq.QuadPart*1000.0*1000.0);

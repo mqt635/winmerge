@@ -12,12 +12,24 @@
 #pragma once
 
 #include "MergeEditStatus.h"
+#include "BasicFlatStatusBar.h"
 #include "OptionsDiffColors.h"
 #include "UnicodeString.h"
 
-class CMergeStatusBar : public CStatusBar
+class CMergeStatusBar : public CBasicFlatStatusBar
 {
-public : 
+public :
+	/** @brief Columns of one file pane, in display order (statusbar pane index = file pane * COLUMN_COUNT + column) */
+	enum Column
+	{
+		COLUMN_INFO = 0,
+		COLUMN_SYNTAX,
+		COLUMN_ENCODING,
+		COLUMN_EOL,
+		COLUMN_RO,
+		COLUMN_COUNT
+	};
+
 	CMergeStatusBar();
 	~CMergeStatusBar();
 
@@ -26,17 +38,16 @@ public :
 	void SetPaneCount(int nPanes) { m_nPanes = nPanes; }
 	void UpdateResources();
 	IMergeEditStatus* GetIMergeEditStatus(int nPane) { return &m_status[nPane]; }
-	void DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct);
 
 protected:
+    afx_msg void OnPaint();
 	DECLARE_MESSAGE_MAP();
 
 private:
 	// this dialog uses custom edit boxes
 	int m_nPanes;
 	COLORSETTINGS m_cachedColors;
-	bool m_bDiff[4];
-	unsigned m_dispFlags[4];
+	bool m_bDiff[COLUMN_COUNT];
 
 protected:
 	// Object that displays status line info for one side of a merge view
@@ -46,8 +57,10 @@ protected:
 		// ctr
 		MergeStatus();
 		// Implement MergeEditStatus
-		void SetLineInfo(LPCTSTR szLine, int nColumn, int nColumns,
-			int nChar, int nChars, int nSelectedLines, int nSelectedChars, LPCTSTR szEol, int nCodepage, bool bHasBom) override;
+		bool HasLineInfo() const override { return m_nCodepage != -1; } // -1 means not initialized
+		void SetLineInfo(const tchar_t* szLine, int nColumn, int nColumns,
+			int nChar, int nChars, int nSelectedLines, int nSelectedChars, const tchar_t* szEol, int nCodepage, bool bHasBom) override;
+		void SetSyntaxName(const tchar_t* szName) override;
 		void UpdateResources();
 	protected:
 		void Update();

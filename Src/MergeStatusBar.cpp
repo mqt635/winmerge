@@ -16,70 +16,49 @@
 #include "unicoder.h"
 #include "SyntaxColors.h"
 #include "Merge.h"
+#include "RoundedRectWithShadow.h"
+#include <vector>
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
 
 /** @brief RO status panel width (point) */
-static const UINT RO_PANEL_WIDTH = 20;
+static const UINT RO_PANEL_WIDTH = 25;
 /** @brief Encoding status panel width (point) */
-static const UINT ENCODING_PANEL_WIDTH = 90;
+static const UINT ENCODING_PANEL_WIDTH = 40;
 /** @brief EOL type status panel width (point) */
 static const UINT EOL_PANEL_WIDTH = 30;
+/** @brief Syntax type status panel width (point) */
+static const UINT SYNTAX_PANEL_WIDTH = 40;
 
 /**
- * @brief Statusbar pane indexes
+ * @brief Statusbar pane index of a column of a file pane
  */
-enum
+static int PaneIndex(int pane, int column)
 {
-	PANE_PANE0_INFO = 0,
-	PANE_PANE0_ENCODING,
-	PANE_PANE0_EOL,
-	PANE_PANE0_RO,
-	PANE_PANE1_INFO,
-	PANE_PANE1_ENCODING,
-	PANE_PANE1_EOL,
-	PANE_PANE1_RO,
-	PANE_PANE2_INFO,
-	PANE_PANE2_ENCODING,
-	PANE_PANE2_EOL,
-	PANE_PANE2_RO,
-};
-
-const int nColumnsPerPane = PANE_PANE1_INFO - PANE_PANE0_INFO;
+	return pane * CMergeStatusBar::COLUMN_COUNT + column;
+}
 
 /**
- * @brief Bottom statusbar panels and indicators
+ * @brief Bottom statusbar panels and indicators: ID_SEPARATOR (0) for every column of three file panes
  */
-static UINT indicatorsBottom[] =
-{
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-	ID_SEPARATOR,
-};
+static_assert(ID_SEPARATOR == 0, "indicatorsBottom is zero-initialized");
+static const UINT indicatorsBottom[3 * CMergeStatusBar::COLUMN_COUNT] = {};
 
-BEGIN_MESSAGE_MAP(CMergeStatusBar, CStatusBar)
+BEGIN_MESSAGE_MAP(CMergeStatusBar, CBasicFlatStatusBar)
+    ON_WM_PAINT()
 END_MESSAGE_MAP()
 
 /**
  * @brief Constructor.
  */
-CMergeStatusBar::CMergeStatusBar() : m_nPanes(2), m_bDiff{}, m_dispFlags{}
+CMergeStatusBar::CMergeStatusBar() : m_nPanes(2), m_bDiff{}
 {
 	for (int pane = 0; pane < sizeof(m_status) / sizeof(m_status[0]); pane++)
 	{
 		m_status[pane].m_pWndStatusBar = this;
-		m_status[pane].m_base = PANE_PANE0_INFO + pane * nColumnsPerPane;
+		m_status[pane].m_base = PaneIndex(pane, 0);
 	}
 	Options::DiffColors::Load(GetOptionsMgr(), m_cachedColors);
 }
@@ -93,114 +72,169 @@ CMergeStatusBar::~CMergeStatusBar()
 
 BOOL CMergeStatusBar::Create(CWnd* pParentWnd)
 {
-	if (! CStatusBar::Create(pParentWnd))
+	if (! __super::Create(pParentWnd, WS_CHILD | WS_VISIBLE | CBRS_BOTTOM, AFX_IDW_CONTROLBAR_FIRST+28))
 		return FALSE;
 
 	SetIndicators(indicatorsBottom, sizeof(indicatorsBottom) / sizeof(UINT));
+	BeginPaneLayoutUpdate();
+	SetPaneGroupCount(3);
+	for (int pane = 0; pane < 3; ++pane)
+	{
+		for (int column = 0; column < COLUMN_COUNT; ++column)
+			SetPaneGroup(pane * COLUMN_COUNT + column, pane);
+		SetPaneGroupWidth(pane, 0);
+	}
+	EndPaneLayoutUpdate();
 
 	// Set text to read-only info panes
 	// Text is hidden if file is writable
 	String sText = _("RO");
-	for (auto&& p : { PANE_PANE0_RO, PANE_PANE1_RO, PANE_PANE2_RO })
-		SetPaneText(p, sText.c_str(), TRUE);
+	for (int pane = 0; pane < 3; pane++)
+		SetPaneText(PaneIndex(pane, COLUMN_RO), sText.c_str(), TRUE);
 
 	for (int pane = 0; pane < 3; pane++)
 	{
-		SetPaneStyle(PANE_PANE0_INFO     + pane * nColumnsPerPane, SBPS_NORMAL);
-		SetPaneStyle(PANE_PANE0_ENCODING + pane * nColumnsPerPane, SBPS_OWNERDRAW);
-		SetPaneStyle(PANE_PANE0_EOL      + pane * nColumnsPerPane, SBPS_OWNERDRAW);
-		SetPaneStyle(PANE_PANE0_RO       + pane * nColumnsPerPane, SBPS_NORMAL);
+		for (int column = 0; column < COLUMN_COUNT; column++)
+			SetPaneStyle(PaneIndex(pane, column), SBPS_CLICKABLE);
 	}
 
 	return TRUE;
 };
 
-void CMergeStatusBar::DrawItem(LPDRAWITEMSTRUCT lpDrawItemStruct)
+void CMergeStatusBar::OnPaint()
 {
-	const int pbase = PANE_PANE0_INFO + (lpDrawItemStruct->itemID - PANE_PANE0_INFO) % nColumnsPerPane;
-	const int pcur = (lpDrawItemStruct->itemID - PANE_PANE0_INFO) / nColumnsPerPane;
-	if (pcur >= m_nPanes)
-		return;
-	std::vector<CString> ptext(m_nPanes);
+	CStatusBarCtrl& ctrl = GetStatusBarCtrl();
+	int parts[32];
+	const int nParts = ctrl.GetParts(32, parts);
+
+	bool bDiffNew[COLUMN_COUNT]{};
+	std::vector<CString> textary(m_nPanes);
 	for (int pane = 0; pane < m_nPanes; ++pane)
-		ptext[pane] = GetPaneText(pbase + pane * nColumnsPerPane);
-	const bool diff = !std::equal(ptext.begin() + 1, ptext.end(), ptext.begin());
-
-	if (!ptext[pcur].IsEmpty())
-		m_dispFlags[pbase] |= 1 << pcur;
-	const bool displayedAll = m_dispFlags[pbase] == static_cast<unsigned>((1 << m_nPanes) - 1);
-
-	if (displayedAll && m_bDiff[pbase] != diff)
+		textary[pane] = GetPaneText(PaneIndex(pane, COLUMN_ENCODING));
+	bDiffNew[COLUMN_ENCODING] = !std::equal(textary.begin() + 1, textary.end(), textary.begin());
+	for (int pane = 0; pane < m_nPanes; ++pane)
+		textary[pane] = GetPaneText(PaneIndex(pane, COLUMN_EOL));
+	bDiffNew[COLUMN_EOL] = !std::equal(textary.begin() + 1, textary.end(), textary.begin());
+	for (int i = 0; i < nParts; i++)
 	{
-		m_bDiff[pbase] = diff;
-		for (int pane = 0; pane < m_nPanes; ++pane)
+		CRect rcPart;
+		ctrl.GetRect(i, &rcPart);
+		if (m_bDiff[i % COLUMN_COUNT] != bDiffNew[i % COLUMN_COUNT])
+			InvalidateRect(&rcPart);
+	}
+	m_bDiff[COLUMN_ENCODING] = bDiffNew[COLUMN_ENCODING];
+	m_bDiff[COLUMN_EOL] = bDiffNew[COLUMN_EOL];
+
+	const COLORREF clr3DFace = GetSysColor(COLOR_3DFACE);
+	const COLORREF clr3DFaceLight = LightenColor(clr3DFace, 0.5);
+	const COLORREF clrWordDiffLight = LightenColor(m_cachedColors.clrWordDiff, 0.5);
+	const COLORREF clrBtnText = GetSysColor(COLOR_BTNTEXT);
+
+	CPaintDC dc(this);
+	CRect rect;
+	GetClientRect(&rect);
+	CBitmap bitmap;
+	bitmap.CreateCompatibleBitmap(&dc, rect.Width(), rect.Height());
+	CDC memDC;
+	memDC.CreateCompatibleDC(&dc);
+	CBitmap* pOldBitmap = memDC.SelectObject(&bitmap);
+
+	memDC.FillSolidRect(&rect, GetSysColor(COLOR_3DFACE));
+	memDC.SetBkMode(TRANSPARENT);
+	CFont* pFont = GetFont();
+	CFont* pOldFont = pFont ? memDC.SelectObject(pFont) : nullptr;
+	const int radius = MulDiv (3, memDC.GetDeviceCaps (LOGPIXELSY), 72);
+	const int textPadding = MulDiv(9, memDC.GetDeviceCaps(LOGPIXELSX), 72);
+	const int leftTextPadding = textPadding / 2;
+	const int rightTextPadding = textPadding - leftTextPadding;
+	for (int i = 0; i < nParts; i++)
+	{
+		const unsigned style = GetPaneStyle(i);
+		CRect rcPart;
+		ctrl.GetRect(i, &rcPart);
+		const bool lighten = (m_bMouseTracking && (style & SBPS_CLICKABLE) != 0 && i == m_nTrackingPane);
+		if (lighten)
+			DrawRoundedRect(memDC.m_hDC, rcPart.left, rcPart.top, rcPart.Width(), rcPart.Height(), radius, clr3DFaceLight, clr3DFace);
+		const bool disabled = (style & SBPS_DISABLED) != 0;
+		if (!disabled)
 		{
-			RECT rcColumn;
-			GetItemRect(pbase + pane * nColumnsPerPane, &rcColumn);
-			InvalidateRect(&rcColumn);
-		}
-		return;
-	}
+			if (m_bDiff[i % COLUMN_COUNT])
+			{
+				memDC.SetTextColor(m_cachedColors.clrWordDiffText == -1 ?
+					theApp.GetMainSyntaxColors()->GetColor(COLORINDEX_NORMALTEXT) : m_cachedColors.clrWordDiffText);
+				DrawRoundedRect(memDC.m_hDC, rcPart.left, rcPart.top, rcPart.Width(), rcPart.Height(), radius, lighten ? clrWordDiffLight : m_cachedColors.clrWordDiff, clr3DFace);
+			}
+			else
+			{
+				memDC.SetTextColor(clrBtnText);
+			}
+			CString text = ctrl.GetText(i);
+			if (text.Find(_T('\t')) >= 0)
+			{
+				text.Trim();
+				text.Replace(_T("\t"), _T("  "));
+			}
 
-	CDC dc;
-	dc.Attach(lpDrawItemStruct->hDC);
-	if (displayedAll && diff)
-	{
-		dc.SetBkMode(OPAQUE);
-		dc.SetTextColor(m_cachedColors.clrWordDiffText == -1 ?
-			theApp.GetMainSyntaxColors()->GetColor(COLORINDEX_NORMALTEXT) : m_cachedColors.clrWordDiffText);
-		dc.SetBkColor(m_cachedColors.clrWordDiff);
-		dc.ExtTextOut(
-			lpDrawItemStruct->rcItem.left, lpDrawItemStruct->rcItem.top,
-			ETO_OPAQUE, &lpDrawItemStruct->rcItem, _T(""), nullptr );
+			int leftInset = (std::max)(radius, leftTextPadding);
+			int rightInset = (std::max)(radius, rightTextPadding);
+			const int textWidth = static_cast<int>(memDC.GetTextExtent(text, text.GetLength()).cx);
+			if (rcPart.Width() - leftInset - rightInset < textWidth)
+			{
+				rightInset = radius;
+				if (rcPart.Width() - leftInset - rightInset < textWidth)
+					leftInset = radius;
+			}
+			CRect rcText = rcPart;
+			rcText.left += leftInset;
+			rcText.right -= rightInset;
+			memDC.DrawText(text, &rcText, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
+		}
 	}
-	else
-	{
-		dc.SetBkMode(TRANSPARENT);
-		dc.SetTextColor(GetSysColor(COLOR_BTNTEXT));
-	}
-	dc.DrawText(ptext[pcur], &lpDrawItemStruct->rcItem, DT_LEFT | DT_VCENTER | DT_SINGLELINE);
-	dc.Detach();
+	if (pOldFont)
+		memDC.SelectObject(pOldFont);
+	dc.BitBlt(0, 0, rect.Width(), rect.Height(), &memDC, 0, 0, SRCCOPY);
+	memDC.SelectObject(pOldBitmap);
 }
 
 void CMergeStatusBar::Resize(int widths[])
 {
+	BeginPaneLayoutUpdate();
+	std::vector<int> groupWidths(3, 0);
+	int totalGroupWidth = 0;
+	for (int pane = 0; pane < m_nPanes; ++pane)
+	{
+		groupWidths[pane] = (std::max)(0, widths[pane]);
+		totalGroupWidth += groupWidths[pane];
+	}
+	CRect clientRect;
+	GetClientRect(&clientRect);
+	if (m_nPanes > 0 && totalGroupWidth < clientRect.Width())
+		groupWidths[m_nPanes - 1] += clientRect.Width() - totalGroupWidth;
+	for (int pane = 0; pane < 3; ++pane)
+		SetPaneGroupWidth(pane, groupWidths[pane]);
+
 	// Set bottom statusbar panel widths
-	// Kimmo - I don't know why 4 seems to be right for me
-	int borderWidth = 4; // GetSystemMetrics(SM_CXEDGE);
+	const int borderWidth = 4;
 	const int lpx = CClientDC(this).GetDeviceCaps(LOGPIXELSX);
 	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
-
-	for (int pane = 0; pane < m_nPanes; pane++)
+	for (int pane = 0; pane < m_nPanes; ++pane)
 	{
-		int fixedPaneWidth = pointToPixel(RO_PANEL_WIDTH + ENCODING_PANEL_WIDTH + EOL_PANEL_WIDTH) +
-			(3 * borderWidth);
-		int paneWidth = widths[pane] - fixedPaneWidth;
-		int encodingWidth = pointToPixel(ENCODING_PANEL_WIDTH) - borderWidth;
-		int roWidth = pointToPixel(RO_PANEL_WIDTH) - borderWidth;
-		int eolWidth = pointToPixel(EOL_PANEL_WIDTH) - borderWidth;
-		if (paneWidth < 0)
-		{
-			paneWidth = 0;
-			int restWidth = widths[pane] - paneWidth - borderWidth;
-			if (restWidth < 0) restWidth = 0;
-			roWidth = (roWidth + borderWidth) * restWidth / fixedPaneWidth - borderWidth;
-			if (roWidth < 0) roWidth = 0;
-			eolWidth = (eolWidth + borderWidth) * restWidth / fixedPaneWidth - borderWidth;
-			if (eolWidth < 0) eolWidth = 0;
-			encodingWidth = widths[pane] - (paneWidth + roWidth + eolWidth + 6 * borderWidth);
-			if (encodingWidth < 0) encodingWidth = 0;
-		}
-
-		SetPaneInfo(PANE_PANE0_INFO + pane * nColumnsPerPane, ID_STATUS_PANE0FILE_INFO + pane,
-			SBPS_NORMAL, paneWidth);
-		SetPaneInfo(PANE_PANE0_ENCODING + pane * nColumnsPerPane, ID_STATUS_PANE0FILE_ENCODING + pane,
-			SBT_OWNERDRAW, encodingWidth);
-		SetPaneInfo(PANE_PANE0_RO + pane * nColumnsPerPane, ID_STATUS_PANE0FILE_RO + pane,
-			SBPS_NORMAL, roWidth);
-		SetPaneInfo(PANE_PANE0_EOL + pane * nColumnsPerPane, ID_STATUS_PANE0FILE_EOL + pane,
-			SBT_OWNERDRAW, eolWidth);
+		const int encodingWidth = pointToPixel(ENCODING_PANEL_WIDTH) - borderWidth;
+		const int eolWidth = pointToPixel(EOL_PANEL_WIDTH) - borderWidth;
+		const int roWidth = pointToPixel(RO_PANEL_WIDTH) - borderWidth;
+		const int syntaxWidth = pointToPixel(SYNTAX_PANEL_WIDTH) - borderWidth;
+		SetPaneInfo(PaneIndex(pane, 0), ID_STATUS_PANE0FILE_INFO + pane,
+			SBPS_CLICKABLE, 0);
+		SetPaneInfo(PaneIndex(pane, 1), ID_STATUS_PANE0FILE_SYNTAX + pane,
+			SBPS_CLICKABLE | SBPS_AUTOWIDTH, syntaxWidth);
+		SetPaneInfo(PaneIndex(pane, 2), ID_STATUS_PANE0FILE_ENCODING + pane,
+			SBPS_CLICKABLE | SBPS_AUTOWIDTH, encodingWidth);
+		SetPaneInfo(PaneIndex(pane, 3), ID_STATUS_PANE0FILE_EOL + pane,
+			SBPS_CLICKABLE | SBPS_AUTOWIDTH, eolWidth);
+		SetPaneInfo(PaneIndex(pane, 4), ID_STATUS_PANE0FILE_RO + pane,
+			SBPS_CLICKABLE | SBPS_AUTOWIDTH, roWidth);
 	}
+	EndPaneLayoutUpdate();
 }
 
 /**
@@ -225,6 +259,13 @@ CMergeStatusBar::MergeStatus::MergeStatus()
 , m_pWndStatusBar(nullptr)
 , m_base(0)
 {
+}
+
+/// Show the syntax type in the syntax column (SetPaneText skips an unchanged text)
+void CMergeStatusBar::MergeStatus::SetSyntaxName(const tchar_t* szName)
+{
+	if (IsWindow(m_pWndStatusBar->m_hWnd))
+		m_pWndStatusBar->SetPaneText(m_base + COLUMN_SYNTAX, szName);
 }
 
 /// Send status line info (about one side of merge view) to screen
@@ -257,8 +298,8 @@ void CMergeStatusBar::MergeStatus::Update()
 
 		if (m_nCodepage > 0)
 			strEncoding.Format(_("%s").c_str(), m_sCodepageName.c_str());
-		m_pWndStatusBar->SetPaneText(m_base, strInfo);
-		m_pWndStatusBar->SetPaneText(m_base + 1, strEncoding);
+		m_pWndStatusBar->SetPaneText(m_base + COLUMN_INFO, strInfo);
+		m_pWndStatusBar->SetPaneText(m_base + COLUMN_ENCODING, strEncoding);
 	}
 }
 
@@ -295,8 +336,8 @@ static String EolString(const String & sEol)
 }
 
 /// Receive status line info from crystal window and display
-void CMergeStatusBar::MergeStatus::SetLineInfo(LPCTSTR szLine, int nColumn,
-		int nColumns, int nChar, int nChars, int nSelectedLines, int nSelectedChars, LPCTSTR szEol, int nCodepage, bool bHasBom)
+void CMergeStatusBar::MergeStatus::SetLineInfo(const tchar_t* szLine, int nColumn,
+		int nColumns, int nChar, int nChars, int nSelectedLines, int nSelectedChars, const tchar_t* szEol, int nCodepage, bool bHasBom)
 {
 	if (m_sLine != szLine || m_nColumn != nColumn || m_nColumns != nColumns ||
 		m_nChar != nChar || m_nChars != nChars || 

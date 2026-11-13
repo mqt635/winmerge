@@ -31,7 +31,7 @@ class Timespan;
 
 
 class Foundation_API DateTimeFormatter
-	/// This class converts dates and times into strings, supporting a  
+	/// This class converts dates and times into strings, supporting a
 	/// variety of standard and custom formats.
 	///
 	/// There are two kind of static member functions:
@@ -43,7 +43,7 @@ class Foundation_API DateTimeFormatter
 public:
 	enum
 	{
-		UTC = 0xFFFF /// Special value for timeZoneDifferential denoting UTC. 
+		UTC = 0xFFFF /// Special value for timeZoneDifferential denoting UTC.
 	};
 
 	static std::string format(const Timestamp& timestamp, const std::string& fmt, int timeZoneDifferential = UTC);
@@ -74,7 +74,7 @@ public:
 		///   * %i - millisecond (000 .. 999)
 		///   * %c - centisecond (0 .. 9)
 		///   * %F - fractional seconds/microseconds (000000 - 999999)
-		///   * %z - time zone differential in ISO 8601 format (Z or +NN.NN)
+		///   * %z - time zone differential in ISO 8601 format (Z or +NN:NN)
 		///   * %Z - time zone differential in RFC format (GMT or +NNNN)
 		///   * %% - percent sign
 		///
@@ -130,7 +130,7 @@ public:
 		/// Formats the given timezone differential in ISO format.
 		/// If timeZoneDifferential is UTC, "Z" is returned,
 		/// otherwise, +HH.MM (or -HH.MM) is returned.
-		
+
 	static std::string tzdRFC(int timeZoneDifferential);
 		/// Formats the given timezone differential in RFC format.
 		/// If timeZoneDifferential is UTC, "GMT" is returned,
@@ -141,7 +141,7 @@ public:
 		/// and appends it to the given string.
 		/// If timeZoneDifferential is UTC, "Z" is returned,
 		/// otherwise, +HH.MM (or -HH.MM) is returned.
-		
+
 	static void tzdRFC(std::string& str, int timeZoneDifferential);
 		/// Formats the given timezone differential in RFC format
 		/// and appends it to the given string.

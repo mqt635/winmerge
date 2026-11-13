@@ -18,10 +18,6 @@ class PropArchive : public OptionsPanel
 public:
 	explicit PropArchive(COptionsMgr *optionsMgr);
 
-// Implement IOptionsPanel
-	virtual void ReadOptions() override;
-	virtual void WriteOptions() override;
-
 // Dialog Data
 	enum { IDD = IDD_PROPPAGE_ARCHIVE };
 

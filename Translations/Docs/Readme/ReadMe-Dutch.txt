@@ -1,4 +1,4 @@
-WINMERGE
+﻿WINMERGE
 
 WinMerge is een Open Source vergelijkings- en samenvoegingstool voor Windows. 
 WinMerge kan mappen en bestanden vergelijken, verschillen voorstellend in een visueel 
@@ -17,11 +17,11 @@ Quickstart
 ==========
 om te leren hoe u basisoperaties uitvoert na de installatie van WinMerge klikt u op
 Help > WinMerge Help en navigeert u naar het Quickstart-topic. U kan ook naar de 
-webversie gaan op https://manual.winmerge.org/QuickStart.html.
+webversie gaan op https://manual.winmerge.org/Quick_start.html.
 
 WinMerge-help
 ============= 
-WinMerge-help wordt lokaal ge�nstalleerd als een HTML helpbestand, WinMerge.chm,
+WinMerge-help wordt lokaal geïnstalleerd als een HTML helpbestand, WinMerge.chm,
 op het moment dat u WinMerge installeert. Om Help te openen klikt u op 
 Help > WinMerge Help of drukt u F1 in het WinMerge-venster. In de opdrachtregel
 start u het uitvoerbestand van WinMerge (WinMerge.exe) met de /? help-switch.
@@ -32,7 +32,7 @@ https://manual.winmerge.org/.
 WinMerge-ondersteuning
 ======================
 Vragen over WinMerge of suggesties? Een goeie plaats om te beginnen is het WinMerge
-community bulletin board op https://forums.winmerge.org/. Ontwikkelaars lezen en beantwoorden
+community bulletin board op https://github.com/WinMerge/winmerge/discussions. Ontwikkelaars lezen en beantwoorden
 frequent vragen op beide forums. Gebruik het "Open Discussion"-forum voor algemene
 WinMerge-problemen, zoals gebruiksvragen. Gebruik het "Developers"-forum voor
 WinMerge-ontwikkelingsproblemen.
@@ -40,7 +40,7 @@ WinMerge-ontwikkelingsproblemen.
 Bugs en functie-aanvragen
 =========================
 Indien een probleem niet opgelost raakt op de WinMerge-forums, kan u de project-trackers
-natrekken: ga naar https://project.winmerge.org/ en klik op een link in het "Trackers"-menu,
+natrekken: ga naar https://github.com/WinMerge/winmerge/issues en klik op een link in het "Trackers"-menu,
 zoals "Bugs and Feature Requests", waar u kan browsen of items inzenden.
 
 Indien u een bug rapporteert, gelieve dan het WinMerge-versienummer in uw rapport bij te 

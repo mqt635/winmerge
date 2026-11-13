@@ -14,7 +14,7 @@
 //  - LEAVE THIS HEADER INTACT
 ////////////////////////////////////////////////////////////////////////////
 
-#include "StdAfx.h"
+#include "pch.h"
 #include "crystallineparser.h"
 #include "../SyntaxColors.h"
 #include "../utils/string_util.h"
@@ -24,7 +24,7 @@
 #endif
 
 //  VHDL keywords
-static const TCHAR * s_apszVhdlKeywordList[] =
+static const tchar_t * s_apszVhdlKeywordList[] =
   {
     _T ("abs"),
     _T ("access"),
@@ -112,7 +112,7 @@ static const TCHAR * s_apszVhdlKeywordList[] =
     _T ("xor")
   };
 
-static const TCHAR * s_apszVhdlAttributeList[] =
+static const tchar_t * s_apszVhdlAttributeList[] =
   {
     _T ("'active"),
     _T ("'ascending"),
@@ -148,7 +148,7 @@ static const TCHAR * s_apszVhdlAttributeList[] =
   };
 
 //  VHDL Types
-static const TCHAR * s_apszVhdlTypeList[] =
+static const tchar_t * s_apszVhdlTypeList[] =
   {
     _T ("bit"),
     _T ("bit_vector"),
@@ -182,7 +182,7 @@ static const TCHAR * s_apszVhdlTypeList[] =
   };
 
 //  VHDL functions
-static const TCHAR * s_apszVhdlFunctionList[] =
+static const tchar_t * s_apszVhdlFunctionList[] =
   {
     _T ("conv_integer"),
     _T ("conv_signed"),
@@ -208,13 +208,13 @@ static const TCHAR * s_apszVhdlFunctionList[] =
   };
 
 static bool
-IsVhdlKeyword (const TCHAR *pszChars, int nLength)
+IsVhdlKeyword (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORDI(s_apszVhdlKeywordList, pszChars, nLength);
 }
 
 static bool
-IsVhdlAttribute (const TCHAR *pszChars, int nLength, int *nAttributeBegin)
+IsVhdlAttribute (const tchar_t *pszChars, int nLength, int *nAttributeBegin)
 {
   for (int I = 0; I < nLength; I++)
     {
@@ -228,19 +228,19 @@ IsVhdlAttribute (const TCHAR *pszChars, int nLength, int *nAttributeBegin)
 }
 
 static bool
-IsVhdlType (const TCHAR *pszChars, int nLength)
+IsVhdlType (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORDI(s_apszVhdlTypeList, pszChars, nLength);
 }
 
 static bool
-IsVhdlFunction (const TCHAR *pszChars, int nLength)
+IsVhdlFunction (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORDI(s_apszVhdlFunctionList, pszChars, nLength);
 }
 
 static bool
-IsVhdlNumber (const TCHAR *pszChars, int nLength)
+IsVhdlNumber (const tchar_t *pszChars, int nLength)
 {
   if (nLength == 3 && pszChars[0] == '\'' && pszChars[2] == '\'')
     {
@@ -273,7 +273,7 @@ IsVhdlNumber (const TCHAR *pszChars, int nLength)
       {
         for (int I = 2; I < nLength-1; I++)
           {
-            if (_istdigit (pszChars[I]) ||
+            if (tc::istdigit (pszChars[I]) ||
                   (pszChars[I] >= 'A' && pszChars[I] <= 'F') ||
                   (pszChars[I] >= 'a' && pszChars[I] <= 'f') ||
                   pszChars[I] == 'u' || pszChars[I] == 'U' ||
@@ -294,7 +294,7 @@ IsVhdlNumber (const TCHAR *pszChars, int nLength)
     {
       for (int I = 1; I < nLength-1; I++)
         {
-          if (_istdigit (pszChars[I]) ||
+          if (tc::istdigit (pszChars[I]) ||
                 (pszChars[I] >= 'A' && pszChars[I] <= 'F') ||
                 (pszChars[I] >= 'a' && pszChars[I] <= 'f') ||
                 pszChars[I] == 'u' || pszChars[I] == 'U' ||
@@ -312,7 +312,7 @@ IsVhdlNumber (const TCHAR *pszChars, int nLength)
     }
   for (int I = 0; I < nLength; I++)
     {
-      if (!_istdigit (pszChars[I]) && pszChars[I] != '+' &&
+      if (!tc::istdigit (pszChars[I]) && pszChars[I] != '+' &&
             pszChars[I] != '-' && pszChars[I] != '.' && pszChars[I] != 'e' &&
             pszChars[I] != 'E' && pszChars[I] != '_')
         return false;
@@ -321,35 +321,60 @@ IsVhdlNumber (const TCHAR *pszChars, int nLength)
 }
 
 static bool
-IsVhdlString (const TCHAR *pszChars, int nLength)
-{
-  if (nLength > 3 && pszChars[0] == '"' && pszChars[nLength-1] == '"')
-    return true;
-  return false;
-}
-
-static bool
-IsVhdlChar (const TCHAR *pszChars, int nLength)
+IsVhdlChar (const tchar_t *pszChars, int nLength)
 {
   if (nLength == 3 && pszChars[0] == '\'' && pszChars[2] == '\'')
     return true;
   return false;
 }
 
+static inline void
+DefineIdentiferBlock(const tchar_t *pszChars, int nLength, std::vector<CrystalLineParser::TEXTBLOCK>* pBuf, int nIdentBegin, int I, unsigned &dwCookie, int &nAttributeBegin)
+{
+  if (IsVhdlNumber (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
+    }
+  else if (pszChars[nIdentBegin] == '"')
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_STRING);
+      dwCookie |= COOKIE_STRING;
+    }
+  else if (IsVhdlKeyword (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
+    }
+  else if (IsVhdlAttribute (pszChars + nIdentBegin, I - nIdentBegin, &nAttributeBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin + nAttributeBegin, COLORINDEX_FUNCNAME);
+    }
+  else if (IsVhdlType (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_PREPROCESSOR);
+    }
+  else if (IsVhdlFunction (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
+    }
+  else if (IsVhdlChar (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_STRING);
+    }
+}
+
 unsigned
-CrystalLineParser::ParseLineVhdl (unsigned dwCookie, const TCHAR *pszChars, int nLength, TEXTBLOCK * pBuf, int &nActualItems)
+CrystalLineParser::ParseLineVhdl (unsigned dwCookie, const tchar_t *pszChars, int nLength, std::vector<TEXTBLOCK>* pBuf)
 {
   if (nLength == 0)
     return dwCookie & COOKIE_EXT_COMMENT;
 
   bool bRedefineBlock = true;
   bool bDecIndex = false;
-  bool bNum = false;
   int nIdentBegin = -1;
   int nAttributeBegin = 0;
   int nPrevI = -1;
   int I=0;
-  for (I = 0;; nPrevI = I, I = static_cast<int>(::CharNext(pszChars+I) - pszChars))
+  for (I = 0;; nPrevI = I, I = static_cast<int>(tc::tcharnext(pszChars+I) - pszChars))
     {
       if (I == nPrevI)
         {
@@ -377,7 +402,7 @@ CrystalLineParser::ParseLineVhdl (unsigned dwCookie, const TCHAR *pszChars, int 
             }
           else
             {
-              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*::CharPrev(pszChars, pszChars + nPos)) && !xisalpha (*::CharNext(pszChars + nPos))))
+              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*tc::tcharprev(pszChars, pszChars + nPos)) && !xisalpha (*tc::tcharnext(pszChars + nPos))))
                 {
                   DEFINE_BLOCK (nPos, COLORINDEX_NORMALTEXT);
                 }
@@ -421,7 +446,7 @@ out:
       //  String constant "...."
       if (dwCookie & COOKIE_STRING)
         {
-          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *::CharPrev(pszChars, pszChars + nPrevI) == '\\')))
+          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *tc::tcharprev(pszChars, pszChars + nPrevI) == '\\')))
             {
               dwCookie &= ~COOKIE_STRING;
               bRedefineBlock = true;
@@ -455,36 +480,7 @@ out:
         {
           if (nIdentBegin >= 0)
             {
-              if (IsVhdlNumber (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-                }
-              else if (pszChars[nIdentBegin] == '"')
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_STRING);
-                  dwCookie |= COOKIE_STRING;
-                  continue;
-                }
-              else if (IsVhdlKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-                }
-              else if (IsVhdlAttribute (pszChars + nIdentBegin, I - nIdentBegin, &nAttributeBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin + nAttributeBegin, COLORINDEX_FUNCNAME);
-                }
-              else if (IsVhdlType (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_PREPROCESSOR);
-                }
-              else if (IsVhdlFunction (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-                }
-              else if (IsVhdlChar (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_STRING);
-                }
+              DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I, dwCookie, nAttributeBegin);
               bRedefineBlock = true;
               bDecIndex = true;
               nIdentBegin = -1;
@@ -494,35 +490,7 @@ out:
 
   if (nIdentBegin >= 0)
     {
-      if (IsVhdlNumber (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-        }
-      else if (pszChars[nIdentBegin] == '"')
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_STRING);
-          dwCookie |= COOKIE_STRING;
-        }
-      else if (IsVhdlKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-        }
-      else if (IsVhdlAttribute (pszChars + nIdentBegin, I - nIdentBegin, &nAttributeBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin + nAttributeBegin, COLORINDEX_FUNCNAME);
-        }
-      else if (IsVhdlType (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_PREPROCESSOR);
-        }
-      else if (IsVhdlFunction (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-        }
-      else if (IsVhdlChar (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_STRING);
-        }
+      DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I, dwCookie, nAttributeBegin);
     }
 
   dwCookie &= COOKIE_EXT_COMMENT;

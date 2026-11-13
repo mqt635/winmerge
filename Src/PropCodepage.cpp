@@ -50,6 +50,7 @@ void PropCodepage::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(PropCodepage, OptionsPanel)
 	//{{AFX_MSG_MAP(PropCodepage)
+	ON_BN_CLICKED(IDC_COMPARE_DEFAULTS, OnDefaults)
 	ON_BN_CLICKED(IDC_CP_SYSTEM, OnCpSystem)
 	ON_BN_CLICKED(IDC_CP_CUSTOM, OnCpCustom)
 	ON_BN_CLICKED(IDC_DETECT_CODEPAGE2, OnDetectCodepage2)
@@ -90,10 +91,9 @@ BOOL PropCodepage::OnInitDialog()
 	
 	// Enable/disable "Custom codepage" edit field
 	EnableDlgItem(IDC_CUSTOM_CP_NUMBER, IsDlgButtonChecked(IDC_CP_CUSTOM) == 1);
-	m_comboAutodetectType.EnableWindow(
-		IsDlgButtonChecked(IDC_DETECT_CODEPAGE2) == 1);
+	EnableDlgItem(IDC_DETECT_AUTODETECTTYPE, IsDlgButtonChecked(IDC_DETECT_CODEPAGE2) == 1);
 
-	m_comboCustomCodepageValue.SetWindowText(strutils::to_str(m_nCustomCodepageValue).c_str());
+	SetDlgItemInt(IDC_CUSTOM_CP_NUMBER, m_nCustomCodepageValue);
 
 	IExconverter *pexconv = Exconverter::getInstance();
 	if (pexconv != nullptr)
@@ -106,6 +106,7 @@ BOOL PropCodepage::OnInitDialog()
 				continue;
 			String desc = strutils::format(_T("% 5d - %s"), cpi[i].codepage, cpi[i].desc);
 			Index = m_comboCustomCodepageValue.AddString(desc.c_str());
+			m_comboCustomCodepageValue.SetItemData(static_cast<int>(Index), cpi[i].codepage);
 			if (cpi[i].codepage == m_nCustomCodepageValue)
 				m_comboCustomCodepageValue.SetCurSel(static_cast<int>(Index));
 		}
@@ -120,6 +121,7 @@ BOOL PropCodepage::OnInitDialog()
 			if (m_comboCustomCodepageValue.FindStringExact(0, desc.c_str()) == CB_ERR)
 			{
 				Index = m_comboCustomCodepageValue.AddString(desc.c_str());
+				m_comboCustomCodepageValue.SetItemData(static_cast<int>(Index), ManualAddTypeList[i]);
 				if (ManualAddTypeList[i] == m_nCustomCodepageValue)
 					m_comboCustomCodepageValue.SetCurSel(static_cast<int>(Index));
 			}
@@ -141,6 +143,29 @@ BOOL PropCodepage::OnInitDialog()
 	              // EXCEPTION: OCX Property Pages should return FALSE
 }
 
+/**
+ * @brief Sets options to defaults.
+ */
+void PropCodepage::OnDefaults()
+{
+	m_nCodepageSystem = GetOptionsMgr()->GetDefault<unsigned>(OPT_CP_DEFAULT_MODE);
+	m_nCustomCodepageValue = GetOptionsMgr()->GetDefault<unsigned>(OPT_CP_DEFAULT_CUSTOM);
+	m_cCustomCodepageValue = strutils::to_str(m_nCustomCodepageValue);
+	m_bDetectCodepage = GetOptionsMgr()->GetDefault<unsigned>(OPT_CP_DETECT) & 1;
+	m_bDetectCodepage2 = (GetOptionsMgr()->GetDefault<unsigned>(OPT_CP_DETECT) & 2) != 0;
+	m_nAutodetectType = ((unsigned)GetOptionsMgr()->GetDefault<unsigned>(OPT_CP_DETECT) >> 16);
+	if (m_nAutodetectType == 0)
+		m_nAutodetectType = 50001;
+
+	UpdateData(FALSE);
+
+	UpdateControls();
+	SetCursorSelectForCustomCodepage(m_nCustomCodepageValue);
+	SetCursorSelectForAutoDetectType(m_nAutodetectType);
+
+	UpdateData(TRUE);
+}
+
 void PropCodepage::OnCpSystem() 
 {
 	EnableDlgItem(IDC_CUSTOM_CP_NUMBER, false);
@@ -153,8 +178,7 @@ void PropCodepage::OnCpCustom()
 
 void PropCodepage::OnDetectCodepage2() 
 {
-	m_comboAutodetectType.EnableWindow(
-		IsDlgButtonChecked(IDC_DETECT_CODEPAGE2) == 1);
+	EnableDlgItem(IDC_DETECT_AUTODETECTTYPE, IsDlgButtonChecked(IDC_DETECT_CODEPAGE2) == 1);
 }
 
 void PropCodepage::OnDetectAutodetecttype()
@@ -169,10 +193,53 @@ void PropCodepage::OnCpUi()
 
 void PropCodepage::GetEncodingCodePageFromNameString()
 {
-	int nCustomCodepageValue = _ttol(m_cCustomCodepageValue.c_str());
+	int nCustomCodepageValue = tc::ttol(m_cCustomCodepageValue.c_str());
 	if (nCustomCodepageValue == 0)
 		nCustomCodepageValue = GetEncodingCodePageFromName(ucr::toSystemCP(m_cCustomCodepageValue).c_str());
 	//if found a new codepage valid
 	if (nCustomCodepageValue)
 		m_nCustomCodepageValue = nCustomCodepageValue;
+}
+
+/**
+ * @brief Called Updates controls enabled/disables state.
+ */
+void PropCodepage::UpdateControls()
+{
+	EnableDlgItem(IDC_CUSTOM_CP_NUMBER, IsDlgButtonChecked(IDC_CP_CUSTOM) == 1);
+	EnableDlgItem(IDC_DETECT_AUTODETECTTYPE, IsDlgButtonChecked(IDC_DETECT_CODEPAGE2) == 1);
+}
+
+/**
+ * @brief Select the item specified by the codepage in the "Custom codepage" combo box.
+ * @param [in] codepage The codepage of the selected item.
+ */
+void PropCodepage::SetCursorSelectForCustomCodepage(int codepage)
+{
+	int itemCount = m_comboCustomCodepageValue.GetCount();
+	for (int i = 0; i < itemCount; i++)
+	{
+		if (m_comboCustomCodepageValue.GetItemData(i) == codepage)
+		{
+			m_comboCustomCodepageValue.SetCurSel(i);
+			break;
+		}
+	}
+}
+
+/**
+ * @brief Select the item specified by the codepage in the "Auto Detect Type" combo box.
+ * @param [in] codepage The codepage of the selected item.
+ */
+void PropCodepage::SetCursorSelectForAutoDetectType(int codepage)
+{
+	int itemCount = m_comboAutodetectType.GetCount();
+	for (int i = 0; i < itemCount; i++)
+	{
+		if (m_comboAutodetectType.GetItemData(i) == codepage)
+		{
+			m_comboAutodetectType.SetCurSel(i);
+			break;
+		}
+	}
 }

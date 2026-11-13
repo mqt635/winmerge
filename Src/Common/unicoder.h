@@ -31,7 +31,21 @@ enum
 {
 	CP_UTF_8  = 65001,
 	CP_UCS2LE = 1200,
-	CP_UCS2BE = 1201
+	CP_UCS2BE = 1201,
+#ifdef _UNICODE
+	CP_TCHAR = CP_UCS2LE
+#else
+	CP_TCHAR = 0
+#endif
+};
+
+enum NORMFORM
+{
+	NormOther = 0,
+	NormC = 0x1,
+	NormD = 0x2,
+	NormKC = 0x5,
+	NormKD = 0x6
 };
 
 /** @brief Known Unicode encodings. */
@@ -84,14 +98,15 @@ void getInternalEncoding(UNICODESET * unicoding, int * codepage);
 bool convert(UNICODESET unicoding1, int codepage1, const unsigned char * src, size_t srcbytes, UNICODESET unicoding2, int codepage2, buffer * dest);
 bool convert(int codepage1, const unsigned char * src, int srcbytes, int codepage2, buffer * dest);
 
-unsigned char *convertTtoUTF8(buffer * dest, const TCHAR *src, int srcbytes = -1);
-unsigned char *convertTtoUTF8(const TCHAR *src, int srcbytes = -1);
-TCHAR *convertUTF8toT(buffer * dest, const char* src, int srcbytes = -1);
-TCHAR *convertUTF8toT(const char* src, int srcbytes = -1);
+unsigned char *convertTtoUTF8(buffer * dest, const tchar_t *src, int srcbytes = -1);
+unsigned char *convertTtoUTF8(const tchar_t *src, int srcbytes = -1);
+tchar_t *convertUTF8toT(buffer * dest, const char* src, int srcbytes = -1);
+tchar_t *convertUTF8toT(const char* src, int srcbytes = -1);
 void dealloc(void *ptr);
 
 String toTString(const std::wstring& str);
 String toTString(const std::string& str);
+String toTStringFromACP(const std::string& str);
 void toUTF16(const String& tstr, std::wstring& wstr);
 inline std::wstring toUTF16(const String& tstr)
 {
@@ -105,6 +120,7 @@ inline std::wstring toUTF16(const String& tstr)
 }
 
 void toUTF8(const String& tstr, std::string& u8str);
+std::string toUTF8(const tchar_t* tstr, size_t len);
 std::string toUTF8(const String& tstr);
 std::string toSystemCP(const std::string& str);
 std::string toSystemCP(const std::wstring& str);
@@ -124,5 +140,15 @@ int getDefaultCodepage();
 void setDefaultCodepage(int cp);
 
 bool EqualCodepages(int cp1, int cp2);
+
+String normalizeString(const String& str, NORMFORM form);
+String toUpper(const String& s);
+String toLower(const String& s);
+String toHalfWidth(const String& s);
+String toFullWidth(const String& s);
+String toKatakana(const String& s);
+String toHiragana(const String& s);
+String toSimplifiedChinese(const String& s);
+String toTraditionalChinese(const String& s);
 
 } // namespace ucr

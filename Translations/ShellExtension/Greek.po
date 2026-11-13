@@ -1,13 +1,10 @@
-# This file is part from WinMerge <https://winmerge.org/>
+# This file is from WinMerge <https://winmerge.org/>
 # Released under the "GNU General Public License"
-#
-# ID line follows -- this is updated by SVN
-# $Id$
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: WinMerge\n"
-"Report-Msgid-Bugs-To: https://bugs.winmerge.org/\n"
+"Report-Msgid-Bugs-To: https://github.com/WinMerge/winmerge/issues\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: \n"
 "Last-Translator: \n"
@@ -32,12 +29,6 @@ msgstr "AFX_TARG_ELL"
 msgid "LANG_ENGLISH, SUBLANG_ENGLISH_US"
 msgstr "LANG_GREEK, SUBLANG_DEFAULT"
 
-#. Codepage
-#: ShellExtension.rc:21
-#, c-format
-msgid "1252"
-msgstr "65001"
-
 #: ShellExtension.rc:111
 #, c-format
 msgid "ShellExtension"
@@ -45,30 +36,35 @@ msgstr "Επέκταση Περιβάλλοντος"
 
 #: ShellExtension.rc:112
 #, c-format
-msgid "&WinMerge"
+msgid "Win&Merge"
 msgstr ""
 
 #: ShellExtension.rc:113
 #, c-format
-msgid "&Compare"
+msgid "Compare &As"
 msgstr ""
 
 #: ShellExtension.rc:114
 #, c-format
-msgid "Compare&..."
+msgid "&Compare"
 msgstr ""
 
 #: ShellExtension.rc:115
 #, c-format
-msgid "Select &Left"
+msgid "Compare&..."
 msgstr ""
 
 #: ShellExtension.rc:116
 #, c-format
-msgid "Select &Middle"
+msgid "Select &Left"
 msgstr ""
 
 #: ShellExtension.rc:117
+#, c-format
+msgid "Select &Middle"
+msgstr ""
+
+#: ShellExtension.rc:118
 #, c-format
 msgid "Re-select &Left"
 msgstr ""

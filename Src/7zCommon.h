@@ -6,6 +6,7 @@
 // Merge7z::Proxy embeds a DLLPSTUB
 #include <list>
 #include <map>
+#include <vector>
 #include <PropIdl.h>
 #include "dllpstub.h"
 #include "../ArchiveSupport/Merge7z/Merge7z.h"
@@ -26,7 +27,7 @@ Merge7z::Format *ArchiveGuessFormat(const String&);
 class CTempPathContext
 {
 public:
-	CTempPathContext *m_pParent;
+	CTempPathContext *m_pParent = nullptr;
 	String m_strDisplayRoot[3];
 	String m_strRoot[3];
 	CTempPathContext *DeleteHead();
@@ -38,24 +39,32 @@ public:
  */
 class SingleItemEnumerator : public Merge7z::DirItemEnumerator
 {
-	LPCTSTR FullPath;
-	LPCTSTR Name;
+	const tchar_t* FullPath;
+	const tchar_t* Name;
 public:
 	virtual UINT Open();
 	virtual Merge7z::Envelope *Enum(Item &);
-	SingleItemEnumerator(LPCTSTR path, LPCTSTR FullPath, LPCTSTR Name = _T(""));
+	SingleItemEnumerator(const tchar_t* path, const tchar_t* FullPath, const tchar_t* Name = _T(""));
+};
+
+/**
+ * @brief One file/folder to be added to the archive, fully resolved
+ *        (archive-relative name + physical source path + recurse flag).
+ *        No knowledge of CDirView/DIFFITEM/CDiffContext required.
+ */
+struct CompressibleItem
+{
+   String name;             // Name (relative path) inside the archive
+   String fullPath;         // Physical source path
+   bool   recurse = false;  // true: let 7-Zip physically recurse this folder
 };
 
 /**
  * @brief Merge7z::DirItemEnumerator to compress items from DirView.
  */
-class DirItemEnumerator : public Merge7z::DirItemEnumerator
+class CompressibleItemEnumerator : public Merge7z::DirItemEnumerator
 {
 private:
-	CDirView *m_pView;
-	int m_nFlags;
-	int m_nIndex;
-	typedef CListCtrl *pView;
 	struct Envelope : public Merge7z::Envelope
 	{
 		String Name;
@@ -65,29 +74,17 @@ private:
 			delete this;
 		}
 	};
-	std::list<String> m_rgFolderPrefix;
-	std::list<String>::iterator m_curFolderPrefix;
-	String m_strFolderPrefix;
-	int m_index;
-	std::map<String, void *> m_rgImpliedFolders[3];
-//	helper methods
-	const DIFFITEM &Next();
-	bool MultiStepCompressArchive(LPCTSTR);
+	bool MultiStepCompressArchive(const tchar_t*);
+
 public:
-	enum
-	{
-		Left = 0x00,
-		Middle = 0x10,
-		Right = 0x20,
-		Original = 0x40,
-		Altered = 0x80,
-		DiffsOnly = 0x100,
-		BalanceFolders = 0x200
-	};
-	DirItemEnumerator(CDirView *, int);
-	virtual UINT Open();
-	virtual Merge7z::Envelope *Enum(Item &);
-	void CompressArchive(LPCTSTR = 0);
+	explicit CompressibleItemEnumerator(std::vector<CompressibleItem> items);
+	
+	UINT Open() override;
+	Envelope* Enum(Item& item) override;
+	bool CompressArchive(const tchar_t* = 0);
+private:
+	std::vector<CompressibleItem> m_items;
+	size_t m_itemPos = 0;
 };
 
 int NTAPI HasZipSupport();
@@ -95,11 +92,14 @@ int NTAPI HasZipSupport();
 struct DecompressResult
 {
 	DecompressResult(const PathContext& files, CTempPathContext *pTempPathContext, paths::PATH_EXISTENCE pathsType) :
-		files(files), pTempPathContext(pTempPathContext), pathsType(pathsType)
+		files(files), pTempPathContext(pTempPathContext), pathsType(pathsType), hr(S_OK)
 	{
 	}
 	PathContext files;
 	CTempPathContext *pTempPathContext;
 	paths::PATH_EXISTENCE pathsType;
+	HRESULT hr;
 };
 DecompressResult DecompressArchive(HWND hWnd, const PathContext& infiles);
+void Merge7zInitFlags();
+

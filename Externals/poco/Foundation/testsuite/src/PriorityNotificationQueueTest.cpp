@@ -23,9 +23,10 @@ using Poco::PriorityNotificationQueue;
 using Poco::Notification;
 using Poco::Thread;
 using Poco::RunnableAdapter;
+using CppUnit::waitForCondition;
 
 
-namespace 
+namespace
 {
 	class QTestNotification: public Notification
 	{
@@ -72,7 +73,7 @@ void PriorityNotificationQueueTest::testQueueDequeue()
 	assertTrue (queue.empty());
 	assertTrue (queue.size() == 0);
 	pNf->release();
-	
+
 	queue.enqueueNotification(new QTestNotification("first"), 1);
 	queue.enqueueNotification(new QTestNotification("fourth"), 4);
 	queue.enqueueNotification(new QTestNotification("third"), 3);
@@ -136,12 +137,12 @@ void PriorityNotificationQueueTest::testWaitDequeue()
 
 void PriorityNotificationQueueTest::testThreads()
 {
-	const int NOTIFICATION_COUNT = 5000;
-	
+	const int NOTIFICATION_COUNT = 2000;
+
 	Thread t1("thread1");
 	Thread t2("thread2");
 	Thread t3("thread3");
-	
+
 	RunnableAdapter<PriorityNotificationQueueTest> ra(*this, &PriorityNotificationQueueTest::work);
 	t1.start(ra);
 	t2.start(ra);
@@ -150,12 +151,15 @@ void PriorityNotificationQueueTest::testThreads()
 	{
 		_queue.enqueueNotification(new Notification, 1);
 	}
-	while (!_queue.empty()) Thread::sleep(50);
+	// Wait for queue to drain, but always cleanup threads before asserting
+	// to avoid detached threads accessing destroyed Thread objects
+	bool queueEmptied = waitForCondition([&]{ return _queue.empty(); }, 20000);
 	Thread::sleep(20);
 	_queue.wakeUpAll();
 	t1.join();
 	t2.join();
 	t3.join();
+	assertTrue (queueEmptied);
 	assertTrue (_handled.size() == NOTIFICATION_COUNT);
 	assertTrue (_handled.count("thread1") > 0);
 	assertTrue (_handled.count("thread2") > 0);

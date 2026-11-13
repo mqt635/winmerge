@@ -25,7 +25,7 @@
 //        and maybe "ugly" code ...
 ////////////////////////////////////////////////////////////////////////////
 
-#include "StdAfx.h"
+#include "pch.h"
 #include "crystallineparser.h"
 #include "../SyntaxColors.h"
 #include "../utils/string_util.h"
@@ -34,8 +34,8 @@
 #define new DEBUG_NEW
 #endif
 
-//  C++ keywords (MSVC5.0 + POET5.0)
-static const TCHAR * s_apszNsisKeywordList[] =
+//  NSIS keywords
+static const tchar_t * s_apszNsisKeywordList[] =
   {
     _T ("Abort"),
     _T ("AddBrandingImage"),
@@ -263,7 +263,7 @@ static const TCHAR * s_apszNsisKeywordList[] =
     _T ("XPStyle"),
   };
 
-static const TCHAR * s_apszUser1KeywordList[] =
+static const tchar_t * s_apszUser1KeywordList[] =
   {
 /*
     _T ("$0"),
@@ -423,32 +423,69 @@ static const TCHAR * s_apszUser1KeywordList[] =
   };
 
 static bool
-IsNsisKeyword (const TCHAR *pszChars, int nLength)
+IsNsisKeyword (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORD (s_apszNsisKeywordList, pszChars, nLength);
 }
 
 static bool
-IsUser1Keyword (const TCHAR *pszChars, int nLength)
+IsUser1Keyword (const tchar_t *pszChars, int nLength)
 {
   return ISXKEYWORD (s_apszUser1KeywordList, pszChars, nLength);
 }
 
+static inline void
+DefineIdentiferBlock(const tchar_t *pszChars, int nLength, std::vector<CrystalLineParser::TEXTBLOCK>* pBuf, int nIdentBegin, int I)
+{
+  if (IsNsisKeyword (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
+    }
+  else if (IsUser1Keyword (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_USER1);
+    }
+  else if (CrystalLineParser::IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
+    {
+      DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
+    }
+  else
+    {
+      bool bFunction = false;
+
+      for (int j = I; j < nLength; j++)
+        {
+          if (!xisspace (pszChars[j]))
+            {
+              if (pszChars[j] == '(')
+                {
+                  bFunction = true;
+                }
+              break;
+            }
+        }
+      if (bFunction)
+        {
+          DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
+        }
+    }
+}
+
 unsigned
-CrystalLineParser::ParseLineNsis (unsigned dwCookie, const TCHAR *pszChars, int nLength, TEXTBLOCK * pBuf, int &nActualItems)
+CrystalLineParser::ParseLineNsis (unsigned dwCookie, const tchar_t *pszChars, int nLength, std::vector<TEXTBLOCK>* pBuf)
 {
   if (nLength == 0)
     return dwCookie & COOKIE_EXT_COMMENT;
 
   bool bFirstChar = (dwCookie & ~COOKIE_EXT_COMMENT) == 0;
-  const TCHAR *pszCommentBegin = nullptr;
-  const TCHAR *pszCommentEnd = nullptr;
+  const tchar_t *pszCommentBegin = nullptr;
+  const tchar_t *pszCommentEnd = nullptr;
   bool bRedefineBlock = true;
   bool bDecIndex = false;
   int nIdentBegin = -1;
   int nPrevI = -1;
   int I=0;
-  for (I = 0;; nPrevI = I, I = static_cast<int>(::CharNext(pszChars+I) - pszChars))
+  for (I = 0;; nPrevI = I, I = static_cast<int>(tc::tcharnext(pszChars+I) - pszChars))
     {
       if (I == nPrevI)
         {
@@ -476,7 +513,7 @@ CrystalLineParser::ParseLineNsis (unsigned dwCookie, const TCHAR *pszChars, int 
             }
           else
             {
-              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*::CharPrev(pszChars, pszChars + nPos)) && !xisalpha (*::CharNext(pszChars + nPos))))
+              if (xisalnum (pszChars[nPos]) || pszChars[nPos] == '.' && nPos > 0 && (!xisalpha (*tc::tcharprev(pszChars, pszChars + nPos)) && !xisalpha (*tc::tcharnext(pszChars + nPos))))
                 {
                   DEFINE_BLOCK (nPos, COLORINDEX_NORMALTEXT);
                 }
@@ -508,7 +545,7 @@ out:
       //  String constant "...."
       if (dwCookie & COOKIE_STRING)
         {
-          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *::CharPrev(pszChars, pszChars + nPrevI) == '\\')))
+          if (pszChars[I] == '"' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *tc::tcharprev(pszChars, pszChars + nPrevI) == '\\')))
             {
               dwCookie &= ~COOKIE_STRING;
               bRedefineBlock = true;
@@ -519,7 +556,7 @@ out:
       //  Char constant '..'
       if (dwCookie & COOKIE_CHAR)
         {
-          if (pszChars[I] == '\'' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *::CharPrev(pszChars, pszChars + nPrevI) == '\\')))
+          if (pszChars[I] == '\'' && (I == 0 || I == 1 && pszChars[nPrevI] != '\\' || I >= 2 && (pszChars[nPrevI] != '\\' || *tc::tcharprev(pszChars, pszChars + nPrevI) == '\\')))
             {
               dwCookie &= ~COOKIE_CHAR;
               bRedefineBlock = true;
@@ -607,38 +644,7 @@ out:
         {
           if (nIdentBegin >= 0)
             {
-              if (IsNsisKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-                }
-              else if (IsUser1Keyword (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_USER1);
-                }
-              else if (IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
-                {
-                  DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-                }
-              else
-                {
-                  bool bFunction = false;
-
-                  for (int j = I; j < nLength; j++)
-                    {
-                      if (!xisspace (pszChars[j]))
-                        {
-                          if (pszChars[j] == '(')
-                            {
-                              bFunction = true;
-                            }
-                          break;
-                        }
-                    }
-                  if (bFunction)
-                    {
-                      DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-                    }
-                }
+              DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I);
               bRedefineBlock = true;
               bDecIndex = true;
               nIdentBegin = -1;
@@ -648,38 +654,7 @@ out:
 
   if (nIdentBegin >= 0)
     {
-      if (IsNsisKeyword (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_KEYWORD);
-        }
-      else if (IsUser1Keyword (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_USER1);
-        }
-      else if (IsXNumber (pszChars + nIdentBegin, I - nIdentBegin))
-        {
-          DEFINE_BLOCK (nIdentBegin, COLORINDEX_NUMBER);
-        }
-      else
-        {
-          bool bFunction = false;
-
-          for (int j = I; j < nLength; j++)
-            {
-              if (!xisspace (pszChars[j]))
-                {
-                  if (pszChars[j] == '(')
-                    {
-                      bFunction = true;
-                    }
-                  break;
-                }
-            }
-          if (bFunction)
-            {
-              DEFINE_BLOCK (nIdentBegin, COLORINDEX_FUNCNAME);
-            }
-        }
+      DefineIdentiferBlock(pszChars, nLength, pBuf, nIdentBegin, I);
     }
 
   if (pszChars[nLength - 1] != '\\' || IsMBSTrail(pszChars, nLength - 1))

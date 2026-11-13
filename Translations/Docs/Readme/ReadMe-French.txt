@@ -1,60 +1,53 @@
 WINMERGE
 
-WinMerge est un outil en logiciel libre pour comparer et fusionner des fichiers
-sur Windows. WinMerge peut comparer des rÈpertoires et des fichiers en prÈsentant 
-les diffÈrences de texte dans un format visuel facile ‡ comprendre et manipuler. 
-WinMerge peut Ítre utilisÈ comme un outil externe de comparaison/fusion ou 
+WinMerge est un logiciel libre de comparaison et de fusion pour Windows.
+WinMerge peut comparer aussi bien des dossiers que des fichiers, en pr√©sentant
+les diff√©rences sous un format textuel visuel facile √† comprendre et √† manipuler.
+WinMerge peut √™tre utilis√© comme outil externe de comparaison/fusion ou 
 comme application autonome.
 
-WinMerge possËde de nombreuses fonctionnalitÈs utiles pour rendre la comparaison, 
-la synchronisation, et la fusion aussi facile et pratique que possible. Plusieurs 
-langages de programmation et autres formats de fichiers ont une syntaxe mise en 
-Èvidence.
+WinMerge poss√®de de nombreuses fonctionnalit√©s utiles pour rendre la comparaison,
+la synchronisation et la fusion aussi simples et pratiques que possible. Plusieurs
+langages de programmation et autres formats de fichiers b√©n√©ficient de la coloration
+syntaxique.
 
-La derniËre version de WinMerge et d'autre information sont disponible a:
-https://winmerge.org
+La derni√®re version de WinMerge et les informations associ√©es sont disponibles sur :
+https://winmerge.org/
 
-DÈmarrage rapide
+D√©marrage rapide
 ================
-Pour apprendre comment effectuer des opÈrations de base aprËs l'installation
-de WinMerge, cliquez sur Aide > Rubrique d'aide WinMerge et accÈdez ‡ la 
-rubrique DÈmarrage rapide. Ou lisez le manuel en ligne ‡:
-https://manual.winmerge.org/QuickStart.html
+Pour apprendre √† effectuer des op√©rations de base apr√®s l'installation de WinMerge,
+cliquez sur Aide > Aide de WinMerge et acc√©dez √† la rubrique D√©marrage rapide.
+Ou consultez la version Web sur :
+https://manual.winmerge.org/Quick_start.html
 
-Aide WinMerge
-=============
-L'aide WinMerge est installÈ localement comme un fichier d'aide HTML de 
-Microsoft, WinMerge.chm, lorsque vous installez WinMerge. Pour ouvrir l'aide, 
-cliquez sur Aide > Rubrique d'aide WinMerge ou appuyez sur F1 dans la fenÍtre
-WinMerge. Avec la ligne de commande, lancez l'exÈcutable WinMerge 
-suivi du commutateur d'aide /?.
+Aide de WinMerge
+================
+L'aide de WinMerge est install√©e localement sous la forme d'un fichier d'aide HTML
+de Microsoft, WinMerge.chm, lorsque vous installez WinMerge. Pour ouvrir l'aide,
+cliquez sur Aide > Aide de WinMerge ou appuyez sur F1 dans la fen√™tre WinMerge.
+En ligne de commande, lancez l'ex√©cutable WinMerge avec l'option d'aide /?.
 
-Vous pouvez aussi consulter la version en ligne de l'aide WinMerge ‡:
+Vous pouvez √©galement consulter la version HTML de l'aide de WinMerge sur :
 https://manual.winmerge.org/
 
+Support de WinMerge
+===================
+Des questions ou des suggestions √† propos de WinMerge ? Un bon point de d√©part
+est le forum communautaire de WinMerge sur https://github.com/WinMerge/winmerge/discussions.
+Les d√©veloppeurs lisent et r√©pondent fr√©quemment aux questions sur le forum.
 
-Support WinMerge
-================
-Questions ou suggestions ‡ propos de WinMerge? Une bonne place pour dÈbuter 
-est le groupe de discussion WinMerge au https://forums.winmerge.org/. Les
-dÈveloppeurs lisent et rÈpondent frÈquemment aux questions des deux forums.
-Utilisez le forum de discussion ouverte pour des questions d'ordre gÈnÈral 
-comme l'utilisation. Utilisez le forum des dÈveloppeurs pour des questions
-de dÈveloppement WinMerge.
+Bogues et demandes de fonctionnalit√©s
+=====================================
+Si un probl√®me n'est pas r√©solu sur les forums de WinMerge, consultez les outils de suivi
+du projet : rendez-vous sur https://github.com/WinMerge/winmerge/issues, o√π vous pouvez
+parcourir ou cr√©er des probl√®mes.
 
-
-Bogues et nouvelles requÍtes
-============================
-Si un problËme n'est pas rÈsolu dans les forums WinMerge, vÈrifiez le traqueur 
-de projet ‡: https://project.winmerge.org/, et cliquez sur un des lien du menu 
-du traqueur, comme bogues et nouvelles requÍtes, o˘ vous pouvez consulter ou 
-soumettre des articles.
-
-Si vous soumettez un bogue, veuillez inclure le numÈro de version de WinMerge
-dans votre rapport. Vous pouvez gÈnÈrer un journal de configuration en cliquant 
-sur Aide > Configuration. S'il vous plaÓt joignez le journal de configuration 
-‡ votre rapport de bogue, il contient beaucoup d'informations utiles 
-pour les dÈveloppeurs.
+Si vous soumettez un bogue, veuillez inclure le num√©ro de version de WinMerge
+dans votre rapport. Vous pouvez g√©n√©rer un journal de configuration en cliquant
+sur Aide > Configuration. Veuillez joindre le journal de configuration
+√† votre rapport de bogue ; il contient beaucoup d'informations utiles
+pour les d√©veloppeurs.
 
 
-- Les DÈveloppeurs de WinMerge
+- Les d√©veloppeurs de WinMerge

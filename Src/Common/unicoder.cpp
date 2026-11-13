@@ -17,6 +17,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "pch.h"
 #include "unicoder.h"
 #include <windows.h>
+#include <winnls.h>
 #include <cassert>
 #include <memory>
 #include <Poco/UnicodeConverter.h>
@@ -24,6 +25,11 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 #include "ExConverter.h"
 
 using Poco::UnicodeConverter;
+
+#if (WINVER < 0x0600)
+typedef enum _NORM_FORM { NormalizationOther = 0, NormalizationC = 0x1, NormalizationD = 0x2, NormalizationKC = 0x5, NormalizationKD = 0x6 } NORM_FORM;
+extern "C" __declspec(dllimport) int WINAPI NormalizeString(NORM_FORM NormForm, LPCWSTR lpSrcString, int cwSrcLength, LPWSTR lpDstString, int cwDstLength);
+#endif
 
 namespace ucr
 {
@@ -265,31 +271,30 @@ int to_utf8_advance(unsigned u, unsigned char * &lpd)
 # pragma warning(pop)           // Restores the warning state.
 
 /**
- * @brief convert character passed (Unicode codepoint) to a TCHAR (set lossy flag if imperfect conversion)
+ * @brief convert character passed (Unicode codepoint) to a tchar_t (set lossy flag if imperfect conversion)
  */
 void maketchar(String & ch, unsigned unich, bool & lossy)
 {
-	static unsigned codepage = CP_ACP;
 	// NB: Windows always draws in CP_ACP, not CP_THREAD_ACP, so we must use CP_ACP as an internal codepage
 
-	maketchar(ch, unich, lossy, codepage);
+	maketchar(ch, unich, lossy, CP_ACP);
 }
 
 /**
- * @brief convert character passed (Unicode codepoint) to a TCHAR (set lossy flag if imperfect conversion)
+ * @brief convert character passed (Unicode codepoint) to a tchar_t (set lossy flag if imperfect conversion)
  */
 void maketchar(String & ch, unsigned unich, bool & lossy, unsigned codepage)
 {
 #ifdef _UNICODE
 	if (unich < 0x10000)
 	{
-		ch = static_cast<TCHAR>(unich);
+		ch = static_cast<tchar_t>(unich);
 		return;
 	}
 	else if (unich < 0x110000)
 	{
-		ch = static_cast<TCHAR>(((unich - 0x10000)/0x400 + 0xd800));
-		ch += static_cast<TCHAR>(((unich % 0x400) + 0xdc00));
+		ch = static_cast<tchar_t>(((unich - 0x10000)/0x400 + 0xd800));
+		ch += static_cast<tchar_t>(((unich % 0x400) + 0xdc00));
 		return;
 	}
 	lossy = true;
@@ -298,7 +303,7 @@ void maketchar(String & ch, unsigned unich, bool & lossy, unsigned codepage)
 #else
 	if (unich < 0x80)
 	{
-		ch = (TCHAR)unich;
+		ch = (tchar_t)unich;
 		return;
 	}
 	wchar_t wch = (wchar_t)unich;
@@ -317,8 +322,8 @@ void maketchar(String & ch, unsigned unich, bool & lossy, unsigned codepage)
 		lossy = true;
 	}
 	// already lossy, so make our best shot
-	DWORD flags = WC_COMPOSITECHECK + WC_DISCARDNS + WC_SEPCHARS + WC_DEFAULTCHAR;
-	TCHAR outbuff[16];
+	DWORD flags = WC_COMPOSITECHECK + WC_DISCARDNS + WC_SEPCHARS + WC_DEFAULtchar_t;
+	tchar_t outbuff[16];
 	int n = WideCharToMultiByte(codepage, flags, &wch, 1, outbuff, sizeof(outbuff) - 1, nullptr, nullptr);
 	if (n > 0)
 	{
@@ -335,10 +340,8 @@ void maketchar(String & ch, unsigned unich, bool & lossy, unsigned codepage)
  */
 unsigned byteToUnicode(unsigned char ch)
 {
-	static unsigned codepage = CP_ACP;
 	// NB: Windows always draws in CP_ACP, not CP_THREAD_ACP, so we must use CP_ACP as an internal codepage
-
-	return byteToUnicode(ch, codepage);
+	return byteToUnicode(ch, CP_ACP);
 }
 
 /**
@@ -360,7 +363,7 @@ unsigned byteToUnicode(unsigned char ch, unsigned codepage)
 }
 
 /**
- * @brief Return encoding used for TCHAR & String
+ * @brief Return encoding used for tchar_t & String
  */
 void getInternalEncoding(UNICODESET * unicoding, int * codepage)
 {
@@ -440,7 +443,7 @@ unsigned get_unicode_char(unsigned char * ptr, UNICODESET codeset, int codepage)
 }
 
 /**
- * @brief Convert series of bytes (8-bit chars) to TCHARs.
+ * @brief Convert series of bytes (8-bit chars) to tchar_ts.
  *
  * @param [out] str String returned.
  * @param [in] lpd Original byte array to convert.
@@ -454,21 +457,21 @@ unsigned get_unicode_char(unsigned char * ptr, UNICODESET codeset, int codepage)
  */
 bool maketstring(String & str, const char* lpd, size_t len, int codepage, bool * lossy)
 {
-	int defcodepage = getDefaultCodepage();
-
 	if (!len)
 	{
 		str.clear();
 		return true;
 	}
 
+	int defcodepage = getDefaultCodepage();
+	
 	// 0 is a valid value (CP_ACP)!
 	if (codepage == -1)
 		codepage = defcodepage;
 
 #ifdef UNICODE
 	// Convert input to Unicode, using specified codepage
-	// TCHAR is wchar_t, so convert into String (str)
+	// tchar_t is wchar_t, so convert into String (str)
 	DWORD flags = MB_ERR_INVALID_CHARS;
 	size_t wlen = len * 2 + 6;
 	assert(wlen < INT_MAX);
@@ -690,7 +693,7 @@ int CrossConvert(const char* src, unsigned srclen, char* dest, unsigned destsize
 	// Convert input to Unicode, using specified codepage
 	DWORD flags = 0;
 	int wlen = srclen * 2 + 6;
-	std::unique_ptr<wchar_t[]> wbuff(new wchar_t[wlen]);
+	auto wbuff = std::make_unique<wchar_t[]>(wlen);
 	int n;
 	if (cpin == CP_UCS2LE)
 	{
@@ -726,7 +729,7 @@ int CrossConvert(const char* src, unsigned srclen, char* dest, unsigned destsize
 		--n;
 	wbuff[n] = 0; // zero-terminate string
 
-	// Now convert to TCHAR (which means defcodepage)
+	// Now convert to tchar_t (which means defcodepage)
 	flags = WC_NO_BEST_FIT_CHARS; // TODO: Think about this
 	BOOL defaulted = FALSE;
 	BOOL * pdefaulted = &defaulted;
@@ -792,15 +795,15 @@ void buffer::resize(size_t newSize)
 {
 	if (capacity < newSize)
 	{
-		capacity = newSize;
-		unsigned char *tmp = static_cast<unsigned char *>(realloc(ptr, capacity));
+		unsigned char *tmp = static_cast<unsigned char *>(realloc(ptr, newSize));
 		if (tmp == nullptr)
 			throw std::bad_alloc();
+		capacity = newSize;
 		ptr = tmp;
 	}
 }
 
-unsigned char *convertTtoUTF8(buffer * buf, const TCHAR *src, int srcbytes/* = -1*/)
+unsigned char *convertTtoUTF8(buffer * buf, const tchar_t *src, int srcbytes/* = -1*/)
 {
 	bool bSucceeded;
 #ifdef _UNICODE
@@ -817,14 +820,14 @@ unsigned char *convertTtoUTF8(buffer * buf, const TCHAR *src, int srcbytes/* = -
 	return buf->ptr;
 }
 
-unsigned char *convertTtoUTF8(const TCHAR *src, int srcbytes/* = -1*/)
+unsigned char *convertTtoUTF8(const tchar_t *src, int srcbytes/* = -1*/)
 {
 	buffer buf(256);
 	convertTtoUTF8(&buf, src, srcbytes);
 	return (unsigned char *)_strdup((const char *)buf.ptr);
 }
 
-TCHAR *convertUTF8toT(buffer * buf, const char *src, int srcbytes/* = -1*/)
+tchar_t *convertUTF8toT(buffer * buf, const char *src, int srcbytes/* = -1*/)
 {
 	bool bSucceeded;
 #ifdef _UNICODE
@@ -837,15 +840,15 @@ TCHAR *convertUTF8toT(buffer * buf, const char *src, int srcbytes/* = -1*/)
 		GetACP(), buf);
 #endif
 	if (!bSucceeded)
-		*((TCHAR *)buf->ptr) = 0;
-	return (TCHAR *)buf->ptr;
+		*((tchar_t *)buf->ptr) = 0;
+	return (tchar_t *)buf->ptr;
 }
 
-TCHAR *convertUTF8toT(const char *src, int srcbytes/* = -1*/)
+tchar_t *convertUTF8toT(const char *src, int srcbytes/* = -1*/)
 {
 	buffer buf(256);
 	convertUTF8toT(&buf, src, srcbytes);
-	return (TCHAR *)_tcsdup((LPCTSTR)buf.ptr);
+	return (tchar_t *)tc::tcsdup((const tchar_t*)buf.ptr);
 }
 
 void dealloc(void *ptr)
@@ -876,6 +879,18 @@ String toTString(const std::string& str)
 #endif
 }
 
+String toTStringFromACP(const std::string& str)
+{
+#ifndef UNICODE
+	return str;
+#else
+	String retval;
+	bool lossy = false;
+	maketstring(retval, str.c_str(), str.length(), GetACP(), &lossy);
+	return retval;
+#endif
+}
+
 void toUTF16(const String& tstr, std::wstring& wstr)
 {
 #ifdef UNICODE
@@ -892,24 +907,40 @@ std::string toUTF8(const String& tstr)
 	return u8str;
 }
 
+std::string toUTF8(const tchar_t* tstr, size_t len)
+{
+#ifdef _UNICODE
+	int u8len = WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)tstr, static_cast<int>(len), nullptr, 0, nullptr, nullptr);
+	if (u8len <= 0)
+		return std::string();
+	std::string u8str(u8len, 0);
+	WideCharToMultiByte(CP_UTF8, 0, (const wchar_t*)tstr, static_cast<int>(len), &u8str[0], u8len, nullptr, nullptr);
+	return u8str;
+#else
+	std::string u8str;
+	toUTF8(String(tstr, len), u8str);
+	return u8str;
+#endif
+}
+
 void toUTF8(const String& tstr, std::string& u8str)
 {
 #ifdef _UNICODE
-	u8str.clear();
-	size_t len = tstr.length();
+	const size_t len = tstr.length();
+	u8str.resize(len * 3);
+
 	if (len == 0)
 		return;
-	u8str.resize(len * 3);
+
 	char *p = &u8str[0];
-	for (String::const_iterator it = tstr.begin(); it != tstr.end(); ++it)
+	for (size_t i = 0; i < len; ++i)
 	{
-		unsigned uc = *it;
+		unsigned uc = tstr[i];
 		if (uc >= 0xd800 && uc < 0xdc00)
 		{
-			++it;
-			if (it != tstr.end())
+			if (++i != len)
 			{
-				wchar_t uc2 = *it;
+				wchar_t uc2 = tstr[i];
 				uc = ((uc & 0x3ff) << 10) + (uc2 & 0x3ff) + 0x10000;
 			}
 		}
@@ -970,8 +1001,8 @@ bool convert(UNICODESET unicoding1, int codepage1, const unsigned char * src, si
 		for (size_t i = 0; i < srcbytes; i += 2)
 		{
 			// Byte-swap into destination
-			dest->ptr[i] = src[i+1];
-			dest->ptr[i+1] = src[i];
+			uint16_t c = *(const uint16_t*)(src + i);
+			*(uint16_t*)(dest->ptr + i) = ((c << 8) | (c >> 8));
 		}
 		dest->ptr[srcbytes] = 0;
 		dest->ptr[srcbytes+1] = 0;
@@ -1128,70 +1159,49 @@ std::string toThreadCP(const std::wstring& str)
  * @param [in] size Size of the buffer in bytes.
  * @return true if invalid bytes found, false otherwise.
  */
-bool CheckForInvalidUtf8(const char *pBuffer, size_t size)
+bool CheckForInvalidUtf8(const char* pBuffer, size_t size)
 {
-	unsigned char * pVal2 = (unsigned char *)pBuffer;
-	for (size_t j = 0; j < size; ++j)
-	{
-		if ((*pVal2 == 0xC0) || (*pVal2 == 0xC1) || (*pVal2 >= 0xF5))
-			return true;
-		pVal2++;
-	}
-	pVal2 = (unsigned char *)pBuffer;
 	bool bUTF8 = false;
-	for (size_t i = 0; i < size; ++i)
+	for (unsigned char* pb = (unsigned char*)pBuffer, *end = pb + size; pb < end;)
 	{
-		if ((*pVal2 & 0x80) == 0x00)
-			;
-		else if ((*pVal2 & 0xE0) == 0xC0)
-		{
-			if (i >= size - 1)
-				return true;
-			pVal2++;
-			i++;
-			if ((*pVal2 & 0xC0) != 0x80)
-				return true;
-			bUTF8 = true;
-		}
-		else if ((*pVal2 & 0xF0) == 0xE0)
-		{
-			if (i >= size - 2)
-				return true;
-			pVal2++;
-			i++;
-			if ((*pVal2 & 0xC0) != 0x80)
-				return true;
-			pVal2++;
-			i++;
-			if ((*pVal2 & 0xC0) != 0x80)
-				return true;
-			bUTF8 = true;
-		}
-		else if ((*pVal2 & 0xF8) == 0xF0)
-		{
-			if (i >= size - 3)
-				return true;
-			pVal2++;
-			i++;
-			if ((*pVal2 & 0xC0) != 0x80)
-				return true;
-			pVal2++;
-			i++;
-			if ((*pVal2 & 0xC0) != 0x80)
-				return true;
-			pVal2++;
-			i++;
-			if ((*pVal2 & 0xC0) != 0x80)
-				return true;
-			bUTF8 = true;
-		}
-		else
+		unsigned c = *pb++;
+		
+		if (!(c & 0x80)) continue;
+		
+		if ((c >= 0xF5) || (c == 0xC0) || (c == 0xC1))
 			return true;
-		pVal2++;
+
+		uint32_t v = 0x80808000; //1st 0-byte covers scenario if no any next "if" fired at all
+
+		if ((c & 0xE0) == 0xC0)
+		{
+			if (pb == end)
+				return true;
+			*reinterpret_cast<unsigned char*>(&v) = *pb++;
+		}
+		else if ((c & 0xF0) == 0xE0)
+		{
+			if (pb > end - 2)
+				return true;
+			*reinterpret_cast<uint16_t*>(&v) = *reinterpret_cast<uint16_t*>(pb);
+			pb += 2;
+		}
+		else if ((c & 0xF8) == 0xF0)
+		{
+			if (pb > end - 3)
+				return true;
+			static_assert(sizeof(char) == sizeof(uint8_t), "unexpected char-size");
+
+			*reinterpret_cast<uint16_t*>(&v) = *reinterpret_cast<uint16_t*>(pb);
+			reinterpret_cast<uint8_t*>(&v)[2] = pb[2];
+			pb += 3;
+		}
+
+		if ((v & (0xC0C0C0C0)) != 0x80808080)
+			return true;
+		bUTF8 = true;
 	}
-	if (bUTF8)
-		return false;
-	return true;
+	return !bUTF8;
 }
 
 /**
@@ -1258,9 +1268,9 @@ static int NormalizeCodepage(int cp)
 {
 	if (cp == CP_THREAD_ACP) // should only happen on Win2000+
 	{
-		TCHAR buff[32];
+		tchar_t buff[32];
 		if (GetLocaleInfo(GetThreadLocale(), LOCALE_IDEFAULTANSICODEPAGE, buff, sizeof(buff) / sizeof(buff[0])))
-			cp = _ttol(buff);
+			cp = tc::ttol(buff);
 		else
 			// a valid codepage is better than no codepage
 			cp = GetACP();
@@ -1289,5 +1299,179 @@ void setDefaultCodepage(int cp)
 	f_nDefaultCodepage = cp;
 }
 
-} // namespace ucr
+typedef int (WINAPI* PFN_NormalizeString)(_NORM_FORM NormForm, LPCWSTR lpSrcString, int cwSrcLength, LPWSTR lpDstString, int cwDstLength);
 
+static PFN_NormalizeString GetNormalizeStringProc()
+{
+	static PFN_NormalizeString pfn = nullptr;
+	static bool initialized = false;
+	if (!initialized)
+	{
+		initialized = true;
+		HMODULE hMod = ::LoadLibraryW(L"normaliz.dll");
+		if (hMod)
+		{
+			pfn = reinterpret_cast<PFN_NormalizeString>( ::GetProcAddress(hMod, "NormalizeString"));
+		}
+	}
+	return pfn;
+}
+
+String normalizeString(const String& str, NORMFORM form)
+{
+	if (str.empty())
+		return str;
+
+	PFN_NormalizeString pNormalizeString = GetNormalizeStringProc();
+	if (!pNormalizeString)
+		return str;
+
+	int winForm = static_cast<int>(form);
+
+#ifdef _UNICODE
+	int normalizedLen = pNormalizeString(static_cast<_NORM_FORM>(winForm), str.c_str(), static_cast<int>(str.length()), nullptr, 0);
+	if (normalizedLen <= 0)
+		return str;
+
+	String normalized;
+	try
+	{
+		normalized.resize(normalizedLen);
+	}
+	catch (...)
+	{
+		return str;
+	}
+
+	normalizedLen = pNormalizeString(static_cast<_NORM_FORM>(winForm), str.c_str(), static_cast<int>(str.length()), &normalized[0], normalizedLen);
+	if (normalizedLen <= 0)
+		return str;
+
+	normalized.resize(normalizedLen);
+	return normalized;
+
+#else
+	std::wstring wstr;
+	try
+	{
+		UnicodeConverter::toUTF16(str, wstr);
+	}
+	catch (...)
+	{
+		return str;
+	}
+
+	if (wstr.empty())
+		return str;
+
+	int normalizedLen = pNormalizeString(static_cast<_NORM_FORM>(winForm), wstr.c_str(), static_cast<int>(wstr.length()), nullptr, 0);
+	if (normalizedLen <= 0)
+		return str;
+
+	std::wstring normalized;
+	try
+	{
+		normalized.resize(normalizedLen);
+	}
+	catch (...)
+	{
+		return str;
+	}
+
+	normalizedLen = pNormalizeString(static_cast<_NORM_FORM>(winForm), wstr.c_str(), static_cast<int>(wstr.length()), &normalized[0], normalizedLen);
+	if (normalizedLen <= 0)
+		return str;
+
+	normalized.resize(normalizedLen);
+
+	try
+	{
+		return toThreadCP(normalized);
+	}
+	catch (...)
+	{
+		return str;
+	}
+#endif
+}
+
+using LCMapStringEx_t = int (WINAPI*)(LPCWSTR lpLocaleName, DWORD dwMapFlags, LPCWSTR lpSrcStr, int cchSrc, LPWSTR lpDestStr, int cchDest, LPNLSVERSIONINFO lpVersionInformation, LPVOID lpReserved, LPARAM sortHandle);
+
+static String LCMapStringAuto(const String& input, unsigned mapFlags)
+{
+	if (input.empty())
+		return input;
+
+	static LCMapStringEx_t pLCMapStringEx = nullptr;
+	static bool checked = false;
+
+	if (!checked)
+	{
+		HMODULE hKernel32 = GetModuleHandleW(L"kernel32.dll");
+		if (hKernel32)
+			pLCMapStringEx = reinterpret_cast<LCMapStringEx_t>(GetProcAddress(hKernel32, "LCMapStringEx"));
+		checked = true;
+	}
+
+	if (pLCMapStringEx)
+	{
+		int len = pLCMapStringEx(nullptr, mapFlags, input.c_str(), static_cast<int>(input.size()), nullptr, 0, nullptr, nullptr, 0);
+		if (len <= 0)
+			return input;
+		std::wstring result(len, L'\0');
+		pLCMapStringEx(nullptr, mapFlags, input.c_str(), static_cast<int>(input.size()), result.data(), len, nullptr, nullptr, 0);
+		return result;
+	}
+
+	// XP fallback
+	int len = LCMapStringW(LOCALE_USER_DEFAULT, mapFlags, input.c_str(), static_cast<int>(input.size()), nullptr, 0);
+	if (len <= 0)
+		return input;
+
+	std::wstring result(len, L'\0');
+	LCMapStringW(LOCALE_USER_DEFAULT, mapFlags, input.c_str(), static_cast<int>(input.size()), result.data(), len);
+
+	return result;
+}
+
+String toUpper(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_UPPERCASE);
+}
+
+String toLower(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_LOWERCASE);
+}
+
+String toHalfWidth(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_HALFWIDTH);
+}
+
+String toFullWidth(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_FULLWIDTH);
+}
+
+String toKatakana(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_KATAKANA);
+}
+
+String toHiragana(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_HIRAGANA);
+}
+
+String toSimplifiedChinese(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_SIMPLIFIED_CHINESE);
+}
+
+String toTraditionalChinese(const String& s)
+{
+	return LCMapStringAuto(s, LCMAP_TRADITIONAL_CHINESE);
+}
+
+} // namespace ucr

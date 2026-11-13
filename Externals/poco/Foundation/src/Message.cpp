@@ -27,10 +27,11 @@ namespace Poco {
 Message::Message():
 	_prio(PRIO_FATAL),
 	_tid(0),
+	_ostid(0),
 	_pid(0),
-	_file(0),
+	_file(nullptr),
 	_line(0),
-	_pMap(0)
+	_pMap(nullptr)
 {
 	init();
 }
@@ -41,24 +42,56 @@ Message::Message(const std::string& source, const std::string& text, Priority pr
 	_text(text),
 	_prio(prio),
 	_tid(0),
+	_ostid(0),
 	_pid(0),
-	_file(0),
+	_file(nullptr),
 	_line(0),
-	_pMap(0)
+	_pMap(nullptr)
 {
 	init();
 }
 
 
-Message::Message(const std::string& source, const std::string& text, Priority prio, const char* file, int line):
+Message::Message(const std::string& source, std::string&& text, Priority prio):
+	_source(source),
+	_text(std::move(text)),
+	_prio(prio),
+	_tid(0),
+	_ostid(0),
+	_pid(0),
+	_file(nullptr),
+	_line(0),
+	_pMap(nullptr)
+{
+	init();
+}
+
+
+Message::Message(const std::string& source, const std::string& text, Priority prio, const char* file, LineNumber line):
 	_source(source),
 	_text(text),
 	_prio(prio),
 	_tid(0),
+	_ostid(0),
 	_pid(0),
 	_file(file),
 	_line(line),
-	_pMap(0)
+	_pMap(nullptr)
+{
+	init();
+}
+
+
+Message::Message(const std::string& source, std::string&& text, Priority prio, const char* file, LineNumber line):
+	_source(source),
+	_text(std::move(text)),
+	_prio(prio),
+	_tid(0),
+	_ostid(0),
+	_pid(0),
+	_file(file),
+	_line(line),
+	_pMap(nullptr)
 {
 	init();
 }
@@ -70,6 +103,7 @@ Message::Message(const Message& msg):
 	_prio(msg._prio),
 	_time(msg._time),
 	_tid(msg._tid),
+	_ostid(msg._ostid),
 	_thread(msg._thread),
 	_pid(msg._pid),
 	_file(msg._file),
@@ -78,7 +112,7 @@ Message::Message(const Message& msg):
 	if (msg._pMap)
 		_pMap = new StringMap(*msg._pMap);
 	else
-		_pMap = 0;
+		_pMap = nullptr;
 }
 
 
@@ -88,6 +122,7 @@ Message::Message(Message&& msg) noexcept:
 	_prio(std::move(msg._prio)),
 	_time(std::move(msg._time)),
 	_tid(std::move(msg._tid)),
+	_ostid(std::move(msg._ostid)),
 	_thread(std::move(msg._thread)),
 	_pid(std::move(msg._pid)),
 	_file(std::move(msg._file)),
@@ -104,6 +139,7 @@ Message::Message(const Message& msg, const std::string& text):
 	_prio(msg._prio),
 	_time(msg._time),
 	_tid(msg._tid),
+	_ostid(msg._ostid),
 	_thread(msg._thread),
 	_pid(msg._pid),
 	_file(msg._file),
@@ -112,7 +148,7 @@ Message::Message(const Message& msg, const std::string& text):
 	if (msg._pMap)
 		_pMap = new StringMap(*msg._pMap);
 	else
-		_pMap = 0;
+		_pMap = nullptr;
 }
 
 
@@ -127,11 +163,20 @@ void Message::init()
 #if !defined(POCO_VXWORKS)
 	_pid = Process::id();
 #endif
+	_ostid = (IntPtr)Thread::currentOsTid();
 	Thread* pThread = Thread::current();
 	if (pThread)
 	{
 		_tid    = pThread->id();
 		_thread = pThread->name();
+	}
+	else
+	{
+		// Not a POCO thread, use native OS thread ID and name.
+		// getCurrentName() returns empty string if no name has been set
+		// or not available on the platform.
+		_tid = Thread::currentOsTid();
+		_thread = Thread::getCurrentName();
 	}
 }
 
@@ -154,6 +199,7 @@ Message& Message::operator = (Message&& msg) noexcept
 	_prio = std::move(msg._prio);
 	_time = std::move(msg._time);
 	_tid = std::move(msg._tid);
+	_ostid = std::move(msg._ostid);
 	_thread = std::move(msg._thread);
 	_pid = std::move(msg._pid);
 	_file = std::move(msg._file);
@@ -173,6 +219,7 @@ void Message::swap(Message& msg)
 	swap(_prio, msg._prio);
 	swap(_time, msg._time);
 	swap(_tid, msg._tid);
+	swap(_ostid, msg._ostid);
 	swap(_thread, msg._thread);
 	swap(_pid, msg._pid);
 	swap(_file, msg._file);
@@ -229,7 +276,7 @@ void Message::setSourceFile(const char* file)
 }
 
 
-void Message::setSourceLine(int line)
+void Message::setSourceLine(LineNumber line)
 {
 	_line = line;
 }
@@ -247,25 +294,34 @@ const std::string& Message::get(const std::string& param) const
 	{
 		StringMap::const_iterator it = _pMap->find(param);
 		if (it != _pMap->end())
-	 		return it->second;
+			return it->second;
 	}
 
 	throw NotFoundException();
 }
 
 
-const std::string& Message::get(const std::string& param, const std::string& defaultValue) const
+std::string Message::get(const std::string& param, const std::string& defaultValue) const
 {
 	if (_pMap)
 	{
 		StringMap::const_iterator it = _pMap->find(param);
 		if (it != _pMap->end())
-	 		return it->second;
+			return it->second;
 	}
 
 	return defaultValue;
 }
 
+const Message::StringMap& Message::getAll() const
+{
+	static StringMap empty;
+
+	if (_pMap)
+		return *_pMap;
+
+	return empty;
+}
 
 void Message::set(const std::string& param, const std::string& value)
 {

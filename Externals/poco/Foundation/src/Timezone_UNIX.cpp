@@ -14,8 +14,10 @@
 
 #include "Poco/Timezone.h"
 #include "Poco/Exception.h"
-#include "Poco/Mutex.h"
+#include <mutex>
 #include <ctime>
+#include <cstdlib>
+#include <string>
 
 
 namespace Poco {
@@ -26,38 +28,90 @@ class TZInfo
 public:
 	TZInfo()
 	{
-		tzset();
+		reload();
 	}
-	
+
 	int timeZone()
 	{
-		Poco::FastMutex::ScopedLock lock(_mutex);
+		std::lock_guard<std::mutex> lock(_mutex);
 
-	#if defined(__APPLE__)  || defined(__FreeBSD__) || defined (__OpenBSD__) || POCO_OS == POCO_OS_ANDROID // no timezone global var
-		std::time_t now = std::time(NULL);
-		struct std::tm t;
-		gmtime_r(&now, &t);
-		std::time_t utc = std::mktime(&t);
-		return now - utc;
-	#elif defined(__CYGWIN__)
-		tzset();
-		return -_timezone;
-	#else
-		tzset();
-		return -timezone;
-	#endif
+		if (tzChanged())
+			reloadNoLock();
+		return _tzOffset;
 	}
-	
+
+	void reload()
+	{
+		std::lock_guard<std::mutex> lock(_mutex);
+		reloadNoLock();
+	}
+
 	const char* name(bool dst)
 	{
-		Poco::FastMutex::ScopedLock lock(_mutex);
+		std::lock_guard<std::mutex> lock(_mutex);
 
-		tzset();		
+		tzset();
 		return tzname[dst ? 1 : 0];
 	}
-		
+
 private:
-	Poco::FastMutex _mutex;
+	void reloadNoLock()
+	{
+		tzset();
+		_tzOffset = computeTimeZone();
+		cacheTZ();
+	}
+
+	void cacheTZ()
+	{
+		const char* tz = std::getenv("TZ");
+		_cachedTZ = tz ? tz : "";
+	}
+
+	bool tzChanged() const
+	{
+		const char* tz = std::getenv("TZ");
+		std::string currentTZ = tz ? tz : "";
+		return currentTZ != _cachedTZ;
+	}
+
+	static int computeTimeZone()
+	{
+#if defined(__APPLE__)  || defined(__FreeBSD__) || defined (__OpenBSD__) || POCO_OS == POCO_OS_ANDROID // no timezone global var
+		// Get offset from a date when DST is not active.
+		// Check both January and July - one of them won't have DST.
+		struct std::tm jan = {};
+		jan.tm_year = 2024 - 1900;
+		jan.tm_mon = 0;  // January
+		jan.tm_mday = 15;
+		jan.tm_hour = 12;
+		std::time_t jan_time = std::mktime(&jan);
+		struct std::tm jan_local;
+		localtime_r(&jan_time, &jan_local);
+
+		if (jan_local.tm_isdst <= 0)
+			return static_cast<int>(jan_local.tm_gmtoff);
+
+		// January has DST (Southern Hemisphere), try July
+		struct std::tm jul = {};
+		jul.tm_year = 2024 - 1900;
+		jul.tm_mon = 6;  // July
+		jul.tm_mday = 15;
+		jul.tm_hour = 12;
+		std::time_t jul_time = std::mktime(&jul);
+		struct std::tm jul_local;
+		localtime_r(&jul_time, &jul_local);
+		return static_cast<int>(jul_local.tm_gmtoff);
+#elif defined(__CYGWIN__)
+		return -_timezone;
+#else
+		return -timezone;
+#endif
+	}
+
+	std::mutex _mutex;
+	int _tzOffset;
+	std::string _cachedTZ;
 };
 
 
@@ -69,14 +123,30 @@ int Timezone::utcOffset()
 	return tzInfo.timeZone();
 }
 
-	
+
 int Timezone::dst()
 {
-	std::time_t now = std::time(NULL);
-	struct std::tm t;
-	if (!localtime_r(&now, &t))
+	return dst(Poco::Timestamp());
+}
+
+
+int Timezone::dst(const Poco::Timestamp& timestamp)
+{
+	std::time_t time = timestamp.epochTime();
+	struct std::tm local;
+	if (!localtime_r(&time, &local))
 		throw Poco::SystemException("cannot get local time DST offset");
-	return t.tm_isdst == 1 ? 3600 : 0;
+	if (local.tm_isdst > 0)
+	{
+#if defined(__CYGWIN__)
+		return local.__TM_GMTOFF - utcOffset();
+#elif defined(_BSD_SOURCE) || defined(__APPLE__)  || defined(__FreeBSD__) || defined (__OpenBSD__) || POCO_OS == POCO_OS_LINUX || POCO_OS == POCO_OS_ANDROID
+		return local.tm_gmtoff - utcOffset();
+#else
+		return 3600;
+#endif
+	}
+	else return 0;
 }
 
 
@@ -88,22 +158,28 @@ bool Timezone::isDst(const Timestamp& timestamp)
 	return tms->tm_isdst > 0;
 }
 
-	
+
 std::string Timezone::name()
 {
 	return std::string(tzInfo.name(dst() != 0));
 }
 
-	
+
 std::string Timezone::standardName()
 {
 	return std::string(tzInfo.name(false));
 }
 
-	
+
 std::string Timezone::dstName()
 {
 	return std::string(tzInfo.name(true));
+}
+
+
+void Timezone::reloadCache()
+{
+	tzInfo.reload();
 }
 
 

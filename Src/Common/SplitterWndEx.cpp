@@ -11,6 +11,8 @@
 #include "StdAfx.h"
 #include <vector>
 #include "SplitterWndEx.h"
+#include "cecolor.h"
+#include "DarkModeLib.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -21,6 +23,7 @@ BEGIN_MESSAGE_MAP(CSplitterWndEx, CSplitterWnd)
 	ON_WM_HSCROLL()
 	ON_WM_VSCROLL()
 	ON_WM_SIZE()
+	ON_WM_SETTINGCHANGE()
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -48,6 +51,18 @@ int CSplitterWndEx::HitTest(CPoint pt) const
 	if (m_bBarLocked)
 		return 0;
 	return CSplitterWnd::HitTest(pt);
+}
+
+BOOL CSplitterWndEx::CreateScrollBarCtrl(DWORD dwStyle, UINT nID)
+{
+	BOOL bResult = CSplitterWnd::CreateScrollBarCtrl(dwStyle, nID);
+	auto pBar = static_cast<CScrollBar*>(GetDlgItem(nID));
+	if (pBar != nullptr && pBar->GetSafeHwnd())
+	{
+		DarkMode::setDarkScrollBar(pBar->GetSafeHwnd());
+		pBar->Invalidate();
+	}
+	return bResult;
 }
 
 CScrollBar* CSplitterWndEx::GetScrollBarCtrl(CWnd* pWnd, int nBar) const
@@ -197,6 +212,7 @@ static void updateRatios(CSplitterWnd& wnd, int pane, int newpos, std::vector<in
 			wnd.GetRowInfo(i, sizes[i], min);
 		sum += sizes[i];
 	}
+	sum = (std::max)(sum, 1);
 	int sumratio = 0;
 	int i;
 	for (i = 0; i < pane; i++)
@@ -281,6 +297,68 @@ void CSplitterWndEx::EqualizeCols()
 	}
 }
 
+double CSplitterWndEx::GetSplitterRatio(int index, bool horizontal) const
+{
+	const auto& ratios = horizontal ? m_colRatios : m_rowRatios;
+	if (index < 0 || static_cast<size_t>(index) >= ratios.size())
+		return 0.0;
+	return static_cast<double>(ratios[index]) / 10000.0;
+}
+
+void CSplitterWndEx::SetSplitterRatios(const double* ratios, int count, bool horizontal)
+{
+	const int nPanes = horizontal ? m_nCols : m_nRows;
+	if (count != nPanes - 1)
+		return;
+
+	auto& ratiosVec = horizontal ? m_colRatios : m_rowRatios;
+	ratiosVec.clear();
+
+	int sumRatio = 0;
+	for (int i = 0; i < count; ++i)
+	{
+		const double d = ratios[i];
+		if (!(d > 0.0 && d < 1.0))
+		{
+			initializeRatios(ratiosVec, nPanes);
+			if (horizontal)
+				EqualizeCols();
+			else
+				EqualizeRows();
+			return;
+		}
+		const int ratio = static_cast<int>(d * 10000);
+		if (ratio <= 0 || sumRatio + ratio >= 10000)
+		{
+			initializeRatios(ratiosVec, nPanes);
+			if (horizontal)
+				EqualizeCols();
+			else
+				EqualizeRows();
+			return;
+		}
+		ratiosVec.push_back(ratio);
+		sumRatio += ratio;
+	}
+	ratiosVec.push_back(10000 - sumRatio);
+
+	if (horizontal)
+		EqualizeCols();
+	else
+		EqualizeRows();
+}
+
+void CSplitterWndEx::ResetSplitterRatios(bool horizontal)
+{
+	auto& ratios = horizontal ? m_colRatios : m_rowRatios;
+	initializeRatios(ratios, horizontal ? m_nCols : m_nRows);
+
+	if (horizontal)
+		EqualizeCols();
+	else
+		EqualizeRows();
+}
+
 void CSplitterWndEx::RecalcLayout()
 {
 	if (m_nCols == 2 && m_bAutoResizePanes)
@@ -294,8 +372,7 @@ void CSplitterWndEx::RecalcLayout()
 		bool bSplitPanesInHalf = true;
 		if (hLeftMonitor != hRightMonitor)
 		{
-			MONITORINFO info;
-			info.cbSize = sizeof(MONITORINFO);
+			MONITORINFO info{ sizeof(MONITORINFO) };
 			GetMonitorInfo(hLeftMonitor, &info);
 
 			int iDesiredWidthOfLeftPane = info.rcMonitor.right - vSplitterWndRect.left;
@@ -334,6 +411,34 @@ void CSplitterWndEx::TrackColumnSize(int x, int col)
 	updateRatios(*this, col, x, m_colRatios, true);
 }
 
+// Override GetActivePane() because CSplitterWnd::GetActivePane() does not take into account the case of nested Splitter Windows.
+CWnd* CSplitterWndEx::GetActivePane(int* pRow, int* pCol)
+{
+	ASSERT_VALID(this);
+
+	// attempt to use active view of frame window
+	CWnd* pView = NULL;
+	CFrameWnd* pFrameWnd = EnsureParentFrame();
+	pView = pFrameWnd ? pFrameWnd->GetActiveView() : nullptr;
+
+	// failing that, use the current focus
+	if (pView == NULL)
+		pView = GetFocus();
+
+	CWnd* pActiveView = pView;
+	if (pView)
+	{
+		while (pView && pView->GetParent() != this)
+			pView = pView->GetParent();
+	}
+
+	// make sure the pane is a child pane of the splitter
+	if (pView != NULL && !IsChildPane(pView, pRow, pCol))
+		pActiveView = NULL;
+
+	return pActiveView;
+}
+
 void CSplitterWndEx::OnSize(UINT nType, int cx, int cy) 
 {
 	CSplitterWnd::OnSize(nType, cx, cy);
@@ -352,7 +457,13 @@ void CSplitterWndEx::OnSize(UINT nType, int cx, int cy)
 			EqualizeRows();
 		}
 	}
+}
 
+void CSplitterWndEx::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
+{
+	if (WinMergeDarkMode::IsImmersiveColorSet(lpszSection))
+		DarkMode::setChildCtrlsTheme(GetSafeHwnd());
+	__super::OnSettingChange(uFlags, lpszSection);
 }
 
 void CSplitterWndEx::FlipSplit()
@@ -411,25 +522,17 @@ void CSplitterWndEx::FlipSplit()
 
 }
 
-static COLORREF GetIntermediateColor(COLORREF a, COLORREF b, float ratio)
-{
-	const int R = static_cast<int>((GetRValue(a) - GetRValue(b)) * ratio) + GetRValue(b);
-	const int G = static_cast<int>((GetGValue(a) - GetGValue(b)) * ratio) + GetGValue(b);
-	const int B = static_cast<int>((GetBValue(a) - GetBValue(b)) * ratio) + GetBValue(b);
-	return RGB(R, G, B);
-}
-
 void CSplitterWndEx::OnDrawSplitter(CDC* pDC, ESplitType nType, const CRect& rectArg)
 {
-	CRect rect = rectArg;
 	if (nType == splitBorder && pDC != nullptr && !m_bHideBorders)
 	{
+		CRect rect = rectArg;
 		COLORREF clrShadow  = GetSysColor(COLOR_BTNSHADOW);
 		COLORREF clrFace    = GetSysColor(COLOR_BTNFACE);
-		COLORREF clrShadow2 = GetIntermediateColor(clrFace, clrShadow, 0.9f);
-		COLORREF clrShadow3 = GetIntermediateColor(clrFace, clrShadow2, 0.5f);
-		COLORREF clrShadow4 = GetIntermediateColor(clrFace, clrShadow3, 0.5f);
-		COLORREF clrShadow5 = GetIntermediateColor(clrFace, clrShadow4, 0.5f);
+		COLORREF clrShadow2 = CEColor::GetIntermediateColor(clrFace, clrShadow, 0.9f);
+		COLORREF clrShadow3 = CEColor::GetIntermediateColor(clrFace, clrShadow2, 0.5f);
+		COLORREF clrShadow4 = CEColor::GetIntermediateColor(clrFace, clrShadow3, 0.5f);
+		COLORREF clrShadow5 = CEColor::GetIntermediateColor(clrFace, clrShadow4, 0.5f);
 		pDC->Draw3dRect(rect, clrShadow5, clrShadow4);
 		rect.InflateRect(-1, -1);
 		pDC->Draw3dRect(rect, clrShadow3, clrShadow2);

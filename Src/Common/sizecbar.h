@@ -30,15 +30,6 @@
 #include <afxpriv.h>    // for CDockContext
 #include <afxtempl.h>   // for CTypedPtrArray
 
-// MFC 8/VS.NET 2005 has breaking change in OnNcHitTest return value
-#ifndef NCHITTEST_RESULT
-#if _MFC_VER >= 0x0800
-#define NCHITTEST_RESULT LRESULT
-#else
-#define NCHITTEST_RESULT UINT
-#endif
-#endif
-
 #if defined(_SCB_MINIFRAME_CAPTION) && !defined(_SCB_REPLACE_MINIFRAME)
     #error "_SCB_MINIFRAME_CAPTION requires _SCB_REPLACE_MINIFRAME"
 #endif
@@ -122,12 +113,12 @@ public:
 protected:
     // implementation helpers
     UINT GetEdgeHTCode(int nEdge);
-    bool GetEdgeRect(CRect rcWnd, UINT nHitTest, CRect& rcEdge);
+    bool GetEdgeRect(const CRect& rcWnd, UINT nHitTest, CRect& rcEdge);
     virtual void StartTracking(UINT nHitTest, CPoint point);
     virtual void StopTracking();
     virtual void OnTrackUpdateSize(CPoint& point);
     virtual void OnTrackInvertTracker();
-    virtual void NcPaintGripper(CDC* pDC, CRect rcClient);
+    virtual void NcPaintGripper(CDC* pDC, const CRect& rcClient);
     virtual void NcCalcClient(LPRECT pRc, UINT nDockBarID);
 
     virtual void AlignControlBars();
@@ -162,17 +153,18 @@ protected:
     //{{AFX_MSG(CSizingControlBar)
     afx_msg int OnCreate(LPCREATESTRUCT lpCreateStruct);
     afx_msg void OnNcPaint();
-    afx_msg void OnNcCalcSize(BOOL bCalcValidRects, NCCALCSIZE_PARAMS FAR* lpncsp);
-    afx_msg NCHITTEST_RESULT OnNcHitTest(CPoint point);
+    afx_msg void OnNcCalcSize(BOOL bCalcValidRects, NCCALCSIZE_PARAMS* lpncsp);
+    afx_msg LRESULT OnNcHitTest(CPoint point);
     afx_msg void OnCaptureChanged(CWnd *pWnd);
     afx_msg void OnSettingChange(UINT uFlags, LPCTSTR lpszSection);
+    afx_msg void OnSysColorChange();
     afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
     afx_msg void OnMouseMove(UINT nFlags, CPoint point);
     afx_msg void OnNcLButtonDown(UINT nHitTest, CPoint point);
     afx_msg void OnLButtonDown(UINT nFlags, CPoint point);
     afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
     afx_msg void OnRButtonDown(UINT nFlags, CPoint point);
-    afx_msg void OnWindowPosChanging(WINDOWPOS FAR* lpwndpos);
+    afx_msg void OnWindowPosChanging(WINDOWPOS* lpwndpos);
     afx_msg void OnPaint();
     afx_msg void OnClose();
     afx_msg void OnSize(UINT nType, int cx, int cy);
@@ -226,8 +218,8 @@ public:
 
     //{{AFX_MSG(CSCBMiniDockFrameWnd)
     afx_msg void OnNcLButtonDown(UINT nHitTest, CPoint point);
-    afx_msg void OnGetMinMaxInfo(MINMAXINFO FAR* lpMMI);
-    afx_msg void OnWindowPosChanging(WINDOWPOS FAR* lpwndpos);
+    afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
+    afx_msg void OnWindowPosChanging(WINDOWPOS* lpwndpos);
     afx_msg void OnSize(UINT nType, int cx, int cy);
     //}}AFX_MSG
     DECLARE_MESSAGE_MAP()

@@ -101,7 +101,7 @@ public:
 		else
 		{
 			size_t wsize = *srcbytes * 2 + 6;
-			std::unique_ptr<wchar_t[]> pbuf(new wchar_t[wsize]);
+			auto pbuf = std::make_unique<wchar_t[]>(wsize);
 			bsucceeded = convertToUnicode(srcCodepage, (const char *)src, srcbytes, pbuf.get(), &wsize);
 			if (!bsucceeded)
 			{
@@ -128,7 +128,25 @@ public:
 		HRESULT hr = m_pmlang->ConvertStringToUnicode(&m_mlangcookie, srcCodepage, (char *)src, &uisrcbytes, dest, &uidestchars);
 		*srcbytes = uisrcbytes;
 		*destchars = uidestchars;
-		return SUCCEEDED(hr) ? true : false;
+		if (SUCCEEDED(hr))
+			return true;
+		if (srcCodepage != ucr::CP_UCS2BE)
+			return false;
+#ifdef POCO_ARCH_BIG_ENDIAN
+		return false;
+#else
+		// Workaround for the problem that Wine does not support UCS2-BE(1201) as the source code page for IMultiLanguage::ConvertStringToUnicode()
+		if (uisrcbytes > 0)
+		{
+			for (size_t i = 0; i < uisrcbytes - 1; i += 2)
+				dest[i >> 1] = (src[i] << 8) + src[i + 1];
+			if ((uisrcbytes % 2) == 1)
+				memcpy(reinterpret_cast<unsigned char*>(dest) + uisrcbytes - 1, src + uisrcbytes - 1, 1);
+		}
+		*srcbytes = uisrcbytes;
+		*destchars = uisrcbytes;
+		return true;
+#endif
 	}
 
 	void clearCookie()
@@ -149,7 +167,7 @@ public:
 			return defcodepage;
 		srcsize = static_cast<UINT>(size);
 		dstsize = static_cast<UINT>(size * sizeof(wchar_t));
-		std::unique_ptr<unsigned char[]> pdst(new unsigned char[size * sizeof(wchar_t)]);
+		auto pdst = std::make_unique<unsigned char[]>(size * sizeof(wchar_t));
 		SetLastError(0);
 		hr = pcc->DoConversion((unsigned char *)data, &srcsize, pdst.get(), &dstsize);
 		pcc->GetSourceCodePage((unsigned *)&codepage);
@@ -228,7 +246,7 @@ public:
 		HRESULT hr = m_pmlang->EnumCodePages(MIMECONTF_SAVABLE_BROWSER | MIMECONTF_VALID | MIMECONTF_VALID_NLS, 0, &pEnumCodePage);
 		if (FAILED(hr))
 			return cpinfo;
-		std::unique_ptr<MIMECPINFO[]> pcpInfo(new MIMECPINFO[256]);
+		auto pcpInfo = std::make_unique<MIMECPINFO[]>(256);
 		if (FAILED(pEnumCodePage->Next(256, pcpInfo.get(), &ccpInfo)))
 			return cpinfo;
 

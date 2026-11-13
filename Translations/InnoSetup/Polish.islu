@@ -1,0 +1,95 @@
+﻿[Messages]
+
+WizardInfoBefore=Umowa licencyjna
+InfoBeforeLabel=Powszechna Licencja Publiczna GNU
+
+[CustomMessages]
+
+;Things we can also localize
+OptionalFeatures=Funkcje opcjonalne:
+CompanyName=Thingamahoochie Software
+
+;Types
+TypicalInstallation=Typowa instalacja
+FullInstallation=Pełna instalacja
+CompactInstallation=Ograniczona instalacja
+CustomInstallation=Instalacja niestandardowa
+
+;Components
+AppCoreFiles=Podstawowe pliki WinMerge
+Filters=Filtry
+Plugins=Wtyczki
+ShellExtension32bit=32-bitowe rozszerzenie powłoki WinMerge
+
+;Localization Components
+Languages=Języki
+ArabicLanguage=Arabski
+AzerbaijaniLanguage=Azerbejdżański
+BasqueLanguage=Baskijski
+BulgarianLanguage=Bułgarski
+CatalanLanguage=Kataloński
+ChineseSimplifiedLanguage=Chiński (uproszczony)
+ChineseTraditionalLanguage=Chiński (tradycyjny)
+CorsicanLanguage=Korsykański
+CroatianLanguage=Chorwacki
+CzechLanguage=Czeski
+DanishLanguage=Duński
+DutchLanguage=Holenderski
+FinnishLanguage=Fiński
+FrenchLanguage=Francuski
+GalicianLanguage=Galicyjski
+GermanLanguage=Niemiecki
+GreekLanguage=Grecki
+HebrewLanguage=Hebrajski
+HungarianLanguage=Węgierski
+ItalianLanguage=Włoski
+IndonesianLanguage=Indonezyjski
+JapaneseLanguage=Japoński
+KoreanLanguage=Koreański
+LithuanianLanguage=Litewski
+NorwegianLanguage=Norweski
+PersianLanguage=Perski
+PolishLanguage=Polski
+PortugueseBrazilLanguage=Portugalski (brazylijski)
+PortugueseLanguage=Portugalski
+RomanianLanguage=Rumuński
+RussianLanguage=Rosyjski
+SerbianLanguage=Serbski
+SinhalaLanguage=Syngaleski
+SlovakLanguage=Słowacki
+SlovenianLanguage=Słoweński
+SpanishLanguage=Hiszpański
+SwedishLanguage=Szwedzki
+TamilLanguage=Tamilski
+TurkishLanguage=Turecki
+UkrainianLanguage=Ukraiński
+VietnameseLanguage=Wietnamski
+
+;Tasks
+ExplorerContextMenu=&Włącz integrację z menu kontekstowym Eksploratora
+IntegrateTortoiseCVS=Integracja z &TortoiseCVS
+IntegrateTortoiseGit=Integracja z To&rtoiseGit
+IntegrateTortoiseSVN=Integracja z T&ortoiseSVN
+AddToPath=&Dodaj folder WinMerge do ścieżki systemowej
+
+; 3-way merge wizard page
+ThreeWayMergeWizardPageCaption=Scalanie trójstronne
+ThreeWayMergeWizardPageDescription=Wybierz panel, do którego chcesz scalić zmiany:
+RegisterWinMergeAs3WayMergeTool=Zarejestruj WinMerge jako narzędzie do scalania trójstronnego
+MergeAtRightPane=Scal w prawym panelu
+MergeAtCenterPane=Scal w środkowym panelu
+MergeAtLeftPane=Scal w lewym panelu
+AutoMergeAtStartup=Automatyczne scalanie podczas uruchamiania
+
+;Icon Labels
+ReadMe=Czytaj to
+UsersGuide=Przewodnik użytkownika
+ViewStartMenuFolder=&Wyświetl folder menu Start WinMerge
+
+;Code Dialogs
+DeletePreviousStartMenu=Instalator wykrył, że zmieniłeś lokalizację menu startowego z "%s" na "%s". Czy usunąć poprzedni folder menu startowego?
+ExplorerNeedsRestart=Rozszerzenie powłoki WinMerge wymaga ponownego uruchomienia Eksploratora, aby zastosować aktualizację. Czy uruchomić ponownie Eksploratora?
+
+; Project file description
+ProjectFileDesc=Plik projektu WinMerge
+

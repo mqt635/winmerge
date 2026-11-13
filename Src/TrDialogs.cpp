@@ -1,6 +1,7 @@
 #include <StdAfx.h>
-#include "Merge.h"
 #include "TrDialogs.h"
+#include "Logger.h"
+#include "DarkModeLib.h"
 
 IMPLEMENT_DYNAMIC(CTrDialog, CDialog)
 IMPLEMENT_DYNAMIC(CTrPropertyPage, CPropertyPage)
@@ -12,7 +13,7 @@ void StaticDlgUtils::WildcardRemoveDuplicatePatterns(String& patterns)
 	while ((j = patterns.find_first_of(L"; ", i)) != String::npos &&
 		(k = patterns.find_last_of(L"; ", j) + 1) != patterns.length())
 	{
-		TCHAR const sep = patterns[j];
+		tchar_t const sep = patterns[j];
 		patterns[j] = L'\0';
 		if (PathMatchSpec(patterns.c_str() + i, patterns.c_str() + k))
 		{
@@ -28,32 +29,81 @@ void StaticDlgUtils::WildcardRemoveDuplicatePatterns(String& patterns)
 
 BOOL CTrDialog::OnInitDialog()
 {
-	theApp.TranslateDialog(m_hWnd);
-	CDialog::OnInitDialog();
+	I18n::TranslateDialog(m_hWnd);
+	__super::OnInitDialog();
+	DarkMode::setDarkWndSafeEx(GetSafeHwnd(), true);
 	return TRUE;
+}
+
+void CTrDialog::OnOK()
+{
+	RootLogger::Info(GetTitleText() + _T(": ") + _("OK"));
+	__super::OnOK();
+}
+
+void CTrDialog::OnCancel()
+{
+	RootLogger::Info(GetTitleText() + _T(": ") + _("Cancel"));
+	__super::OnCancel();
 }
 
 BOOL CTrPropertyPage::OnInitDialog()
 {
-	theApp.TranslateDialog(m_hWnd);
-	CPropertyPage::OnInitDialog();
+	I18n::TranslateDialog(m_hWnd);
+	__super::OnInitDialog();
+	if (HWND hSelf = GetSafeHwnd())
+	{
+		DarkMode::setWindowCtlColorSubclass(hSelf);
+		DarkMode::setChildCtrlsSubclassAndThemeEx(hSelf, true, true);
+	}
+
+	DarkMode::setDarkWndSafeEx(*GetParent(), true);
 	return TRUE;
+}
+
+void CTrPropertyPage::OnOK()
+{
+	RootLogger::Info(GetTitleText() + _T(": ") + _("OK"));
+	__super::OnOK();
+}
+
+void CTrPropertyPage::OnCancel()
+{
+	RootLogger::Info(GetTitleText() + _T(": ") + _("Cancel"));
+	__super::OnCancel();
 }
 
 BOOL CTrDialogBar::Create(CWnd* pParentWnd, LPCTSTR lpszTemplateName,
 	UINT nStyle, UINT nID)
 {
-	BOOL bSucceeded = CDialogBar::Create(pParentWnd, lpszTemplateName, nStyle, nID);
+	BOOL bSucceeded = __super::Create(pParentWnd, lpszTemplateName, nStyle, nID);
 	if (bSucceeded)
-		theApp.TranslateDialog(m_hWnd);
+	{
+		I18n::TranslateDialog(m_hWnd);
+		if (HWND hSelf = GetSafeHwnd())
+		{
+			SetBarStyle(GetBarStyle() & ~CBRS_BORDER_ANY);
+			DarkMode::setWindowCtlColorSubclass(hSelf);
+			DarkMode::setChildCtrlsSubclassAndThemeEx(hSelf, true, true);
+		}
+	}
 	return bSucceeded;
 }
 
 BOOL CTrDialogBar::Create(CWnd* pParentWnd, UINT nIDTemplate,
 	UINT nStyle, UINT nID)
 {
-	BOOL bSucceeded = CDialogBar::Create(pParentWnd, nIDTemplate, nStyle, nID);
+	BOOL bSucceeded = __super::Create(pParentWnd, nIDTemplate, nStyle, nID);
 	if (bSucceeded)
-		theApp.TranslateDialog(m_hWnd);
+	{
+		I18n::TranslateDialog(m_hWnd);
+		if (HWND hSelf = GetSafeHwnd())
+		{
+			SetBarStyle(GetBarStyle() & ~CBRS_BORDER_ANY);
+			DarkMode::setWindowCtlColorSubclass(hSelf);
+			DarkMode::setChildCtrlsSubclassAndThemeEx(hSelf, true, true);
+		}
+	}
+
 	return bSucceeded;
 }

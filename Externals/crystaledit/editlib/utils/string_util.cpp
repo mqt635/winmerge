@@ -3,11 +3,8 @@
  *
  * @brief Char classification routines implementations.
  */
-// ID line follows -- this is updated by SVN
-// $Id$
 
-#include <windows.h>
-#include <tchar.h>
+#include "pch.h"
 #include "string_util.h"
 
 static wint_t normch(wint_t c);
@@ -39,7 +36,7 @@ int xisspecial(wint_t c)
  */
 int xisalpha(wint_t c)
 {
-  return _istalpha(normch(c)) || xisspecial(normch(c));
+  return tc::istalpha(normch(c)) || xisspecial(normch(c));
 }
 
 /**
@@ -48,7 +45,7 @@ int xisalpha(wint_t c)
  */
 int xisalnum(wint_t c)
 {
-  return _istalnum(normch(c)) || xisspecial(normch(c));
+  return tc::istalnum(normch(c)) || xisspecial(normch(c));
 }
 
 /**
@@ -57,10 +54,10 @@ int xisalnum(wint_t c)
  */
 int xisspace(wint_t c)
 {
-  return _istspace(normch(c));
+  return tc::istspace(normch(c));
 }
 
-bool IsMBSTrail (const TCHAR *pszChars, int nCol)
+bool IsMBSTrail (const tchar_t* pszChars, int nCol)
 {
 #ifdef _UNICODE
   const wchar_t *current = pszChars + nCol;

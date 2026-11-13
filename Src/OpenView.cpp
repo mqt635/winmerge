@@ -12,10 +12,12 @@
 
 #include "stdafx.h"
 #include "OpenView.h"
+#include "OpenFrm.h"
 #include <vector>
-#include <sys/stat.h>
 #include "UnicodeString.h"
+#include "Logger.h"
 #include "Merge.h"
+#include "MergeCmdLineInfo.h"
 #include "OpenDoc.h"
 #include "ProjectFile.h"
 #include "paths.h"
@@ -29,11 +31,19 @@
 #include "Bitmap.h"
 #include "DropHandler.h"
 #include "FileFilterHelper.h"
+#include "FileFilterHelperMenu.h"
+#include "FilterErrorMessages.h"
 #include "Plugins.h"
+#include "MergeAppCOMClass.h"
 #include "BCMenu.h"
 #include "LanguageSelect.h"
 #include "Win_VersionHelper.h"
 #include "OptionsProject.h"
+#include "Merge7zFormatMergePluginImpl.h"
+#include "DarkModeLib.h"
+#include "ClipboardHistory.h"
+#include "ClipboardHistoryMenu.h"
+#include "PluginMenu.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -48,10 +58,6 @@ const UINT IDT_CHECKFILES = 1;
 const UINT IDT_RETRY = 2;
 const UINT CHECKFILES_TIMEOUT = 1000; // milliseconds
 const int RETRY_MAX = 3;
-static const TCHAR EMPTY_EXTENSION[] = _T(".*");
-
-/** @brief Location for Open-dialog specific help to open. */
-static TCHAR OpenDlgHelpLocation[] = _T("::/htmlhelp/Open_paths.html");
 
 // COpenView
 
@@ -60,19 +66,28 @@ IMPLEMENT_DYNCREATE(COpenView, CFormView)
 BEGIN_MESSAGE_MAP(COpenView, CFormView)
 	//{{AFX_MSG_MAP(COpenView)
 	ON_CONTROL_RANGE(BN_CLICKED, IDC_PATH0_BUTTON, IDC_PATH2_BUTTON, OnPathButton)
+	ON_NOTIFY(BCN_DROPDOWN, IDC_PATH0_BUTTON, (OnDropDown<IDC_PATH0_BUTTON, IDR_POPUP_BROWSE>))
+	ON_NOTIFY(BCN_DROPDOWN, IDC_PATH1_BUTTON, (OnDropDown<IDC_PATH1_BUTTON, IDR_POPUP_BROWSE>))
+	ON_NOTIFY(BCN_DROPDOWN, IDC_PATH2_BUTTON, (OnDropDown<IDC_PATH2_BUTTON, IDR_POPUP_BROWSE>))
+	ON_COMMAND_RANGE(ID_EDITOR_CLIPBOARD_FIRST, ID_EDITOR_CLIPBOARD_LAST, OnSelectClipboardItem)
 	ON_BN_CLICKED(IDC_SWAP01_BUTTON, (OnSwapButton<IDC_PATH0_COMBO, IDC_PATH1_COMBO>))
 	ON_BN_CLICKED(IDC_SWAP12_BUTTON, (OnSwapButton<IDC_PATH1_COMBO, IDC_PATH2_COMBO>))
 	ON_BN_CLICKED(IDC_SWAP02_BUTTON, (OnSwapButton<IDC_PATH0_COMBO, IDC_PATH2_COMBO>))
 	ON_CONTROL_RANGE(CBN_SELCHANGE, IDC_PATH0_COMBO, IDC_PATH2_COMBO, OnSelchangePathCombo)
 	ON_CONTROL_RANGE(CBN_EDITCHANGE, IDC_PATH0_COMBO, IDC_PATH2_COMBO, OnEditEvent)
-	ON_BN_CLICKED(IDC_SELECT_UNPACKER, OnSelectUnpacker)
+	ON_CONTROL_RANGE(BN_CLICKED, IDC_SELECT_UNPACKER, IDC_SELECT_PREDIFFER, OnSelectPlugin)
+	ON_CONTROL_RANGE(CBN_SELCHANGE, IDC_UNPACKER_COMBO, IDC_PREDIFFER_COMBO, OnSelchangePlugin)
+	ON_CONTROL_RANGE(CBN_EDITCHANGE, IDC_UNPACKER_COMBO, IDC_PREDIFFER_COMBO, OnSelchangePlugin)
 	ON_CBN_SELENDCANCEL(IDC_PATH0_COMBO, UpdateButtonStates)
 	ON_CBN_SELENDCANCEL(IDC_PATH1_COMBO, UpdateButtonStates)
 	ON_CBN_SELENDCANCEL(IDC_PATH2_COMBO, UpdateButtonStates)
 	ON_NOTIFY_RANGE(CBEN_BEGINEDIT, IDC_PATH0_COMBO, IDC_PATH2_COMBO, OnSetfocusPathCombo)
 	ON_NOTIFY_RANGE(CBEN_DRAGBEGIN, IDC_PATH0_COMBO, IDC_PATH2_COMBO, OnDragBeginPathCombo)
 	ON_WM_TIMER()
+	ON_CBN_EDITCHANGE(IDC_EXT_COMBO, OnExtEditChange)
+	ON_CBN_SELCHANGE(IDC_EXT_COMBO, OnExtEditChange)
 	ON_BN_CLICKED(IDC_SELECT_FILTER, OnSelectFilter)
+	ON_NOTIFY(BCN_DROPDOWN, IDC_SELECT_FILTER, OnSelectFilterDropDown)
 	ON_BN_CLICKED(IDC_OPTIONS, OnOptions)
 	ON_NOTIFY(BCN_DROPDOWN, IDC_OPTIONS, (OnDropDown<IDC_OPTIONS, IDR_POPUP_PROJECT_DIFF_OPTIONS>))
 	ON_COMMAND_RANGE(ID_PROJECT_DIFF_OPTIONS_WHITESPACE_COMPARE, ID_PROJECT_DIFF_OPTIONS_WHITESPACE_IGNOREALL, OnDiffWhitespace)
@@ -89,8 +104,12 @@ BEGIN_MESSAGE_MAP(COpenView, CFormView)
 	ON_UPDATE_COMMAND_UI(ID_PROJECT_DIFF_OPTIONS_IGNORE_CODEPAGE, OnUpdateDiffIgnoreCP)
 	ON_COMMAND(ID_PROJECT_DIFF_OPTIONS_IGNORE_COMMENTS, OnDiffIgnoreComments)
 	ON_UPDATE_COMMAND_UI(ID_PROJECT_DIFF_OPTIONS_IGNORE_COMMENTS, OnUpdateDiffIgnoreComments)
-	ON_COMMAND_RANGE(ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_FULL_CONTENTS, ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_SIZE, OnCompareMethod)
-	ON_UPDATE_COMMAND_UI_RANGE(ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_FULL_CONTENTS, ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_SIZE, OnUpdateCompareMethod)
+	ON_COMMAND(ID_PROJECT_DIFF_OPTIONS_IGNORE_MISSING_TRAILING_EOL, OnDiffIgnoreMissingTrailingEol)
+	ON_UPDATE_COMMAND_UI(ID_PROJECT_DIFF_OPTIONS_IGNORE_MISSING_TRAILING_EOL, OnUpdateDiffIgnoreMissingTrailingEol)
+	ON_COMMAND(ID_PROJECT_DIFF_OPTIONS_IGNORE_LINE_BREAKS, OnDiffIgnoreLineBreaks)
+	ON_UPDATE_COMMAND_UI(ID_PROJECT_DIFF_OPTIONS_IGNORE_LINE_BREAKS, OnUpdateDiffIgnoreLineBreaks)
+	ON_COMMAND_RANGE(ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_FULL_CONTENTS, ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_EXISTENCE, OnCompareMethod)
+	ON_UPDATE_COMMAND_UI_RANGE(ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_FULL_CONTENTS, ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_EXISTENCE, OnUpdateCompareMethod)
 	ON_WM_ACTIVATE()
 	ON_COMMAND(ID_LOAD_PROJECT, OnLoadProject)
 	ON_COMMAND(ID_SAVE_PROJECT, OnSaveProject)
@@ -105,18 +124,24 @@ BEGIN_MESSAGE_MAP(COpenView, CFormView)
 	ON_COMMAND(ID_EDIT_CUT, OnEditAction<WM_CUT>)
 	ON_COMMAND(ID_EDIT_UNDO, OnEditAction<WM_UNDO>)
 	ON_COMMAND(ID_EDIT_SELECT_ALL, (OnEditAction<EM_SETSEL, 0, -1>))
-	ON_COMMAND_RANGE(ID_MERGE_COMPARE_TEXT, ID_MERGE_COMPARE_IMAGE, OnCompare)
-	ON_UPDATE_COMMAND_UI_RANGE(ID_MERGE_COMPARE_TEXT, ID_MERGE_COMPARE_IMAGE, OnUpdateCompare)
+	ON_COMMAND_RANGE(ID_MERGE_COMPARE_TEXT, ID_MERGE_COMPARE_FOLDER, OnCompare)
+	ON_UPDATE_COMMAND_UI_RANGE(ID_MERGE_COMPARE_TEXT, ID_MERGE_COMPARE_FOLDER, OnUpdateCompare)
 	ON_COMMAND_RANGE(ID_UNPACKERS_FIRST, ID_UNPACKERS_LAST, OnCompare)
 	ON_COMMAND_RANGE(ID_OPEN_WITH_UNPACKER, ID_OPEN_WITH_UNPACKER, OnCompare)
 	ON_MESSAGE(WM_USER + 1, OnUpdateStatus)
 	ON_WM_PAINT()
+	ON_WM_THEMECHANGED()
+	ON_WM_SETTINGCHANGE()
 	ON_WM_LBUTTONUP()
 	ON_WM_MOUSEMOVE()
 	ON_WM_WINDOWPOSCHANGING()
 	ON_WM_WINDOWPOSCHANGED()
 	ON_WM_NCHITTEST()
 	ON_WM_DESTROY()
+	ON_WM_SIZE()
+	ON_BN_CLICKED(IDC_RECENT_COMPARES_SHOW, OnRecentComparesShow)
+	ON_NOTIFY(NM_CLICK, IDC_RECENT_COMPARES_LIST, OnClickRecentCompares)
+	ON_NOTIFY(NM_DBLCLK, IDC_RECENT_COMPARES_LIST, OnDblclkRecentCompares)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -140,7 +165,13 @@ COpenView::COpenView()
 	, m_bIgnoreNumbers(false)
 	, m_bIgnoreCodepage(false)
 	, m_bFilterCommentsLines(false)
+	, m_bIgnoreMissingTrailingEol(false)
+	, m_bIgnoreLineBreaks(false)
 	, m_nCompareMethod(0)
+	, m_nLastDropDownButton(0)
+	, m_hTheme(nullptr)
+	, m_bRecentComparesShown(false)
+	, m_nRecentComparesHeight(0)
 {
 	// CWnd::EnableScrollBarCtrl() called inside CScrollView::UpdateBars() is quite slow.
 	// Therefore, set m_bInsideUpdate = TRUE so that CScrollView::UpdateBars() does almost nothing.
@@ -154,13 +185,15 @@ COpenView::~COpenView()
 
 void COpenView::DoDataExchange(CDataExchange* pDX)
 {
-	CFormView::DoDataExchange(pDX);
+	__super::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(COpenView)
 	DDX_Control(pDX, IDC_EXT_COMBO, m_ctlExt);
 	DDX_Control(pDX, IDC_PATH0_COMBO, m_ctlPath[0]);
 	DDX_Control(pDX, IDC_PATH1_COMBO, m_ctlPath[1]);
 	DDX_Control(pDX, IDC_PATH2_COMBO, m_ctlPath[2]);
 	DDX_Control(pDX, IDC_UNPACKER_COMBO, m_ctlUnpackerPipeline);
+	DDX_Control(pDX, IDC_PREDIFFER_COMBO, m_ctlPredifferPipeline);
+	DDX_Control(pDX, IDC_RECENT_COMPARES_LIST, m_ctlRecentCompares);
 	DDX_CBStringExact(pDX, IDC_PATH0_COMBO, m_strPath[0]);
 	DDX_CBStringExact(pDX, IDC_PATH1_COMBO, m_strPath[1]);
 	DDX_CBStringExact(pDX, IDC_PATH2_COMBO, m_strPath[2]);
@@ -170,6 +203,7 @@ void COpenView::DoDataExchange(CDataExchange* pDX)
 	DDX_Check(pDX, IDC_RECURS_CHECK, m_bRecurse);
 	DDX_CBStringExact(pDX, IDC_EXT_COMBO, m_strExt);
 	DDX_CBStringExact(pDX, IDC_UNPACKER_COMBO, m_strUnpackerPipeline);
+	DDX_CBStringExact(pDX, IDC_PREDIFFER_COMBO, m_strPredifferPipeline);
 	//}}AFX_DATA_MAP
 }
 
@@ -179,7 +213,7 @@ BOOL COpenView::PreCreateWindow(CREATESTRUCT& cs)
 	//  the CREATESTRUCT cs
 	cs.style &= ~WS_BORDER;
 	cs.dwExStyle &= ~WS_EX_CLIENTEDGE;
-	return CFormView::PreCreateWindow(cs);
+	return __super::PreCreateWindow(cs);
 }
 
 void COpenView::OnInitialUpdate()
@@ -187,22 +221,29 @@ void COpenView::OnInitialUpdate()
 	if (!IsVista_OrGreater())
 	{
 		// fallback for XP 
-		SendDlgItemMessage(IDC_OPTIONS, BM_SETSTYLE, BS_PUSHBUTTON, TRUE);
-		SendDlgItemMessage(ID_SAVE_PROJECT, BM_SETSTYLE, BS_PUSHBUTTON, TRUE);
-		SendDlgItemMessage(IDOK, BM_SETSTYLE, BS_PUSHBUTTON, TRUE);
+		for (int id : { IDC_OPTIONS, ID_SAVE_PROJECT, IDOK, IDC_SELECT_FILTER, IDC_PATH0_BUTTON, IDC_PATH1_BUTTON, IDC_PATH2_BUTTON })
+			SendDlgItemMessage(id, BM_SETSTYLE, BS_PUSHBUTTON, TRUE);
 	}
 
 	m_sizeOrig = GetTotalSize();
 
-	theApp.TranslateDialog(m_hWnd);
+	I18n::TranslateDialog(m_hWnd);
 
 	if (!LoadImageFromResource(m_image, MAKEINTRESOURCE(IDR_LOGO), _T("IMAGE")))
 	{
 		// FIXME: LoadImageFromResource() seems to fail when running on Wine 5.0.
 		m_image.Create(1, 1, 24, 0);
 	}
+	if (HWND hSelf = GetSafeHwnd())
+	{
+		DarkMode::setWindowCtlColorSubclass(hSelf);
+		DarkMode::setChildCtrlsSubclassAndThemeEx(hSelf, true, true);
+	}
 
-	CFormView::OnInitialUpdate();
+	if (DarkMode::isExperimentalActive())
+		WinMergeDarkMode::InvertLightness(m_image);
+
+	__super::OnInitialUpdate();
 
 	// set caption to "swap paths" button
 	LOGFONT lf;
@@ -210,12 +251,21 @@ void COpenView::OnInitialUpdate()
 	lf.lfCharSet = SYMBOL_CHARSET;
 	lstrcpy(lf.lfFaceName, _T("Wingdings"));
 	m_fontSwapButton.CreateFontIndirect(&lf);
-	const int ids[] = {IDC_SWAP01_BUTTON, IDC_SWAP12_BUTTON, IDC_SWAP02_BUTTON};
-	for (int i = 0; i < sizeof(ids)/sizeof(ids[0]); ++i)
+	const int ids[] = { IDC_SWAP01_BUTTON, IDC_SWAP12_BUTTON, IDC_SWAP02_BUTTON };
+	for (int i = 0; i < sizeof(ids) / sizeof(ids[0]); ++i)
 	{
 		GetDlgItem(ids[i])->SetFont(&m_fontSwapButton);
 		SetDlgItemText(ids[i], _T("\xf4"));
 	}
+
+	// Recent comparison list, collapsed by default (the view then has its original size). Expanded, it lies
+	// between the buttons and the status line, which moves down by the added height.
+	m_nRecentComparesHeight = 0;
+	m_ctlRecentCompares.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_DOUBLEBUFFER | LVS_EX_INFOTIP);
+	m_ctlRecentCompares.InsertColumn(0, _("Comparison").c_str());
+	m_ctlRecentCompares.InsertColumn(1, _("Command line").c_str());
+	const bool bShowRecentCompares = GetOptionsMgr()->GetBool(OPT_SHOW_RECENT_COMPARES);
+	CheckDlgButton(IDC_RECENT_COMPARES_SHOW, bShowRecentCompares ? BST_CHECKED : BST_UNCHECKED);
 
 	m_constraint.InitializeCurrentSize(this);
 	m_constraint.InitializeSpecificSize(this, m_sizeOrig.cx, m_sizeOrig.cy);
@@ -225,19 +275,19 @@ void COpenView::OnInitialUpdate()
 	m_constraint.DisallowHeightGrowth();
 	//m_constraint.SubclassWnd(); // install subclassing
 
+	ShowRecentCompares(bShowRecentCompares);
+
 	m_constraint.LoadPosition(_T("ResizeableDialogs"), _T("OpenView"), false); // persist size via registry
 	m_constraint.UpdateSizes();
 
-	COpenDoc *pDoc = GetDocument();
-
-	CString strTitle;
-	GetWindowText(strTitle);
-	pDoc->SetTitle(strTitle);
+	COpenDoc* pDoc = GetDocument();
+	pDoc->SetTitle(_("Select Files or Folders").c_str());
 
 	m_files = pDoc->m_files;
 	m_bRecurse = pDoc->m_bRecurse;
 	m_strExt = pDoc->m_strExt;
 	m_strUnpackerPipeline = pDoc->m_strUnpackerPipeline;
+	m_strPredifferPipeline = pDoc->m_strPredifferPipeline;
 	m_dwFlags[0] = pDoc->m_dwFlags[0];
 	m_dwFlags[1] = pDoc->m_dwFlags[1];
 	m_dwFlags[2] = pDoc->m_dwFlags[2];
@@ -246,6 +296,7 @@ void COpenView::OnInitialUpdate()
 	m_ctlPath[1].SetFileControlStates(true);
 	m_ctlPath[2].SetFileControlStates(true);
 	m_ctlUnpackerPipeline.SetFileControlStates(true);
+	m_ctlPredifferPipeline.SetFileControlStates(true);
 
 	for (int file = 0; file < m_files.GetSize(); file++)
 	{
@@ -260,9 +311,10 @@ void COpenView::OnInitialUpdate()
 	LoadComboboxStates();
 
 	m_ctlUnpackerPipeline.SetWindowText(m_strUnpackerPipeline.c_str());
+	m_ctlPredifferPipeline.SetWindowText(m_strPredifferPipeline.c_str());
 
 	bool bDoUpdateData = true;
-	for (auto& strPath: m_strPath)
+	for (auto& strPath : m_strPath)
 	{
 		if (!strPath.empty())
 			bDoUpdateData = false;
@@ -270,15 +322,7 @@ void COpenView::OnInitialUpdate()
 	UpdateData(bDoUpdateData);
 
 	auto* pGlobalFileFilter = theApp.GetGlobalFileFilter();
-	String filterNameOrMask = pGlobalFileFilter->GetFilterNameOrMask();
-	bool bMask = pGlobalFileFilter->IsUsingMask();
-
-	if (!bMask)
-	{
-		String filterPrefix = _("[F] ");
-		filterNameOrMask = filterPrefix + filterNameOrMask;
-	}
-
+	String filterNameOrMask = pGlobalFileFilter->GetMaskOrExpression();
 	int ind = m_ctlExt.FindStringExact(0, filterNameOrMask.c_str());
 	if (ind != CB_ERR)
 		m_ctlExt.SetCurSel(ind);
@@ -288,7 +332,62 @@ void COpenView::OnInitialUpdate()
 		if (ind != CB_ERR)
 			m_ctlExt.SetCurSel(ind);
 		else
-			LogErrorString(_T("Failed to add string to filters combo list!"));
+			RootLogger::Error(_T("Failed to add string to filters combo list!"));
+	}
+
+	COMBOBOXINFO cbi{sizeof(COMBOBOXINFO)};
+	GetComboBoxInfo(m_ctlExt.m_hWnd, &cbi);
+	m_ctlExtEdit.SubclassWindow(cbi.hwndItem);
+	m_ctlExtEdit.m_validator = [this](const CString& text, CString& error) -> bool
+		{
+			FileFilterHelper fileFilterHelper;
+			fileFilterHelper.CloneFrom(theApp.GetGlobalFileFilter());
+			fileFilterHelper.SetMaskOrExpression((const tchar_t *)text);
+			const bool bError = !fileFilterHelper.GetErrorList().empty();
+			if (bError)
+			{
+				for (const auto* errorItem : fileFilterHelper.GetErrorList())
+					error += (FormatFilterErrorSummary(*errorItem) + _T("\r\n")).c_str();
+			}
+			return !bError;
+		};
+	m_ctlExtEdit.Validate();
+	m_ctlExtEdit.SetCueBanner(strutils::format_string1(_("e.g. %1"), _T("*.txt|fe:Size > 100KB")).c_str());
+
+	if (m_ctlUnpackerPipeline.GetEditCtrl()->GetSafeHwnd())
+	{
+		m_ctlUnpackerPipelineEdit.SubclassWindow(m_ctlUnpackerPipeline.GetEditCtrl()->m_hWnd);
+		m_ctlUnpackerPipelineEdit.m_validator = [this](const CString& text, CString& error) -> bool
+			{
+				if (text.IsEmpty())
+					return true;
+				String pipeline = text;
+				auto pPluginPipeline = std::make_unique<PackingInfo>(pipeline);
+				String errorMessage;
+				bool result = pPluginPipeline->Validate(errorMessage);
+				error = errorMessage.c_str();
+				return result;
+			};
+		m_ctlUnpackerPipelineEdit.Validate();
+		m_ctlUnpackerPipelineEdit.SetCueBanner(strutils::format_string1(_("e.g. %1"), _T("le:toUpper(Line)|SortAscending")).c_str());
+	}
+
+	if (m_ctlPredifferPipeline.GetEditCtrl()->GetSafeHwnd())
+	{
+		m_ctlPredifferPipelineEdit.SubclassWindow(m_ctlPredifferPipeline.GetEditCtrl()->m_hWnd);
+		m_ctlPredifferPipelineEdit.m_validator = [this](const CString& text, CString& error) -> bool
+			{
+				if (text.IsEmpty())
+					return true;
+				String pipeline = text;
+				auto pPluginPipeline = std::make_unique<PrediffingInfo>(pipeline);
+				String errorMessage;
+				bool result = pPluginPipeline->Validate(errorMessage);
+				error = errorMessage.c_str();
+				return result;
+			};
+		m_ctlPredifferPipelineEdit.Validate();
+		m_ctlPredifferPipelineEdit.SetCueBanner(strutils::format_string1(_("e.g. %1"), _T("le:toUpper(Line)|IgnoreLeadingLineNumbers")).c_str());
 	}
 
 	if (!GetOptionsMgr()->GetBool(OPT_VERIFY_OPEN_PATHS))
@@ -315,6 +414,8 @@ void COpenView::OnInitialUpdate()
 	m_bIgnoreNumbers = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_NUMBERS);
 	m_bIgnoreCodepage = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_CODEPAGE);
 	m_bFilterCommentsLines = GetOptionsMgr()->GetBool(OPT_CMP_FILTER_COMMENTLINES);
+	m_bIgnoreMissingTrailingEol = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_MISSING_TRAILING_EOL);
+	m_bIgnoreLineBreaks = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_LINE_BREAKS);
 	m_nCompareMethod = GetOptionsMgr()->GetInt(OPT_CMP_METHOD);
 
 	UpdateData(FALSE);
@@ -335,6 +436,8 @@ void COpenView::OnUpdate(CView* pSender, LPARAM lHint, CObject* pHint)
 	m_bIgnoreNumbers = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_NUMBERS);
 	m_bIgnoreCodepage = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_CODEPAGE);
 	m_bFilterCommentsLines = GetOptionsMgr()->GetBool(OPT_CMP_FILTER_COMMENTLINES);
+	m_bIgnoreMissingTrailingEol = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_MISSING_TRAILING_EOL);
+	m_bIgnoreLineBreaks = GetOptionsMgr()->GetBool(OPT_CMP_IGNORE_LINE_BREAKS);
 	m_nCompareMethod = GetOptionsMgr()->GetInt(OPT_CMP_METHOD);
 
 	UpdateData(FALSE);
@@ -364,13 +467,25 @@ void COpenView::OnPaint()
 	CRect rcImage(0, 0, size.cx * GetSystemMetrics(SM_CXSMICON) / 16, size.cy * GetSystemMetrics(SM_CYSMICON) / 16);
 	m_image.Draw(dc.m_hDC, rcImage, Gdiplus::InterpolationModeBicubic);
 	// And extend it to the Right boundary
-	dc.PatBlt(rcImage.Width(), 0, rc.Width() - rcImage.Width(), rcImage.Height(), PATCOPY);
+	if (!DarkMode::isExperimentalActive())
+		dc.PatBlt(rcImage.Width(), 0, rc.Width() - rcImage.Width(), rcImage.Height(), PATCOPY);
 
 	// Draw the resize gripper in the Lower Right corner.
 	CRect rcGrip = rc;
 	rcGrip.left = rc.right - GetSystemMetrics(SM_CXVSCROLL);
 	rcGrip.top = rc.bottom - GetSystemMetrics(SM_CYHSCROLL);
-	dc.DrawFrameControl(&rcGrip, DFC_SCROLL, DFCS_SCROLLSIZEGRIP);
+	if (IsVista_OrGreater() && m_hTheme == nullptr && IsThemeActive())
+	{
+		m_hTheme = OpenThemeData(m_hWnd, WC_SCROLLBAR);
+	}
+	if (m_hTheme != nullptr)
+	{
+		DrawThemeBackground(m_hTheme, dc.m_hDC, SBP_SIZEBOX, 0, &rcGrip, nullptr);
+	}
+	else
+	{
+		dc.DrawFrameControl(&rcGrip, DFC_SCROLL, DFCS_SCROLLSIZEGRIP);
+	}
 
 	// Draw a line to separate the Status Line
 	CPen newPen(PS_SOLID, 1, RGB(208, 208, 208));	// a very light gray
@@ -383,7 +498,48 @@ void COpenView::OnPaint()
 	dc.LineTo(rc.right, rcStatus.top - 3);
 	dc.SelectObject(oldpen);
 
-	CFormView::OnPaint();
+	__super::OnPaint();
+}
+
+LRESULT COpenView::OnThemeChanged()
+{
+	if (m_hTheme != nullptr)
+	{
+		CloseThemeData(m_hTheme);
+		m_hTheme = nullptr;
+	}
+	if (m_hTheme == nullptr && IsThemeActive())
+	{
+		m_hTheme = OpenThemeData(m_hWnd, WC_SCROLLBAR);
+	}
+	return 0;
+}
+
+void COpenView::OnSettingChange(UINT uFlags, LPCTSTR lpszSection)
+{
+	if (WinMergeDarkMode::IsImmersiveColorSet(lpszSection))
+	{
+		m_image.Destroy();
+		if (!LoadImageFromResource(m_image, MAKEINTRESOURCE(IDR_LOGO), _T("IMAGE")))
+		{
+			// FIXME: LoadImageFromResource() seems to fail when running on Wine 5.0.
+			m_image.Create(1, 1, 24, 0);
+		}
+
+		if (HWND hSelf = GetSafeHwnd())
+		{
+			DarkMode::setWindowCtlColorSubclass(hSelf);
+			DarkMode::setChildCtrlsSubclassAndThemeEx(hSelf, true, true);
+		}
+
+		if (DarkMode::isExperimentalActive())
+		{
+			WinMergeDarkMode::InvertLightness(m_image);
+		}
+
+		RedrawWindow(nullptr, nullptr, RDW_INVALIDATE | RDW_UPDATENOW | RDW_ERASE | RDW_ALLCHILDREN);
+	}
+	__super::OnSettingChange(uFlags, lpszSection);
 }
 
 void COpenView::OnLButtonUp(UINT nFlags, CPoint point)
@@ -400,7 +556,7 @@ void COpenView::OnLButtonUp(UINT nFlags, CPoint point)
 			case IDC_PATH2_COMBO:
 				int id2 = 0;
 				CWnd *pwndChild = GetFocus();
-				if (IsChild(pwndChild) && !pwndHit->IsChild(pwndChild)) do
+				if (pwndChild && IsChild(pwndChild) && !pwndHit->IsChild(pwndChild)) do
 				{
 					id2 = pwndChild->GetDlgCtrlID();
 					pwndChild = pwndChild->GetParent();
@@ -461,7 +617,7 @@ void COpenView::OnWindowPosChanging(WINDOWPOS* lpwndpos)
 			CRect rc;
 			pFrameWnd->GetClientRect(&rc);
 			lpwndpos->flags |= SWP_FRAMECHANGED | SWP_SHOWWINDOW;
-			lpwndpos->cy = m_sizeOrig.cy;
+			lpwndpos->cy = GetFormHeight();
 			if (lpwndpos->flags & SWP_NOOWNERZORDER)
 			{
 				lpwndpos->x = rc.right - (lpwndpos->x + lpwndpos->cx);
@@ -497,18 +653,20 @@ void COpenView::OnWindowPosChanged(WINDOWPOS* lpwndpos)
 		if (pFrameWnd == GetTopLevelFrame()->GetActiveFrame())
 		{
 			m_constraint.Persist(true, false);
-			WINDOWPLACEMENT wp = {};
-			wp.length = sizeof wp;
-			pFrameWnd->GetWindowPlacement(&wp);
-			CRect rc;
-			GetWindowRect(&rc);
-			pFrameWnd->CalcWindowRect(&rc, CWnd::adjustOutside);
-			wp.rcNormalPosition.right = wp.rcNormalPosition.left + rc.Width();
-			wp.rcNormalPosition.bottom = wp.rcNormalPosition.top + rc.Height();
-			pFrameWnd->SetWindowPlacement(&wp);
+			if (!pFrameWnd->IsZoomed())
+			{
+				WINDOWPLACEMENT wp = { sizeof wp };
+				pFrameWnd->GetWindowPlacement(&wp);
+				CRect rc;
+				GetWindowRect(&rc);
+				pFrameWnd->CalcWindowRect(&rc, CWnd::adjustOutside);
+				wp.rcNormalPosition.right = wp.rcNormalPosition.left + rc.Width();
+				wp.rcNormalPosition.bottom = wp.rcNormalPosition.top + rc.Height();
+				pFrameWnd->SetWindowPlacement(&wp);
+			}
 		}
 	}
-	CFormView::OnWindowPosChanged(lpwndpos);
+	__super::OnWindowPosChanged(lpwndpos);
 }
 
 void COpenView::OnDestroy()
@@ -516,7 +674,13 @@ void COpenView::OnDestroy()
 	if (m_pDropHandler != nullptr)
 		RevokeDragDrop(m_hWnd);
 
-	CFormView::OnDestroy();
+	if (m_hTheme != nullptr)
+	{
+		CloseThemeData(m_hTheme);
+		m_hTheme = nullptr;
+	}
+
+	__super::OnDestroy();
 }
 
 LRESULT COpenView::OnNcHitTest(CPoint point)
@@ -530,7 +694,7 @@ LRESULT COpenView::OnNcHitTest(CPoint point)
 		if (PtInRect(&rc, point))
 			return HTRIGHT;
 	}
-	return CFormView::OnNcHitTest(point);
+	return __super::OnNcHitTest(point);
 }
 
 /** 
@@ -564,10 +728,26 @@ void COpenView::OnPathButton(UINT nId)
 	if (SelectFileOrFolder(GetSafeHwnd(), s, sfolder.c_str()))
 	{
 		m_strPath[index] = s;
-		m_strBrowsePath[index] = s;
+		m_strBrowsePath[index] = std::move(s);
 		UpdateData(FALSE);
 		UpdateButtonStates();
 	}	
+}
+
+/**
+ * @brief Called when clipboard history item is selected from Browse dropdown.
+ */
+void COpenView::OnSelectClipboardItem(UINT nId)
+{
+	const int itemIndex = nId - ID_EDITOR_CLIPBOARD_FIRST;
+	const int pathIndex = m_nLastDropDownButton - IDC_PATH0_BUTTON;
+	if (itemIndex < 0 || static_cast<size_t>(itemIndex) >= m_cachedClipboardItems.size() || pathIndex < 0 || pathIndex >= std::size(m_strPath))
+		return;
+
+	// Set the URL to the path field
+	m_strPath[pathIndex] = ClipboardHistoryMenu::BuildClipboardItemUrl(m_cachedClipboardItems, itemIndex);
+	UpdateData(FALSE);
+	UpdateButtonStates();
 }
 
 void COpenView::OnSwapButton(int id1, int id2)
@@ -619,18 +799,30 @@ void COpenView::OnCompare(UINT nID)
 		{
 			PackingInfo tmpPackingInfo(m_strUnpackerPipeline);
 			if (ID_UNPACKERS_FIRST <= nID && nID <= ID_UNPACKERS_LAST)
-				tmpPackingInfo.SetPluginPipeline(CMainFrame::GetPluginPipelineByMenuId(nID, FileTransform::UnpackerEventNames, ID_UNPACKERS_FIRST));
-			GetMainFrame()->DoSelfCompare(nID, m_strPath[0], nullptr, &tmpPackingInfo);
+			{
+				tmpPackingInfo.SetPluginPipeline(PluginMenu::GetPluginPipelineByMenuId(&tmpPackingInfo, nID, FileTransform::UnpackerEventNames, ID_UNPACKERS_FIRST));
+				nID = 0;
+			}
+			PrediffingInfo tmpPrediffingInfo(m_strPredifferPipeline);
+			GetMainFrame()->DoSelfCompare(nID, m_strPath[0], nullptr, &tmpPackingInfo, &tmpPrediffingInfo);
 		}
 		return;
 	}
 
-	pathsType = paths::GetPairComparability(m_files, IsArchiveFile);
-
-	if (pathsType == paths::DOES_NOT_EXIST)
+	PackingInfo tmpPackingInfo(m_strUnpackerPipeline);
+	PrediffingInfo tmpPrediffingInfo(m_strPredifferPipeline);
 	{
-		LangMessageBox(IDS_ERROR_INCOMPARABLE, MB_ICONSTOP);
-		return;
+		Merge7zFormatMergePluginScope scope(&tmpPackingInfo);
+
+		pathsType = paths::GetPairComparability(m_files, IsArchiveFile);
+
+		if (pathsType == paths::DOES_NOT_EXIST &&
+			!std::any_of(m_files.begin(), m_files.end(), 
+				[](const auto& path) { return paths::IsURL(path) || paths::IsNullDeviceName(path); }))
+		{
+			I18n::MessageBox(IDS_ERROR_INCOMPARABLE, MB_ICONSTOP);
+			return;
+		}
 	}
 
 	for (int index = 0; index < nFiles; index++)
@@ -645,7 +837,7 @@ void COpenView::OnCompare(UINT nID)
 			m_files[index] = paths::GetLongPath(m_files[index], bExpand);
 	
 			// Add trailing '\' for directories if its missing
-			if (paths::DoesPathExist(m_files[index]) == paths::IS_EXISTING_DIR)
+			if (paths::DoesPathExist(m_files[index]) == paths::IS_EXISTING_DIR && !IsArchiveFile(m_files[index]))
 				m_files[index] = paths::AddTrailingSlash(m_files[index]);
 			m_strPath[index] = m_files[index];
 		}
@@ -662,22 +854,14 @@ void COpenView::OnCompare(UINT nID)
 	{
 		// Remove prefix + space
 		filter.erase(0, filterPrefix.length());
-		if (!pGlobalFileFilter->SetFilter(filter))
-		{
-			// If filtername is not found use default *.* mask
-			pGlobalFileFilter->SetFilter(_T("*.*"));
-			filter = _T("*.*");
-		}
-		GetOptionsMgr()->SaveOption(OPT_FILEFILTER_CURRENT, filter);
 	}
-	else
-	{
-		bool bFilterSet = pGlobalFileFilter->SetFilter(filter);
-		if (!bFilterSet)
-			m_strExt = pGlobalFileFilter->GetFilterNameOrMask();
-		GetOptionsMgr()->SaveOption(OPT_FILEFILTER_CURRENT, filter);
-	}
+	if (filter.empty())
+		filter = _T("*.*");
+	pGlobalFileFilter->SetMaskOrExpression(filter);
+	GetOptionsMgr()->SaveOption(OPT_FILEFILTER_CURRENT, filter);
 
+	m_strExt = filter;
+	SetDlgItemText(IDC_EXT_COMBO, m_strExt.c_str());
 	SaveComboboxStates();
 	GetOptionsMgr()->SaveOption(OPT_CMP_INCLUDE_SUBDIRS, m_bRecurse);
 	LoadComboboxStates();
@@ -698,6 +882,7 @@ void COpenView::OnCompare(UINT nID)
 	pDoc->m_bRecurse = m_bRecurse;
 	pDoc->m_strExt = m_strExt;
 	pDoc->m_strUnpackerPipeline = m_strUnpackerPipeline;
+	pDoc->m_strPredifferPipeline = m_strPredifferPipeline;
 	pDoc->m_dwFlags[0] = m_dwFlags[0];
 	pDoc->m_dwFlags[1] = m_dwFlags[1];
 	pDoc->m_dwFlags[2] = m_dwFlags[2];
@@ -706,22 +891,26 @@ void COpenView::OnCompare(UINT nID)
 		GetParentFrame()->PostMessage(WM_CLOSE);
 
 	// Copy the values in pDoc as it will be invalid when COpenFrame is closed. 
-	PackingInfo tmpPackingInfo(pDoc->m_strUnpackerPipeline);
 	PathContext tmpPathContext(pDoc->m_files);
-	std::array<DWORD, 3> dwFlags = pDoc->m_dwFlags;
+	std::array<fileopenflags_t, 3> dwFlags = pDoc->m_dwFlags;
 	bool recurse = pDoc->m_bRecurse;
+	std::unique_ptr<CMainFrame::OpenFolderParams> pOpenFolderParams;
+	if (!pDoc->m_hiddenItems.empty())
+		pOpenFolderParams = std::make_unique<CMainFrame::OpenFolderParams>(recurse, pDoc->m_hiddenItems);
+	else
+		pOpenFolderParams = std::make_unique<CMainFrame::OpenFolderParams>(recurse);
 	if (nID == IDOK)
 	{
 		GetMainFrame()->DoFileOrFolderOpen(
 			&tmpPathContext, dwFlags.data(),
-			nullptr, _T(""), recurse, nullptr, &tmpPackingInfo, nullptr);
+			nullptr, _T(""), nullptr, &tmpPackingInfo, &tmpPrediffingInfo, 0, pOpenFolderParams.get());
 	}
 	else if (ID_UNPACKERS_FIRST <= nID && nID <= ID_UNPACKERS_LAST)
 	{
-		tmpPackingInfo.SetPluginPipeline(CMainFrame::GetPluginPipelineByMenuId(nID, FileTransform::UnpackerEventNames, ID_UNPACKERS_FIRST));
+		tmpPackingInfo.SetPluginPipeline(PluginMenu::GetPluginPipelineByMenuId(&tmpPackingInfo, nID, FileTransform::UnpackerEventNames, ID_UNPACKERS_FIRST));
 		GetMainFrame()->DoFileOrFolderOpen(
 			&tmpPathContext, dwFlags.data(),
-			nullptr, _T(""), recurse, nullptr, &tmpPackingInfo, nullptr);
+			nullptr, _T(""), nullptr, &tmpPackingInfo, &tmpPrediffingInfo, 0, pOpenFolderParams.get());
 	}
 	else if (nID == ID_OPEN_WITH_UNPACKER)
 	{
@@ -732,12 +921,12 @@ void COpenView::OnCompare(UINT nID)
 			tmpPackingInfo.SetPluginPipeline(dlg.GetPluginPipeline());
 			GetMainFrame()->DoFileOrFolderOpen(
 				&tmpPathContext, dwFlags.data(),
-				nullptr, _T(""), recurse, nullptr, &tmpPackingInfo, nullptr);
+				nullptr, _T(""), nullptr, &tmpPackingInfo, &tmpPrediffingInfo, 0, pOpenFolderParams.get());
 		}
 	}
 	else
 	{
-		GetMainFrame()->DoFileOpen(nID, &tmpPathContext, dwFlags.data(), nullptr, _T(""), &tmpPackingInfo);
+		GetMainFrame()->DoFileOpen(nID, &tmpPathContext, dwFlags.data(), nullptr, _T(""), &tmpPackingInfo, &tmpPrediffingInfo, pOpenFolderParams.get());
 	}
 }
 
@@ -760,8 +949,14 @@ void COpenView::OnUpdateCompare(CCmdUI *pCmdUI)
  *
  * Checks that paths are valid and sets filters.
  */
-void COpenView::OnOK() 
+void COpenView::OnOK()
 {
+	// Enter in the recent comparison list opens the selected comparison instead of the paths above
+	if (::GetFocus() == m_ctlRecentCompares.GetSafeHwnd() && m_ctlRecentCompares.GetSelectedCount() > 0)
+	{
+		OpenRecentCompare(m_ctlRecentCompares.GetNextItem(-1, LVNI_SELECTED));
+		return;
+	}
 	OnCompare(IDOK);
 }
 
@@ -793,7 +988,7 @@ void COpenView::OnLoadProject()
 		return;
 
 	ProjectFile project;
-	if (!theApp.LoadProjectFile(fileName, project))
+	if (!CMergeApp::LoadProjectFile(fileName, project))
 		return;
 	if (project.Items().size() == 0)
 		return;
@@ -807,7 +1002,7 @@ void COpenView::OnLoadProject()
 	{
 		m_strPath[0] = paths[0];
 		m_strPath[1] = paths[1];
-		m_strPath[2] = _T("");
+		m_strPath[2].clear();
 		m_bReadOnly[0] = projItem.GetLeftReadOnly();
 		m_bReadOnly[1] = projItem.GetRightReadOnly();
 		m_bReadOnly[2] = false;
@@ -823,8 +1018,22 @@ void COpenView::OnLoadProject()
 	}
 	if (Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Load, Options::Project::Item::FileFilter) && projItem.HasFilter())
 		m_strExt = projItem.GetFilter();
-	if (Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Load, Options::Project::Item::UnpackerPlugin) && projItem.HasUnpacker())
-		m_strUnpackerPipeline = projItem.GetUnpacker();
+	if (Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Load, Options::Project::Item::Plugin))
+	{
+		if (projItem.HasUnpacker())
+			m_strUnpackerPipeline = projItem.GetUnpacker();
+		if (projItem.HasPrediffer())
+			m_strPredifferPipeline = projItem.GetPrediffer();
+	}
+
+	if (projItem.HasWindowType())
+		GetDocument()->m_nWindowType = projItem.GetWindowType();
+	if (projItem.HasTableDelimiter())
+		GetDocument()->m_cTableDelimiter = projItem.GetTableDelimiter();
+	if (projItem.HasTableQuote())
+		GetDocument()->m_cTableQuote = projItem.GetTableQuote();
+	if (projItem.HasTableAllowNewLinesInQuotes())
+		GetDocument()->m_bTableAllowNewLinesInQuotes = projItem.GetTableAllowNewLinesInQuotes();
 
 	if (Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Load, Options::Project::Item::CompareOptions))
 	{
@@ -840,15 +1049,23 @@ void COpenView::OnLoadProject()
 			m_bIgnoreNumbers = projItem.GetIgnoreNumbers();
 		if (projItem.HasIgnoreCodepage())
 			m_bIgnoreCodepage = projItem.GetIgnoreCodepage();
+		if (projItem.HasIgnoreMissingTrailingEol())
+			m_bIgnoreMissingTrailingEol = projItem.GetIgnoreMissingTrailingEol();
+		if (projItem.HasIgnoreLineBreaks())
+			m_bIgnoreLineBreaks = projItem.GetIgnoreLineBreaks();
 		if (projItem.HasFilterCommentsLines())
 			m_bFilterCommentsLines = projItem.GetFilterCommentsLines();
 		if (projItem.HasCompareMethod())
 			m_nCompareMethod = projItem.GetCompareMethod();
 	}
 
+	if ((Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Load, Options::Project::Item::HiddenItems)) && projItem.HasHiddenItems())
+	{
+		GetDocument()->m_hiddenItems = projItem.GetHiddenItems();
+	}
 	UpdateData(FALSE);
 	UpdateButtonStates();
-	LangMessageBox(IDS_PROJFILE_LOAD_SUCCESS, MB_ICONINFORMATION);
+	I18n::MessageBox(IDS_PROJFILE_LOAD_SUCCESS, MB_ICONINFORMATION);
 }
 
 /** 
@@ -867,27 +1084,36 @@ void COpenView::OnSaveProject()
 
 	bool bSaveFileFilter = Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Save, Options::Project::Item::FileFilter);
 	bool bSaveIncludeSubfolders = Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Save, Options::Project::Item::IncludeSubfolders);
-	bool bSaveUnpackerPlugin = Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Save, Options::Project::Item::UnpackerPlugin);
+	bool bSavePlugin = Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Save, Options::Project::Item::Plugin);
 	bool bSaveCompareOptions = Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Save, Options::Project::Item::CompareOptions);
+	bool bSaveHiddenItems = Options::Project::Get(GetOptionsMgr(), Options::Project::Operation::Save, Options::Project::Item::HiddenItems);
 
 	projItem.SetSaveFilter(bSaveFileFilter);
 	projItem.SetSaveSubfolders(bSaveIncludeSubfolders);
-	projItem.SetSaveUnpacker(bSaveUnpackerPlugin);
+	projItem.SetSaveUnpacker(bSavePlugin);
+	projItem.SetSavePrediffer(bSavePlugin);
 	projItem.SetSaveIgnoreWhite(bSaveCompareOptions);
 	projItem.SetSaveIgnoreBlankLines(bSaveCompareOptions);
 	projItem.SetSaveIgnoreCase(bSaveCompareOptions);
 	projItem.SetSaveIgnoreEol(bSaveCompareOptions);
 	projItem.SetSaveIgnoreNumbers(bSaveCompareOptions);
 	projItem.SetSaveIgnoreCodepage(bSaveCompareOptions);
+	projItem.SetSaveIgnoreMissingTrailingEol(bSaveCompareOptions);
+	projItem.SetSaveIgnoreBreakLines(bSaveCompareOptions);
 	projItem.SetSaveFilterCommentsLines(bSaveCompareOptions);
 	projItem.SetSaveCompareMethod(bSaveCompareOptions);
+	projItem.SetSaveHiddenItems(bSaveHiddenItems);
 
 	if (!m_strPath[0].empty())
 		projItem.SetLeft(m_strPath[0], &m_bReadOnly[0]);
+	if (!GetDocument()->m_strDesc[0].empty())
+		projItem.SetLeftDesc(GetDocument()->m_strDesc[0]);
 	if (m_strPath[2].empty())
 	{
 		if (!m_strPath[1].empty())
 			projItem.SetRight(m_strPath[1], &m_bReadOnly[1]);
+		if (!GetDocument()->m_strDesc[1].empty())
+			projItem.SetRightDesc(GetDocument()->m_strDesc[1]);
 	}
 	else
 	{
@@ -895,11 +1121,15 @@ void COpenView::OnSaveProject()
 			projItem.SetMiddle(m_strPath[1], &m_bReadOnly[1]);
 		if (!m_strPath[2].empty())
 			projItem.SetRight(m_strPath[2], &m_bReadOnly[2]);
+		if (!GetDocument()->m_strDesc[1].empty())
+			projItem.SetMiddleDesc(GetDocument()->m_strDesc[1]);
+		if (!GetDocument()->m_strDesc[2].empty())
+			projItem.SetRightDesc(GetDocument()->m_strDesc[2]);
 	}
 	if (bSaveFileFilter && !m_strExt.empty())
 	{
 		// Remove possbile prefix from the filter name
-		String prefix = _("[F] ");
+		String prefix = _T("[F] ");
 		String strExt = m_strExt;
 		size_t ind = strExt.find(prefix, 0);
 		if (ind == 0)
@@ -911,8 +1141,21 @@ void COpenView::OnSaveProject()
 	}
 	if (bSaveIncludeSubfolders)
 		projItem.SetSubfolders(m_bRecurse);
-	if (bSaveUnpackerPlugin && !m_strUnpackerPipeline.empty())
-		projItem.SetUnpacker(m_strUnpackerPipeline);
+	if (bSavePlugin)
+	{
+		if (!m_strUnpackerPipeline.empty())
+			projItem.SetUnpacker(m_strUnpackerPipeline);
+		if (!m_strPredifferPipeline.empty())
+			projItem.SetPrediffer(m_strPredifferPipeline);
+	}
+	if (GetDocument()->m_nWindowType != -1)
+		projItem.SetWindowType(GetDocument()->m_nWindowType);
+	if (GetDocument()->m_nWindowType == 2 /* table */)
+	{
+		projItem.SetTableDelimiter(GetDocument()->m_cTableDelimiter);
+		projItem.SetTableQuote(GetDocument()->m_cTableQuote);
+		projItem.SetTableAllowNewLinesInQuotes(GetDocument()->m_bTableAllowNewLinesInQuotes);
+	}
 
 	if (bSaveCompareOptions)
 	{
@@ -922,36 +1165,55 @@ void COpenView::OnSaveProject()
 		projItem.SetIgnoreEol(m_bIgnoreEol);
 		projItem.SetIgnoreNumbers(m_bIgnoreNumbers);
 		projItem.SetIgnoreCodepage(m_bIgnoreCodepage);
+		projItem.SetIgnoreMissingTrailingEol(m_bIgnoreMissingTrailingEol);
+		projItem.SetIgnoreLineBreaks(m_bIgnoreLineBreaks);
 		projItem.SetFilterCommentsLines(m_bFilterCommentsLines);
 		projItem.SetCompareMethod(m_nCompareMethod);
 	}
 
+	if (bSaveHiddenItems)
+		projItem.SetHiddenItems(GetDocument()->m_hiddenItems);
+
 	project.Items().push_back(projItem);
 
-	if (!theApp.SaveProjectFile(fileName, project))
+	if (!CMergeApp::SaveProjectFile(fileName, project))
 		return;
 
-	LangMessageBox(IDS_PROJFILE_SAVE_SUCCESS, MB_ICONINFORMATION);
+	I18n::MessageBox(IDS_PROJFILE_SAVE_SUCCESS, MB_ICONINFORMATION);
 }
 
 void COpenView::DropDown(NMHDR* pNMHDR, LRESULT* pResult, UINT nID, UINT nPopupID)
 {
-	CRect rcButton, rcView;
+	CRect rcButton;
 	GetDlgItem(nID)->GetWindowRect(&rcButton);
 	BCMenu menu;
 	VERIFY(menu.LoadMenu(nPopupID));
-	theApp.TranslateMenu(menu.m_hMenu);
+	I18n::TranslateMenu(menu.m_hMenu);
 	CMenu* pPopup = menu.GetSubMenu(0);
 	if (pPopup != nullptr)
 	{
-		if (nID == IDOK && GetDlgItem(IDC_UNPACKER_COMBO)->IsWindowEnabled())
+		// For Browse buttons, populate with clipboard history
+		if (nPopupID == IDR_POPUP_BROWSE)
+		{
+			// Remember which button was clicked for OnSelectClipboardItem
+			m_nLastDropDownButton = nID;
+
+			pPopup->RemoveMenu(0, MF_BYPOSITION); // Remove dummy item from resource
+
+			// Get clipboard history items
+			constexpr unsigned MAX_HISTORY_ITEMS = 15;
+			m_cachedClipboardItems = ClipboardHistory::GetItems(MAX_HISTORY_ITEMS);
+			ClipboardHistoryMenu::PopulateMenu(pPopup, m_cachedClipboardItems, ID_EDITOR_CLIPBOARD_FIRST, ID_EDITOR_CLIPBOARD_LAST);
+		}
+		else if (nID == IDOK && GetDlgItem(IDC_UNPACKER_COMBO)->IsWindowEnabled())
 		{
 			UpdateData(TRUE);
 			String tmpPath[3];
 			for (int i = 0; i < 3; i++)
 				tmpPath[i] = m_strPath[i].empty() ? _T("|.|") : m_strPath[i];
 			String filteredFilenames = strutils::join(std::begin(tmpPath), std::end(tmpPath), _T("|"));
-			CMainFrame::AppendPluginMenus(pPopup, filteredFilenames, FileTransform::UnpackerEventNames, true, ID_UNPACKERS_FIRST);
+			PluginMenu::AppendPluginMenus(pPopup, nullptr, filteredFilenames, FileTransform::UnpackerEventNames, 
+				PluginMenu::AddAllMenu|PluginMenu::AddSelectMenu, ID_UNPACKERS_FIRST);
 		}
 		pPopup->TrackPopupMenu(TPM_LEFTALIGN | TPM_RIGHTBUTTON,
 			rcButton.left, rcButton.bottom, GetMainFrame());
@@ -963,6 +1225,20 @@ template<UINT id, UINT popupid>
 void COpenView::OnDropDown(NMHDR *pNMHDR, LRESULT *pResult)
 {
 	DropDown(pNMHDR, pResult, id, popupid);
+}
+
+void COpenView::OnSelectFilterDropDown(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	UpdateData(TRUE);
+	CRect rc;
+	GetDlgItem(IDC_SELECT_FILTER)->GetWindowRect(&rc);
+	const std::optional<String> filter = m_menu.ShowMenu(m_strExt, rc.left, rc.bottom, this);
+	if (filter.has_value())
+	{
+		m_strExt = *filter;
+		UpdateData(FALSE);
+		m_ctlExtEdit.OnEnChange();
+	}
 }
 
 /** 
@@ -998,6 +1274,7 @@ void COpenView::LoadComboboxStates()
 	m_ctlPath[2].LoadState(_T("Files\\Option"));
 	m_ctlExt.LoadState(_T("Files\\Ext"));
 	m_ctlUnpackerPipeline.LoadState(_T("Files\\Unpacker"));
+	m_ctlPredifferPipeline.LoadState(_T("Files\\Prediffer"));
 }
 
 /** 
@@ -1010,24 +1287,26 @@ void COpenView::SaveComboboxStates()
 	m_ctlPath[2].SaveState(_T("Files\\Option"));
 	m_ctlExt.SaveState(_T("Files\\Ext"));
 	m_ctlUnpackerPipeline.SaveState(_T("Files\\Unpacker"));
+	m_ctlPredifferPipeline.SaveState(_T("Files\\Prediffer"));
 }
 
 struct UpdateButtonStatesThreadParams
 {
-	HWND m_hWnd;
+	HWND m_hWnd = nullptr;
 	PathContext m_paths;
 };
 
 static UINT UpdateButtonStatesThread(LPVOID lpParam)
 {
+	if (FAILED(CoInitialize(nullptr)))
+		return 0;
+
+	{
+	CAssureScriptsForThread scriptsForRescan(new MergeAppCOMClass());
 	MSG msg;
 	BOOL bRet;
-
-	CoInitialize(nullptr);
-	CAssureScriptsForThread scriptsForRescan;
-
 	while( (bRet = GetMessage( &msg, nullptr, 0, 0 )) != 0)
-	{ 
+	{
 		if (bRet == -1)
 			break;
 		if (msg.message != WM_USER + 2)
@@ -1036,6 +1315,7 @@ static UINT UpdateButtonStatesThread(LPVOID lpParam)
 		bool bIsaFolderCompare = true;
 		bool bIsaFileCompare = true;
 		bool bInvalid[3] = {false, false, false};
+		bool bIsArchiveFile[3] = {false, false, false};
 		paths::PATH_EXISTENCE pathType[3] = {paths::DOES_NOT_EXIST, paths::DOES_NOT_EXIST, paths::DOES_NOT_EXIST};
 		int iStatusMsgId = IDS_OPEN_FILESDIRS;
 
@@ -1055,9 +1335,20 @@ static UINT UpdateButtonStatesThread(LPVOID lpParam)
 		{
 			for (int i = 0; i < paths.GetSize(); ++i)
 			{
-				pathType[i] = paths::DoesPathExist(paths[i], IsArchiveFile);
+				pathType[i] = paths::DoesPathExist(paths[i]);
+				bIsArchiveFile[i] = IsArchiveFile(paths[i]);
 				if (pathType[i] == paths::DOES_NOT_EXIST)
-					bInvalid[i] = true;
+				{
+					if (paths::IsURL(paths[i]) || paths::IsNullDeviceName(paths[i]))
+						pathType[i] = paths::IS_EXISTING_FILE;
+					else
+					{
+						if (bIsArchiveFile[i])
+							pathType[i] = paths::IS_EXISTING_FILE;
+						else
+							bInvalid[i] = true;
+					}
+				}
 			}
 		}
 
@@ -1082,7 +1373,13 @@ static UINT UpdateButtonStatesThread(LPVOID lpParam)
 				else if (!bInvalid[0] && !bInvalid[1])
 				{
 					if (pathType[0] != pathType[1])
-						iStatusMsgId = IDS_OPEN_MISMATCH;
+					{
+						if ((pathType[0] == paths::IS_EXISTING_DIR && bIsArchiveFile[1]) ||
+						    (pathType[1] == paths::IS_EXISTING_DIR && bIsArchiveFile[0]))
+							iStatusMsgId = IDS_OPEN_FILESDIRS;
+						else
+							iStatusMsgId = IDS_OPEN_MISMATCH;
+					}
 					else
 						iStatusMsgId = IDS_OPEN_FILESDIRS;
 				}
@@ -1106,20 +1403,39 @@ static UINT UpdateButtonStatesThread(LPVOID lpParam)
 				else if (!bInvalid[0] && !bInvalid[1] && !bInvalid[2])
 				{
 					if (pathType[0] != pathType[1] || pathType[0] != pathType[2])
-						iStatusMsgId = IDS_OPEN_MISMATCH;
+					{
+						bool bMatch = [&]() {
+							for (int i = 0; i < 3; ++i)
+							{
+								if (pathType[i] != paths::IS_EXISTING_DIR && !bIsArchiveFile[i])
+									return false;
+							}
+							return true;
+						}();
+						if (bMatch)
+							iStatusMsgId = IDS_OPEN_FILESDIRS;
+						else
+							iStatusMsgId = IDS_OPEN_MISMATCH;
+					}
 					else
 						iStatusMsgId = IDS_OPEN_FILESDIRS;
 				}
 			}
-			if (iStatusMsgId != IDS_OPEN_FILESDIRS)
-				pathsType = paths::DOES_NOT_EXIST;
-			bIsaFileCompare = (pathsType == paths::IS_EXISTING_FILE);
-			bIsaFolderCompare = (pathsType == paths::IS_EXISTING_DIR);
+			bIsaFileCompare = false;
+			bIsaFolderCompare = false;
+			for (int i = 0; i < paths.GetSize(); i++)
+			{
+				if (pathType[i] == paths::IS_EXISTING_FILE)
+					bIsaFileCompare = true;
+				if (pathType[i] == paths::IS_EXISTING_DIR || bIsArchiveFile[i])
+					bIsaFolderCompare = true;
+			}
 			// Both will be `false` if incompatibilities or something is missing
 			// Both will end up `true` if file validity isn't being checked
 		}
 
 		PostMessage(hWnd, WM_USER + 1, MAKEWPARAM(bIsaFolderCompare, bIsaFileCompare), MAKELPARAM(iStatusMsgId, bProject)); 
+	}
 	}
 
 	CoUninitialize();
@@ -1169,11 +1485,9 @@ void COpenView::TerminateThreadIfRunning()
 	PostThreadMessage(m_pUpdateButtonStatusThread->m_nThreadID, WM_QUIT, 0, 0);
 	DWORD dwResult = WaitForSingleObject(m_pUpdateButtonStatusThread->m_hThread, 100);
 	if (dwResult != WAIT_OBJECT_0)
-	{
-		m_pUpdateButtonStatusThread->SuspendThread();
-		TerminateThread(m_pUpdateButtonStatusThread->m_hThread, 0);
-	}
-	delete m_pUpdateButtonStatusThread;
+		theApp.AddZombieThread(m_pUpdateButtonStatusThread);
+	else
+		delete m_pUpdateButtonStatusThread;
 	m_pUpdateButtonStatusThread = nullptr;
 }
 
@@ -1199,10 +1513,13 @@ void COpenView::OnSetfocusPathCombo(UINT id, NMHDR *pNMHDR, LRESULT *pResult)
 {
 	if (!m_bAutoCompleteReady[id - IDC_PATH0_COMBO])
 	{
+		// Set before SetAutoComplete: a CBEN_BEGINEDIT for the same combo that arrives while SHAutoComplete is still
+		// running must not call SHAutoComplete on the same edit again. The second call cleans up the object of the
+		// first call, and the first call then fails with an access violation in shell32 CAutoComplete::Init.
+		m_bAutoCompleteReady[id - IDC_PATH0_COMBO] = true;
 		int nSource = GetOptionsMgr()->GetInt(OPT_AUTO_COMPLETE_SOURCE);
 		if (nSource > 0)
 			m_ctlPath[id - IDC_PATH0_COMBO].SetAutoComplete(nSource);
-		m_bAutoCompleteReady[id - IDC_PATH0_COMBO] = true;
 	}
 	*pResult = 0;
 }
@@ -1242,6 +1559,18 @@ void COpenView::OnEditEvent(UINT nID)
 		UpdateButtonStates();
 }
 
+void COpenView::OnSelchangePlugin(UINT nID)
+{
+	CValidatingEdit* edit = nullptr;
+	switch (nID)
+	{
+	case IDC_UNPACKER_COMBO: edit = &m_ctlUnpackerPipelineEdit; break;
+	case IDC_PREDIFFER_COMBO: edit = &m_ctlPredifferPipelineEdit; break;
+	default: return;
+	}
+	edit->OnEnChange();
+}
+
 /**
  * @brief Handle timer events.
  * Checks if paths are valid and sets control states accordingly.
@@ -1252,13 +1581,13 @@ void COpenView::OnTimer(UINT_PTR nIDEvent)
 	if (nIDEvent == IDT_CHECKFILES || nIDEvent == IDT_RETRY)
 		UpdateButtonStates();
 
-	CFormView::OnTimer(nIDEvent);
+	__super::OnTimer(nIDEvent);
 }
 
 /**
  * @brief Called when users selects plugin browse button.
  */
-void COpenView::OnSelectUnpacker()
+void COpenView::OnSelectPlugin(UINT nID)
 {
 	paths::PATH_EXISTENCE pathsType;
 	UpdateData(TRUE);
@@ -1272,18 +1601,26 @@ void COpenView::OnSelectUnpacker()
 		m_files[nFiles] = strPath;
 		nFiles++;
 	}
-	pathsType = paths::GetPairComparability(m_files);
+	PathContext tmpFiles = m_files;
+	if (tmpFiles.GetSize() == 2 && tmpFiles[1].empty())
+		tmpFiles[1] = tmpFiles[0];
+	pathsType = paths::GetPairComparability(tmpFiles, IsArchiveFile);
 
-	if (pathsType != paths::IS_EXISTING_FILE) 
+	if (pathsType == paths::IS_EXISTING_DIR || (pathsType == paths::DOES_NOT_EXIST &&
+		!std::any_of(m_files.begin(), m_files.end(), [](const auto& path) { return paths::IsURL(path); })))
 		return;
 
 	// let the user select a handler
-	CSelectPluginDlg dlg(m_strUnpackerPipeline, m_files[0], 
-		CSelectPluginDlg::PluginType::Unpacker, false, this);
+	CSelectPluginDlg dlg(nID == IDC_SELECT_UNPACKER ? m_strUnpackerPipeline : m_strPredifferPipeline, m_files[0], 
+		nID == IDC_SELECT_UNPACKER ? CSelectPluginDlg::PluginType::Unpacker : CSelectPluginDlg::PluginType::Prediffer, false, this);
 	if (dlg.DoModal() == IDOK)
 	{
-		m_strUnpackerPipeline = dlg.GetPluginPipeline();
+		if (nID == IDC_SELECT_UNPACKER)
+			m_strUnpackerPipeline = dlg.GetPluginPipeline();
+		else
+			m_strPredifferPipeline = dlg.GetPluginPipeline();
 		UpdateData(FALSE);
+		OnSelchangePlugin(nID == IDC_SELECT_UNPACKER ? IDC_UNPACKER_COMBO : IDC_PREDIFFER_COMBO);
 	}
 }
 
@@ -1296,14 +1633,25 @@ LRESULT COpenView::OnUpdateStatus(WPARAM wParam, LPARAM lParam)
 
 	EnableDlgItem(IDOK, bIsaFolderCompare || bIsaFileCompare || bProject);
 
-	EnableDlgItem(IDC_FILES_DIRS_GROUP4, bIsaFileCompare);
-	EnableDlgItem(IDC_UNPACKER_COMBO, bIsaFileCompare);
-	EnableDlgItem(IDC_SELECT_UNPACKER, bIsaFileCompare);
+	for (auto nID : { IDC_FILES_DIRS_GROUP4, IDC_UNPACKER_COMBO, IDC_SELECT_UNPACKER })
+	{
+		EnableDlgItem(nID, bIsaFileCompare);
+	}
 
-	EnableDlgItem(IDC_FILES_DIRS_GROUP3,  bIsaFolderCompare);
-	EnableDlgItem(IDC_EXT_COMBO, bIsaFolderCompare);
-	EnableDlgItem(IDC_SELECT_FILTER, bIsaFolderCompare);
-	EnableDlgItem(IDC_RECURS_CHECK, bIsaFolderCompare);
+	if (GetOptionsMgr()->GetBool(OPT_VERIFY_OPEN_PATHS))
+	{
+		for (auto nID : { IDC_FILES_DIRS_GROUP5, IDC_PREDIFFER_COMBO, IDC_SELECT_PREDIFFER })
+		{
+			ShowDlgItem(nID, (bIsaFileCompare && !bIsaFolderCompare));
+			EnableDlgItem(nID, bIsaFileCompare);
+		}
+
+		for (auto nID : { IDC_FILES_DIRS_GROUP3, IDC_EXT_COMBO, IDC_SELECT_FILTER, IDC_RECURS_CHECK })
+		{
+			ShowDlgItem(nID, (bIsaFolderCompare || !bIsaFileCompare));
+			EnableDlgItem(nID, bIsaFolderCompare);
+		}
+	}
 	
 	SetStatus(iStatusMsgId);
 
@@ -1329,8 +1677,13 @@ LRESULT COpenView::OnUpdateStatus(WPARAM wParam, LPARAM lParam)
  */
 void COpenView::SetStatus(UINT msgID)
 {
-	String msg = theApp.LoadString(msgID);
+	String msg = I18n::LoadString(msgID);
 	SetDlgItemText(IDC_OPEN_STATUS, msg);
+}
+
+void COpenView::OnExtEditChange()
+{
+	m_ctlExtEdit.OnEnChange();
 }
 
 /** 
@@ -1338,29 +1691,21 @@ void COpenView::SetStatus(UINT msgID)
  */
 void COpenView::OnSelectFilter()
 {
-	String filterPrefix = _("[F] ");
 	String curFilter;
 	auto* pGlobalFileFilter = theApp.GetGlobalFileFilter();
 
-	const bool bUseMask = pGlobalFileFilter->IsUsingMask();
 	GetDlgItemText(IDC_EXT_COMBO, curFilter);
 	curFilter = strutils::trim_ws(curFilter);
 
+
 	GetMainFrame()->SelectFilter();
 	
-	String filterNameOrMask = pGlobalFileFilter->GetFilterNameOrMask();
-	if (pGlobalFileFilter->IsUsingMask())
+	String filterNameOrMask = pGlobalFileFilter->GetMaskOrExpression();
+	// If we had filter chosen and now has mask we can overwrite filter
+	if (curFilter != filterNameOrMask)
 	{
-		// If we had filter chosen and now has mask we can overwrite filter
-		if (!bUseMask || curFilter[0] != '*')
-		{
-			SetDlgItemText(IDC_EXT_COMBO, filterNameOrMask);
-		}
-	}
-	else
-	{
-		filterNameOrMask = filterPrefix + filterNameOrMask;
 		SetDlgItemText(IDC_EXT_COMBO, filterNameOrMask);
+		m_ctlExtEdit.OnEnChange();
 	}
 }
 
@@ -1492,12 +1837,46 @@ void COpenView::OnUpdateDiffIgnoreComments(CCmdUI* pCmdUI)
 }
 
 /**
+ * @brief Toggle "Ignore missing trailing EOL" setting.
+ */
+void COpenView::OnDiffIgnoreMissingTrailingEol()
+{
+	m_bIgnoreMissingTrailingEol = !m_bIgnoreMissingTrailingEol;
+}
+
+/**
+ * @brief Update "Ignore missing trailing EOL" state.
+ * @param [in] pCmdUI UI component to update.
+ */
+void COpenView::OnUpdateDiffIgnoreMissingTrailingEol(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_bIgnoreMissingTrailingEol);
+}
+
+/**
+ * @brief Toggle "Ignore line breaks (treat as spaces)" setting.
+ */
+void COpenView::OnDiffIgnoreLineBreaks()
+{
+	m_bIgnoreLineBreaks = !m_bIgnoreLineBreaks;
+}
+
+/**
+ * @brief Update "Ignore line breaks (treat as spaces)" state.
+ * @param [in] pCmdUI UI component to update.
+ */
+void COpenView::OnUpdateDiffIgnoreLineBreaks(CCmdUI* pCmdUI)
+{
+	pCmdUI->SetCheck(m_bIgnoreLineBreaks);
+}
+
+/**
  * @brief Set "Compare method" setting.
  * @param [in] nID Menu ID of the selected item
  */
 void COpenView::OnCompareMethod(UINT nID)
 {
-	assert(nID >= ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_FULL_CONTENTS && nID <= ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_SIZE);
+	assert(nID >= ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_FULL_CONTENTS && nID <= ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_EXISTENCE);
 
 	m_nCompareMethod = nID - ID_PROJECT_DIFF_OPTIONS_COMPMETHOD_FULL_CONTENTS;
 }
@@ -1531,10 +1910,169 @@ void COpenView::TrimPaths()
  */
 void COpenView::OnActivate(UINT nState, CWnd* pWndOther, BOOL bMinimized)
 {
-	CFormView::OnActivate(nState, pWndOther, bMinimized);
+	__super::OnActivate(nState, pWndOther, bMinimized);
 
 	if (nState == WA_ACTIVE || nState == WA_CLICKACTIVE)
 		UpdateButtonStates();
+}
+
+/**
+ * @brief Refresh the recent comparison list when the view becomes active,
+ * since comparisons opened in other windows change the list.
+ */
+void COpenView::OnActivateView(BOOL bActivate, CView* pActivateView, CView* pDeactiveView)
+{
+	__super::OnActivateView(bActivate, pActivateView, pDeactiveView);
+	if (bActivate && m_bRecentComparesShown)
+		UpdateRecentCompares();
+}
+
+/**
+ * @brief Height of the view: the dialog template height, plus the recent comparison list when it is expanded
+ */
+int COpenView::GetFormHeight() const
+{
+	return m_sizeOrig.cy + (m_bRecentComparesShown ? m_nRecentComparesHeight : 0);
+}
+
+/**
+ * @brief Expand or collapse the recent comparison list.
+ * Dynamic Layout resizes the list and moves the status line with the view.
+ */
+void COpenView::ShowRecentCompares(bool bShow)
+{
+	m_bRecentComparesShown = bShow;
+	m_nRecentComparesHeight = 0;
+	if (bShow)
+	{
+		// Prefer a 90-point list, but keep the expanded view within the MDI client.
+		const int nPreferredHeight = MulDiv(90, CClientDC(this).GetDeviceCaps(LOGPIXELSY), 72);
+		CFrameWnd* pFrame = GetParentFrame();
+		CWnd* pMdiClient = pFrame != nullptr ? pFrame->GetParent() : nullptr;
+		if (pMdiClient != nullptr)
+		{
+			CRect rcMdiClient, rcFrame, rcFrameClient;
+			pMdiClient->GetClientRect(&rcMdiClient);
+			pFrame->GetWindowRect(&rcFrame);
+			pMdiClient->ScreenToClient(&rcFrame);
+			pFrame->GetClientRect(&rcFrameClient);
+			const int nNonClientHeight = rcFrame.Height() - rcFrameClient.Height();
+			const int nAvailableHeight = (std::max)(0L, rcMdiClient.bottom - nNonClientHeight - m_sizeOrig.cy);
+			m_nRecentComparesHeight = (std::min)(nPreferredHeight, nAvailableHeight);
+		}
+		else
+			m_nRecentComparesHeight = nPreferredHeight;
+	}
+	if (bShow)
+		UpdateRecentCompares();
+	m_ctlRecentCompares.ShowWindow(bShow ? SW_SHOW : SW_HIDE);
+	// The frame lays out the view again, which takes the height of GetFormHeight() (OnWindowPosChanging)
+	static_cast<COpenFrame*>(GetParentFrame())->ResizeToView();
+	Invalidate();
+}
+
+/**
+ * @brief Fill the recent comparison list (newest first)
+ */
+void COpenView::UpdateRecentCompares()
+{
+	m_recentCompares = MruHelper::GetRecentCompares(GetOptionsMgr()->GetInt(OPT_MRU_MAX));
+	m_ctlRecentCompares.SetRedraw(FALSE);
+	m_ctlRecentCompares.DeleteAllItems();
+	for (int i = 0; i < static_cast<int>(m_recentCompares.size()); ++i)
+	{
+		m_ctlRecentCompares.InsertItem(i, m_recentCompares[i].title.c_str());
+		m_ctlRecentCompares.SetItemText(i, 1, m_recentCompares[i].params.c_str());
+	}
+	m_ctlRecentCompares.SetRedraw(TRUE);
+}
+
+/**
+ * @brief Title column takes 30% of the list width, the command line column the rest
+ */
+void COpenView::ResizeRecentComparesColumns()
+{
+	if (m_ctlRecentCompares.GetSafeHwnd() == nullptr)
+		return;
+	CHeaderCtrl* pHeader = m_ctlRecentCompares.GetHeaderCtrl();
+	if (pHeader == nullptr || pHeader->GetItemCount() < 2)
+		return;
+	CRect rc;
+	m_ctlRecentCompares.GetClientRect(&rc);
+	const int nTitleWidth = rc.Width() * 3 / 10;
+	m_ctlRecentCompares.SetColumnWidth(0, nTitleWidth);
+	m_ctlRecentCompares.SetColumnWidth(1, (std::max)(rc.Width() - nTitleWidth, 0));
+}
+
+/**
+ * @brief Open the comparison of the given list item, with the paths and options it was opened with
+ */
+void COpenView::OpenRecentCompare(int nItem)
+{
+	if (nItem < 0 || nItem >= static_cast<int>(m_recentCompares.size()))
+		return;
+	// Copy: this view can be closed before the comparison opens
+	const String params = m_recentCompares[nItem].params;
+	if (GetOptionsMgr()->GetBool(OPT_CLOSE_WITH_OK))
+		GetParentFrame()->PostMessage(WM_CLOSE);
+	GetMainFrame()->OpenRecentCompare(params);
+}
+
+void COpenView::OnSize(UINT nType, int cx, int cy)
+{
+	__super::OnSize(nType, cx, cy);
+	ResizeRecentComparesColumns();
+}
+
+void COpenView::OnRecentComparesShow()
+{
+	const bool bShow = IsDlgButtonChecked(IDC_RECENT_COMPARES_SHOW) == BST_CHECKED;
+	GetOptionsMgr()->SaveOption(OPT_SHOW_RECENT_COMPARES, bShow);
+	ShowRecentCompares(bShow);
+}
+
+void COpenView::OnDblclkRecentCompares(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	OpenRecentCompare(reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem);
+	*pResult = 0;
+}
+
+/**
+ * @brief Show the paths and options of the clicked recent comparison in the form.
+ */
+void COpenView::OnClickRecentCompares(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	const int nItem = reinterpret_cast<NMITEMACTIVATE*>(pNMHDR)->iItem;
+	if (nItem >= 0 && nItem < static_cast<int>(m_recentCompares.size()))
+	{
+		// Recent entries store the command-line arguments without the executable name.
+		const String commandLine = _T("WinMergeU.exe ") + m_recentCompares[nItem].params;
+		MergeCmdLineInfo cmdInfo(commandLine.c_str());
+		if (cmdInfo.m_Files.GetSize() >= 2 && cmdInfo.m_Files.GetSize() <= 3)
+		{
+			const fileopenflags_t flags[] = {
+				cmdInfo.m_dwLeftFlags,
+				cmdInfo.m_Files.GetSize() == 2 ? cmdInfo.m_dwRightFlags : cmdInfo.m_dwMiddleFlags,
+				cmdInfo.m_dwRightFlags
+			};
+			for (int i = 0; i < 3; ++i)
+			{
+				m_strPath[i] = i < cmdInfo.m_Files.GetSize() ? cmdInfo.m_Files[i] : _T("");
+				m_bReadOnly[i] = (flags[i] & FFILEOPEN_READONLY) != 0;
+			}
+			m_strExt = cmdInfo.m_sFileFilter;
+			m_strUnpackerPipeline = cmdInfo.m_sUnpacker;
+			m_strPredifferPipeline = cmdInfo.m_sPreDiffer;
+			if (cmdInfo.m_bRecurse.has_value())
+				m_bRecurse = *cmdInfo.m_bRecurse;
+			UpdateData(FALSE);
+			UpdateButtonStates();
+
+			for (int i = 0; i < 3; ++i)
+				GetDlgItem(IDC_PATH0_COMBO + i)->Invalidate();
+		}
+	}
+	*pResult = 0;
 }
 
 void COpenView::OnEditAction(int msg, WPARAM wParam, LPARAM lParam)
@@ -1544,18 +2082,12 @@ void COpenView::OnEditAction(int msg, WPARAM wParam, LPARAM lParam)
 		pCtl->PostMessage(msg, wParam, lParam);
 }
 
-template <int MSG, int WPARAM, int LPARAM>
-void COpenView::OnEditAction()
-{
-	OnEditAction(MSG, WPARAM, LPARAM);
-}
-
 /**
  * @brief Open help from mainframe when user presses F1.
  */
 void COpenView::OnHelp()
 {
-	theApp.ShowHelp(OpenDlgHelpLocation);
+	CMergeApp::ShowHelp(OpenDlgHelpLocation);
 }
 
 /////////////////////////////////////////////////////////////////////////////

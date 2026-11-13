@@ -43,25 +43,19 @@ public:
 	// Reload an edited filter
 	int ReloadFilterFromDisk(FileFilter * pfilter);
 	int ReloadFilterFromDisk(const String& szFullPath);
-	// Load a filter from a string
-	void LoadFilterString(const String& szFilterString);
 	int AddFilter(const String& szFilterFile);
 	void RemoveFilter(const String& szFilterFile);
 
 	// access to array of filters
 	int GetFilterCount() const { return (int) m_filters.size(); }
-	String GetFilterName(int i) const;
-	String GetFilterName(const FileFilter *pFilter) const;
-	String GetFilterPath(int i) const;
-	String GetFilterDesc(int i) const;
-	String GetFilterDesc(const FileFilter *pFilter) const;
+	const String& GetFilterName(int i) const;
+	const String& GetFilterName(const FileFilter *pFilter) const;
+	const String& GetFilterPath(int i) const;
+	const String& GetFilterDesc(int i) const;
+	const String& GetFilterDesc(const FileFilter *pFilter) const;
 	FileFilter * GetFilterByPath(const String& szFilterName);
 	FileFilter * GetFilterByIndex(int i);
-	String GetFullpath(FileFilter * pfilter) const;
-
-	// methods to actually use filter
-	bool TestFileNameAgainstFilter(const FileFilter * pFilter, const String& szFileName) const;
-	bool TestDirNameAgainstFilter(const FileFilter * pFilter, const String& szDirName) const;
+	const String& GetFullpath(FileFilter * pfilter) const;
 
 	void DeleteAllFilters();
 	void CloneFrom(const FileFilterMgr* fileFilterMgr);
@@ -79,7 +73,6 @@ private:
 
 
 bool TestAgainstRegList(const std::vector<FileFilterElementPtr> *filterList, const String& szTest);
-void EmptyFilterList(std::vector<FileFilterElementPtr> *filterList);
 
 /**
  * @brief Return name of filter.
@@ -87,7 +80,7 @@ void EmptyFilterList(std::vector<FileFilterElementPtr> *filterList);
  * @param [in] i Index of filter.
  * @return Name of filter in given index.
  */
-inline String FileFilterMgr::GetFilterName(int i) const
+inline const String& FileFilterMgr::GetFilterName(int i) const
 {
 	return m_filters[i]->name; 
 }
@@ -97,7 +90,7 @@ inline String FileFilterMgr::GetFilterName(int i) const
  * @param [in] pFilter Filter to get name for.
  * @return Given filter's name.
  */
-inline String FileFilterMgr::GetFilterName(const FileFilter *pFilter) const
+inline const String& FileFilterMgr::GetFilterName(const FileFilter *pFilter) const
 {
 	return pFilter->name; 
 }
@@ -108,7 +101,7 @@ inline String FileFilterMgr::GetFilterName(const FileFilter *pFilter) const
  * @param [in] i Index of filter.
  * @return Description of filter in given index.
  */
-inline String FileFilterMgr::GetFilterDesc(int i) const
+inline const String& FileFilterMgr::GetFilterDesc(int i) const
 {
 	return m_filters[i]->description; 
 }
@@ -118,7 +111,7 @@ inline String FileFilterMgr::GetFilterDesc(int i) const
  * @param [in] pFilter Filter to get description for.
  * @return Given filter's description.
  */
-inline String FileFilterMgr::GetFilterDesc(const FileFilter *pFilter) const
+inline const String& FileFilterMgr::GetFilterDesc(const FileFilter *pFilter) const
 {
 	return pFilter->description;
 }
@@ -129,7 +122,7 @@ inline String FileFilterMgr::GetFilterDesc(const FileFilter *pFilter) const
  * @param [in] i Index of filter.
  * @return Full path of filter in given index.
  */
-inline String FileFilterMgr::GetFilterPath(int i) const
+inline const String& FileFilterMgr::GetFilterPath(int i) const
 {
 	return m_filters[i]->fullpath;
 }
@@ -140,7 +133,7 @@ inline String FileFilterMgr::GetFilterPath(int i) const
  * @param [in] pFilter Pointer to filter.
  * @return Full path of filter.
  */
-inline String FileFilterMgr::GetFullpath(FileFilter * pfilter) const
+inline const String& FileFilterMgr::GetFullpath(FileFilter * pfilter) const
 {
 	return pfilter->fullpath;
 }

@@ -7,7 +7,6 @@
 
 #include "stdafx.h"
 #include "DirCmpReportDlg.h"
-#include "Coretools.h"
 #include "DirReportTypes.h"
 #include "paths.h"
 #include "FileOrFolderSelect.h"
@@ -22,6 +21,7 @@ IMPLEMENT_DYNAMIC(DirCmpReportDlg, CTrDialog)
 DirCmpReportDlg::DirCmpReportDlg(CWnd* pParent /*= nullptr*/)
 	: CTrDialog(DirCmpReportDlg::IDD, pParent)
 	, m_bCopyToClipboard(false)
+	, m_bOpenReportFile(false)
 	, m_bIncludeFileCmpReport(false)
 	, m_nReportType(REPORT_TYPE_COMMALIST)
 {
@@ -40,6 +40,7 @@ void DirCmpReportDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_REPORT_STYLECOMBO, m_ctlStyle);
 	DDX_Text(pDX, IDC_REPORT_FILE, m_sReportFile);
 	DDX_Check(pDX, IDC_REPORT_COPYCLIPBOARD, m_bCopyToClipboard);
+	DDX_Check(pDX, IDC_REPORT_OPENREPORTFILE, m_bOpenReportFile);
 	DDX_Check(pDX, IDC_REPORT_INCLUDEFILECMPREPORT, m_bIncludeFileCmpReport);
 }
 
@@ -88,6 +89,7 @@ void DirCmpReportDlg::LoadSettings()
 {
 	m_nReportType = static_cast<REPORT_TYPE>(GetOptionsMgr()->GetInt(OPT_REPORTFILES_REPORTTYPE));
 	m_bCopyToClipboard = GetOptionsMgr()->GetBool(OPT_REPORTFILES_COPYTOCLIPBOARD);
+	m_bOpenReportFile = GetOptionsMgr()->GetBool(OPT_REPORTFILES_OPENREPORTFILE);
 	m_bIncludeFileCmpReport = GetOptionsMgr()->GetBool(OPT_REPORTFILES_INCLUDEFILECMPREPORT);
 }
 
@@ -100,12 +102,13 @@ BOOL DirCmpReportDlg::OnInitDialog()
 
 	LoadSettings();
 
+	m_ctlReportFile.SetFileControlStates(true);
 	m_ctlReportFile.LoadState(_T("ReportFiles"));
 
 	for (int i = 0; i < sizeof(f_types) / sizeof(f_types[0]); ++i)
 	{
 		const ReportTypeInfo & info = f_types[i];
-		int ind = m_ctlStyle.InsertString(i, tr(info.idDisplay).c_str());
+		int ind = m_ctlStyle.InsertString(i, I18n::tr(info.idDisplay).c_str());
 		m_ctlStyle.SetItemData(ind, info.reportType);
 		if (info.reportType == m_nReportType)
 			m_ctlStyle.SetCurSel(m_nReportType);
@@ -135,7 +138,7 @@ void DirCmpReportDlg::OnBtnClickReportBrowse()
 	UpdateData(TRUE);
 
 	String folder = m_sReportFile;
-	String filter = tr(f_types[m_ctlStyle.GetCurSel()].browseFilter);
+	String filter = I18n::tr(f_types[m_ctlStyle.GetCurSel()].browseFilter);
 
 	String chosenFilepath;
 	if (SelectFile(GetSafeHwnd(), chosenFilepath, false, folder.c_str(), _T(""), filter))
@@ -171,7 +174,7 @@ void DirCmpReportDlg::OnOK()
 
 	if (m_sReportFile.empty() && !m_bCopyToClipboard)
 	{
-		LangMessageBox(IDS_MUST_SPECIFY_OUTPUT, MB_ICONSTOP);
+		I18n::MessageBox(IDS_MUST_SPECIFY_OUTPUT, MB_ICONSTOP);
 		m_ctlReportFile.SetFocus();
 		return;
 	}
@@ -180,7 +183,7 @@ void DirCmpReportDlg::OnOK()
 	{
 		if (paths::DoesPathExist(m_sReportFile) == paths::IS_EXISTING_FILE)
 		{
-			int overWrite = LangMessageBox(IDS_REPORT_FILEOVERWRITE,
+			int overWrite = I18n::MessageBox(IDS_REPORT_FILEOVERWRITE,
 					MB_YESNO | MB_ICONWARNING | MB_DONT_ASK_AGAIN,
 					IDS_REPORT_FILEOVERWRITE);
 			if (overWrite == IDNO)
@@ -191,6 +194,7 @@ void DirCmpReportDlg::OnOK()
 	m_ctlReportFile.SaveState(_T("ReportFiles"));
 	GetOptionsMgr()->SaveOption(OPT_REPORTFILES_REPORTTYPE, static_cast<int>(m_nReportType));
 	GetOptionsMgr()->SaveOption(OPT_REPORTFILES_COPYTOCLIPBOARD, m_bCopyToClipboard);
+	GetOptionsMgr()->SaveOption(OPT_REPORTFILES_OPENREPORTFILE, m_bOpenReportFile);
 	GetOptionsMgr()->SaveOption(OPT_REPORTFILES_INCLUDEFILECMPREPORT, m_bIncludeFileCmpReport);
 
 	CTrDialog::OnOK();

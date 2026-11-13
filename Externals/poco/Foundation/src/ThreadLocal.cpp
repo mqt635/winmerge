@@ -13,7 +13,6 @@
 
 
 #include "Poco/ThreadLocal.h"
-#include "Poco/SingletonHolder.h"
 #include "Poco/Thread.h"
 
 
@@ -39,7 +38,7 @@ ThreadLocalStorage::~ThreadLocalStorage()
 {
 	for (auto& p: _map)
 	{
-		delete p.second;	
+		delete p.second;
 	}
 }
 
@@ -48,15 +47,9 @@ TLSAbstractSlot*& ThreadLocalStorage::get(const void* key)
 {
 	TLSMap::iterator it = _map.find(key);
 	if (it == _map.end())
-		return _map.insert(TLSMap::value_type(key, reinterpret_cast<Poco::TLSAbstractSlot*>(0))).first->second;
+		return _map.insert(TLSMap::value_type(key, nullptr)).first->second;
 	else
 		return it->second;
-}
-
-
-namespace
-{
-	static SingletonHolder<ThreadLocalStorage> sh;
 }
 
 
@@ -69,7 +62,8 @@ ThreadLocalStorage& ThreadLocalStorage::current()
 	}
 	else
 	{
-		return *sh.get();
+		static ThreadLocalStorage tls;
+		return tls;
 	}
 }
 

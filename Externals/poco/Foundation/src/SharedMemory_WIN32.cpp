@@ -19,6 +19,7 @@
 #include "Poco/Format.h"
 #include "Poco/UnicodeConverter.h"
 #include "Poco/UnWindows.h"
+#include <limits>
 
 
 namespace Poco {
@@ -40,22 +41,24 @@ SharedMemoryImpl::SharedMemoryImpl(const std::string& name, std::size_t size, Sh
 	const Poco::File tmpFile(_name);
 	_memHandle = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, _mode, mySize.HighPart, mySize.LowPart, tmpFile.wpath().c_str());
 
-	if (!_memHandle)
+	if (_memHandle == nullptr)
 	{
 		DWORD dwRetVal = GetLastError();
-#if defined (_WIN32_WCE)
-		throw SystemException(format("Cannot create shared memory object %s [Error %d: %s]", _name, static_cast<int>(dwRetVal), Error::getMessage(dwRetVal)));
-#else
+		int retVal = static_cast<int>(dwRetVal);
+
 		if (_mode != PAGE_READONLY || dwRetVal != 5)
-			throw SystemException(format("Cannot create shared memory object %s [Error %d: %s]", _name, static_cast<int>(dwRetVal), Error::getMessage(dwRetVal)));
+		{
+			throw SystemException(Poco::format("Cannot create shared memory object %s [Error %d: %s]",
+				_name, retVal, Error::getMessage(dwRetVal)), retVal);
+		}
 
 		_memHandle = OpenFileMappingW(PAGE_READONLY, FALSE, tmpFile.wpath().c_str());
-		if (!_memHandle)
+		if (_memHandle == nullptr)
 		{
 			dwRetVal = GetLastError();
-			throw SystemException(format("Cannot open shared memory object %s [Error %d: %s]", _name, static_cast<int>(dwRetVal), Error::getMessage(dwRetVal)));
+			throw SystemException(Poco::format("Cannot open shared memory object %s [Error %d: %s]",
+				_name, retVal, Error::getMessage(dwRetVal)), retVal);
 		}
-#endif 
 	}
 	map();
 }
@@ -65,6 +68,7 @@ SharedMemoryImpl::SharedMemoryImpl(const Poco::File& file, SharedMemory::AccessM
 	_name(file.path()),
 	_memHandle(INVALID_HANDLE_VALUE),
 	_fileHandle(INVALID_HANDLE_VALUE),
+	_size(0),
 	_mode(PAGE_READONLY),
 	_address(0)
 {
@@ -136,12 +140,12 @@ void SharedMemoryImpl::map()
 	if (_mode == PAGE_READWRITE)
 		access = FILE_MAP_WRITE;
 	LPVOID addr = MapViewOfFile(_memHandle, access, 0, 0, static_cast<SIZE_T>(_size));
-	if (!addr)
+	if (addr == nullptr)
 	{
 		DWORD dwRetVal = GetLastError();
 		throw SystemException(format("Cannot map shared memory object %s [Error %d: %s]", _name, (int)dwRetVal, Error::getMessage(dwRetVal)));
 	}
-	if (_size == 1 && !canRead(addr))
+	if (_size >= 1 && !canRead(addr))
 	{
 		UnmapViewOfFile(addr);
 		throw SystemException("Cannot map shared memory object", _name);

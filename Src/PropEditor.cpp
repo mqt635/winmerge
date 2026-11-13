@@ -15,7 +15,7 @@
 #endif
 
 /** @brief Maximum size for tabs in spaces. */
-static const int MAX_TABSIZE = 64;
+static const unsigned MAX_TABSIZE = 64u;
 
 /** 
  * @brief Constructor.
@@ -24,16 +24,20 @@ static const int MAX_TABSIZE = 64;
 PropEditor::PropEditor(COptionsMgr *optionsMgr) 
 : OptionsPanel(optionsMgr, PropEditor::IDD)
 , m_bHiliteSyntax(false)
+, m_nHiliteSyntaxMode(0)
 , m_nTabType(-1)
 , m_nTabSize(0)
-, m_bAutomaticRescan(false)
 , m_bAllowMixedEol(false)
-, m_bCopyFullLine(false)
-, m_bViewLineDifferences(false)
-, m_bBreakOnWords(false)
-, m_nBreakType(0)
 , m_nRenderingMode(0)
 {
+	BindOptionCustom(OPT_TAB_SIZE, m_nTabSize, IDC_TAB_EDIT, DDX_Text,
+		+[](unsigned v) { return v; }, +[](unsigned v) { return std::clamp(v, 1u, MAX_TABSIZE); });
+	BindOption(OPT_TAB_TYPE, m_nTabType, IDC_PROP_INSERT_TABS, DDX_Radio);
+	BindOption(OPT_SYNTAX_HIGHLIGHT, m_bHiliteSyntax, IDC_HILITE_CHECK, DDX_Check);
+	BindOption(OPT_SYNTAX_HIGHLIGHT_MODE, m_nHiliteSyntaxMode, IDC_HILITE_SYNTAX_MODE, DDX_CBIndex);
+	BindOption(OPT_ALLOW_MIXED_EOL, m_bAllowMixedEol, IDC_MIXED_EOL, DDX_Check);
+	BindOptionCustom(OPT_RENDERING_MODE, m_nRenderingMode, IDC_RENDERING_MODE, DDX_CBIndex,
+		+[](int v) { return v + 1; }, +[](int v) { return (v - 1); });
 }
 
 /** 
@@ -43,72 +47,20 @@ void PropEditor::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(PropEditor)
-	DDX_Check(pDX, IDC_HILITE_CHECK, m_bHiliteSyntax);
-	DDX_Radio(pDX, IDC_PROP_INSERT_TABS, m_nTabType);
-	DDX_Text(pDX, IDC_TAB_EDIT, m_nTabSize);
 	DDV_MaxChars(pDX, std::to_string(m_nTabSize).c_str(), 2);
-	DDX_Check(pDX, IDC_AUTOMRESCAN_CHECK, m_bAutomaticRescan);
-	DDX_Check(pDX, IDC_MIXED_EOL, m_bAllowMixedEol);
 	// m_bCopyFullLine currently is only a hidden option
 	//  > it is used here in PropEditor.cpp, because otherwise it doesn't get saved to the registry
-	DDX_Check(pDX, IDC_VIEW_LINE_DIFFERENCES, m_bViewLineDifferences);
-	DDX_Radio(pDX, IDC_EDITOR_CHARLEVEL, m_bBreakOnWords);
-	DDX_CBIndex(pDX, IDC_BREAK_TYPE, m_nBreakType);
-	DDX_Text(pDX, IDC_BREAK_CHARS, m_breakChars);
-	DDX_CBIndex(pDX, IDC_RENDERING_MODE, m_nRenderingMode);
 	//}}AFX_DATA_MAP
+	DoDataExchangeBindOptions(pDX);
 }
 
 
 BEGIN_MESSAGE_MAP(PropEditor, OptionsPanel)
 	//{{AFX_MSG_MAP(PropEditor)
-	ON_BN_CLICKED(IDC_VIEW_LINE_DIFFERENCES, OnLineDiffControlClicked)
-	ON_BN_CLICKED(IDC_EDITOR_CHARLEVEL, OnLineDiffControlClicked)
-	ON_BN_CLICKED(IDC_EDITOR_WORDLEVEL, OnLineDiffControlClicked)
+	ON_BN_CLICKED(IDC_COMPARE_DEFAULTS, OnDefaults)
 	ON_EN_KILLFOCUS(IDC_TAB_EDIT, OnEnKillfocusTabEdit)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
-
-/** 
- * @brief Reads options values from storage to UI.
- */
-void PropEditor::ReadOptions()
-{
-	m_nTabSize = GetOptionsMgr()->GetInt(OPT_TAB_SIZE);
-	m_nTabType = GetOptionsMgr()->GetInt(OPT_TAB_TYPE);
-	m_bAutomaticRescan = GetOptionsMgr()->GetBool(OPT_AUTOMATIC_RESCAN);
-	m_bHiliteSyntax = GetOptionsMgr()->GetBool(OPT_SYNTAX_HIGHLIGHT);
-	m_bAllowMixedEol = GetOptionsMgr()->GetBool(OPT_ALLOW_MIXED_EOL);
-	m_bCopyFullLine = GetOptionsMgr()->GetBool(OPT_COPY_FULL_LINE);
-	m_bViewLineDifferences = GetOptionsMgr()->GetBool(OPT_WORDDIFF_HIGHLIGHT);
-	m_bBreakOnWords = GetOptionsMgr()->GetBool(OPT_BREAK_ON_WORDS);
-	m_nBreakType = GetOptionsMgr()->GetInt(OPT_BREAK_TYPE);
-	m_breakChars = GetOptionsMgr()->GetString(OPT_BREAK_SEPARATORS);
-	m_nRenderingMode = GetOptionsMgr()->GetInt(OPT_RENDERING_MODE) + 1;
-}
-
-/** 
- * @brief Writes options values from UI to storage.
- */
-void PropEditor::WriteOptions()
-{
-	// Sanity check tabsize
-	if (m_nTabSize < 1)
-		m_nTabSize = 1;
-	if (m_nTabSize > MAX_TABSIZE)
-		m_nTabSize = MAX_TABSIZE;
-	GetOptionsMgr()->SaveOption(OPT_TAB_SIZE, (int)m_nTabSize);
-	GetOptionsMgr()->SaveOption(OPT_TAB_TYPE, (int)m_nTabType);
-	GetOptionsMgr()->SaveOption(OPT_AUTOMATIC_RESCAN, m_bAutomaticRescan);
-	GetOptionsMgr()->SaveOption(OPT_ALLOW_MIXED_EOL, m_bAllowMixedEol);
-	GetOptionsMgr()->SaveOption(OPT_COPY_FULL_LINE, m_bCopyFullLine);
-	GetOptionsMgr()->SaveOption(OPT_SYNTAX_HIGHLIGHT, m_bHiliteSyntax);
-	GetOptionsMgr()->SaveOption(OPT_WORDDIFF_HIGHLIGHT, m_bViewLineDifferences);
-	GetOptionsMgr()->SaveOption(OPT_BREAK_ON_WORDS, m_bBreakOnWords);
-	GetOptionsMgr()->SaveOption(OPT_BREAK_TYPE, m_nBreakType);
-	GetOptionsMgr()->SaveOption(OPT_BREAK_SEPARATORS, String(m_breakChars));
-	GetOptionsMgr()->SaveOption(OPT_RENDERING_MODE, m_nRenderingMode - 1);
-}
 
 /** 
  * @brief Called before propertysheet is drawn.
@@ -119,7 +71,6 @@ BOOL PropEditor::OnInitDialog()
 
 	LoadComboBoxStrings();
 	UpdateDataToWindow();
-	UpdateLineDiffControls();
 #ifndef _WIN64
 	EnableDlgItem(IDC_RENDERING_MODE, false);
 #endif
@@ -133,38 +84,10 @@ BOOL PropEditor::OnInitDialog()
  */
 void PropEditor::LoadComboBoxStrings()
 {
-	CComboBox * cbo = (CComboBox *)GetDlgItem(IDC_BREAK_TYPE);
-	cbo->AddString(_("Break at whitespace").c_str());
-	cbo->AddString(_("Break at whitespace or punctuation").c_str());
-	cbo = (CComboBox *)GetDlgItem(IDC_RENDERING_MODE);
-	cbo->AddString(_("GDI").c_str());
-	cbo->AddString(_("DirectWrite Default").c_str());
-	cbo->AddString(_("DirectWrite Aliased").c_str());
-	cbo->AddString(_("DirectWrite GDI Classic").c_str());
-	cbo->AddString(_("DirectWrite GDI Natural").c_str());
-	cbo->AddString(_("DirectWrite Natural").c_str());
-	cbo->AddString(_("DirectWrite Natural Symmetric").c_str());
-}
-
-/**
- * @brief Handlers any clicks in any of the line differencing controls
- */
-void PropEditor::OnLineDiffControlClicked()
-{
-	UpdateLineDiffControls();
-}
-
-/** 
- * @brief Update availability of line difference controls
- */
-void PropEditor::UpdateLineDiffControls()
-{
-	UpdateDataFromWindow();
-	// Can only choose char/word level if line differences are enabled
-	EnableDlgItem(IDC_EDITOR_CHARLEVEL, m_bViewLineDifferences);
-	EnableDlgItem(IDC_EDITOR_WORDLEVEL, m_bViewLineDifferences);
-	// Can only choose break type if line differences are enabled & we're breaking on words
-	EnableDlgItem(IDC_BREAK_TYPE, m_bViewLineDifferences);
+	SetDlgItemComboBoxList(IDC_HILITE_SYNTAX_MODE,
+		{ _("Built-in only"), _("Built-in first"), _("Tree-sitter first"), _("Tree-sitter only")});
+	SetDlgItemComboBoxList(IDC_RENDERING_MODE,
+		{ _("GDI"), _("DirectWrite Default"), _("DirectWrite Aliased"), _("DirectWrite GDI Classic"), _("DirectWrite GDI Natural"), _("DirectWrite Natural"), _("DirectWrite Natural Symmetric") });
 }
 
 /** 
@@ -176,7 +99,7 @@ void PropEditor::OnEnKillfocusTabEdit()
 	if (value < 1 || value > MAX_TABSIZE)
 	{
 		String msg = strutils::format_string1(
-			_("Value in Tab size -field is not in range WinMerge accepts.\n\nPlease use values 1 - %1."),
+			_("Tab size value is out of range. Please use 1 - %1."),
 			strutils::to_str(MAX_TABSIZE));
 		AfxMessageBox(msg.c_str(), MB_ICONWARNING);
 	}

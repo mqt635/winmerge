@@ -11,8 +11,6 @@
 #include "SyntaxColors.h"
 #include <array>
 
-const int NumCustomColors = 16;
-
 class PropSyntaxColors : public OptionsPanel
 {
 	DECLARE_DYNAMIC(PropSyntaxColors)
@@ -35,9 +33,9 @@ protected:
 	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
 	template<unsigned colorIndex>
 	afx_msg void OnBnClickedEcolor();
+	afx_msg void OnBnClickedBoldButton(unsigned ctlId, unsigned colorIndex);
 	template<unsigned ctlId, unsigned colorIndex>
-	afx_msg void OnBnClickedBoldButton();
-
+	afx_msg void OnBnClickedBoldButton() { OnBnClickedBoldButton(ctlId, colorIndex); }
 	void BrowseColorAndSave(unsigned colorIndex);
 	int GetCheckVal(UINT nColorIndex);
 

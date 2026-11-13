@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include <Windows.h>
+#include <windows.h>
 
 #define DllBuild_Merge7z 10 // Minimum DllBuild of Merge7z plugin required
 
@@ -37,7 +37,9 @@ struct Merge7zFormatMergePluginImpl : public Merge7z::Format
 	static Merge7z::Format *GuessFormat(const String& path);
 	static void SetPackingInfo(const PackingInfo *infoUnpacker);
 	static PackingInfo *GetPackingInfo();
-	PluginInfo *m_plugin;
+	PluginInfo* m_URLHandler = nullptr;
+	PluginInfo* m_plugin = nullptr;
+	Merge7z::Format* m_format = nullptr;
 	PackingInfo m_infoUnpacker;
 };
 

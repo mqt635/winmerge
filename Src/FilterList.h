@@ -39,17 +39,14 @@ public:
 	FilterList();
 	~FilterList();
 	
-	void AddRegExp(const std::string& regularExpression);
+	void AddRegExp(const std::string& regularExpression, bool throwIfInvalid = false);
 	void RemoveAllFilters();
 	bool HasRegExps() const;
 	bool Match(const std::string& string, int codepage = ucr::CP_UTF_8);
-	const char * GetLastMatchExpression() const;
 	void CloneFrom(const FilterList* filterList);
 
 private:
 	std::vector <filter_item_ptr> m_list;
-	const std::string *m_lastMatchExpression;
-
 };
 
 /** 
@@ -67,14 +64,4 @@ inline void FilterList::RemoveAllFilters()
 inline bool FilterList::HasRegExps() const
 {
 	return !m_list.empty();
-}
-
-/** 
- * @brief Returns the last matched expression (if any).
- * This function returns the regular expression string that matched last.
- * @return Last matched expression, or `nullptr` in case no matches yet.
- */
-inline const char * FilterList::GetLastMatchExpression() const
-{
-	return m_lastMatchExpression->c_str();
 }

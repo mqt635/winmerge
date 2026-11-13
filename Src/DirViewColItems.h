@@ -30,7 +30,7 @@ struct DirColInfo
 		ALIGN_RIGHT = 1,  // LVCFMT_RIGHT
 		ALIGN_CENTER = 2  // LVCFMT_CENTER
 	};
-	const TCHAR *regName; /**< Internal name used for registry entries etc */
+	const tchar_t *regName; /**< Internal name used for registry entries etc */
 	// localized string resources
 	const char *idNameContext; 
 	const char *idName; /**< Displayed name, ID of string resource */
@@ -57,12 +57,14 @@ public:
 	int GetColDefaultOrder(int col) const;
 	const DirColInfo * GetDirColInfo(int col) const;
 	bool IsColById(int col, const char *idname) const;
+	bool IsColSideName(int col) const;
 	bool IsColName(int col) const;
 	bool IsColLmTime(int col) const;
 	bool IsColMmTime(int col) const;
 	bool IsColRmTime(int col) const;
 	bool IsColStatus(int col) const;
 	bool IsColStatusAbbr(int col) const;
+	bool IsColSortableWhileComparing(int col) const;
 	bool IsDefaultSortAscending(int col) const;
 	String GetColDisplayName(int col) const;
 	String GetColDescription(int col) const;
@@ -88,7 +90,7 @@ public:
 	template<class SetColumnWidthFunc>
 	void LoadColumnWidths(String colwidths, SetColumnWidthFunc setcolwidth, int defcolwidth)
 	{
-		std::basic_istringstream<TCHAR> ss(colwidths);
+		std::basic_istringstream<tchar_t> ss(colwidths);
 		for (int i = 0; i < m_numcols; ++i)
 		{
 			int phy = ColLogToPhys(i);
@@ -96,7 +98,7 @@ public:
 			{
 				int w = defcolwidth;
 				ss >> w;
-				setcolwidth(phy, max(w, 10));
+				setcolwidth(phy, (std::max)(w, 10));
 			}
 		}
 	}
@@ -120,6 +122,7 @@ public:
 
 
 private:
+	int GetColIndexByName(const String& name) const;
 	void AddAdditionalPropertyName(const String& propertyName);
 	void RemoveAdditionalPropertyName(const String& propertyName);
 

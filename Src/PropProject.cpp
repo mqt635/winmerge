@@ -56,7 +56,7 @@ void PropProject::DoDataExchange(CDataExchange* pDX)
 
 BEGIN_MESSAGE_MAP(PropProject, OptionsPanel)
 	//{{AFX_MSG_MAP(PropEditor)
-//	ON_BN_CLICKED(IDC_COMPARE_DEFAULTS, OnDefaults)
+	ON_BN_CLICKED(IDC_COMPARE_DEFAULTS, OnDefaults)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -92,6 +92,18 @@ BOOL PropProject::OnInitDialog()
 }
 
 /**
+ * @brief Sets options to defaults
+ */
+void PropProject::OnDefaults()
+{
+	for (int i = 0; i < Options::Project::OperationCount; i++)
+		for (int j = 0; j < Options::Project::ItemCount; j++)
+			m_settings[i][j] = Options::Project::GetDefault(GetOptionsMgr(), static_cast<Options::Project::Operation>(i), static_cast<Options::Project::Item>(j));
+
+	UpdateData(FALSE);
+}
+
+/**
  * @brief Initialize listcontrol containing project settings.
  */
 void PropProject::InitList()
@@ -104,7 +116,7 @@ void PropProject::InitList()
 	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
 
 	String title = _("Item");
-	m_list.InsertColumn(0, title.c_str(), LVCFMT_LEFT, pointToPixel(100));
+	m_list.InsertColumn(0, title.c_str(), LVCFMT_LEFT, pointToPixel(150));
 	title = _("Open");
 	m_list.InsertColumn(1, title.c_str(), LVCFMT_LEFT, pointToPixel(50));
 	title = _("Load");
@@ -123,12 +135,13 @@ void PropProject::InitList()
 		IDS_PROJECT_ITEM_FILE_FILTER,
 		IDS_PROJECT_ITEM_INCLUDE_SUBFOLDERS,
 		IDS_PROJECT_ITEM_PLUGIN,
-		IDS_PROJECT_ITEM_COMPARE_OPTIONS
+		IDS_PROJECT_ITEM_COMPARE_OPTIONS,
+		IDS_PROJECT_ITEM_HIDDEN_ITEMS
 	};
 
 	for (int i = 0; i < Options::Project::ItemCount; i++)
 	{
-		String str = LoadResString(nID[i]);
+		String str = I18n::LoadString(nID[i]);
 		m_list.InsertItem(i, str.c_str());
 	}
 }

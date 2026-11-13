@@ -5,9 +5,9 @@
 #include "CompareOptions.h"
 #include "FileLocation.h"
 #include "DiffItem.h"
-#include <io.h>
-#include <sys/stat.h>
-#include <fcntl.h>
+#include "DiffFileData.h"
+#include "cio.h"
+#include "unicoder.h"
 #include <fstream>
 
 namespace
@@ -32,18 +32,14 @@ namespace
 	{
 		FilePair(const std::string& left, const std::string& right)
 		{
-			_sopen_s(&filedata[0].desc, left.c_str(),  O_RDONLY | O_BINARY, _SH_DENYWR, _S_IREAD);
-			_sopen_s(&filedata[1].desc, right.c_str(), O_RDONLY | O_BINARY, _SH_DENYWR, _S_IREAD);
+			diffData.OpenFiles(ucr::toTString(left), ucr::toTString(right));
 		}
 
 		~FilePair()
 		{
-			_close(filedata[0].desc);
-			_close(filedata[1].desc);
 		}
 
-		FileLocation location[2];
-		file_data filedata[2];
+		DiffFileData diffData;
 	};
 
 	// The fixture for testing paths functions.
@@ -119,13 +115,12 @@ namespace
 		TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 		FilePair pair(filename_left, filename_right);
-		bc.SetFileData(2, pair.filedata);
 
 		bc.SetCompareOptions(option);
-		EXPECT_EQ(DIFFCODE::BIN|DIFFCODE::BINSIDE1|DIFFCODE::BINSIDE2|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+		EXPECT_EQ(int(DIFFCODE::BIN|DIFFCODE::BINSIDE1|DIFFCODE::BINSIDE2|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		FileTextStats stats[2];
-		bc.GetTextStats(0, &stats[0]);
-		bc.GetTextStats(1, &stats[1]);
+		stats[0] = pair.diffData.m_textStats[0];
+		stats[1] = pair.diffData.m_textStats[1];
 
 //		EXPECT_EQ(3, stats[0].nzeros);
 //		EXPECT_EQ(3, stats[1].nzeros);
@@ -137,7 +132,6 @@ namespace
 		EXPECT_EQ(6, stats[1].ncrs);
 
 	}
-
 
 	TEST_F(ByteCompareTest, IgnoreAllSpace)
 	{
@@ -177,9 +171,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// diff
@@ -189,9 +182,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// all space
@@ -202,9 +194,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// empty right
@@ -214,9 +205,8 @@ namespace
 			TempFile file_right(filename_right, "", 0);
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// empty left
@@ -226,9 +216,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{
@@ -239,9 +228,8 @@ namespace
 			TempFile file_right(filename_right, "A", 1);
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{
@@ -252,9 +240,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 	}
@@ -301,9 +288,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// diff
@@ -314,9 +300,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// same2
@@ -338,9 +323,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// same3
@@ -362,9 +346,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 	}
@@ -392,8 +375,7 @@ namespace
 			}		
 
 			FilePair pair(filename_crlf, filename_lf);
-			bc.SetFileData(2, pair.filedata);
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		// diff
@@ -410,12 +392,100 @@ namespace
 			}
 
 			FilePair pair(filename_crlf, filename_lf);
-			bc.SetFileData(2, pair.filedata);
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		remove(filename_crlf.c_str());
 		remove(filename_lf.c_str());
+
+		std::string filename_left  = "_tmp_.txt";
+		std::string filename_right = "_tmp_2.txt";
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: LF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 1 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: LF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 1 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\r';
+				buf_right[10] = '\n';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: CRLF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CRLF
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
 	}
 
 	TEST_F(ByteCompareTest, IgnoreCase)
@@ -444,9 +514,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::SAME, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
 		}
 
 		{// diff
@@ -457,9 +526,90 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+		}
+
+	}
+
+	TEST_F(ByteCompareTest, IgnoreBlankLines)
+	{
+		CompareEngines::ByteCompare bc;
+		QuickCompareOptions option;
+		std::string filename_left  = "_tmp_.txt";
+		std::string filename_right = "_tmp_2.txt";
+		char buf_left [WMCMPBUFF * 2];
+		char buf_right[WMCMPBUFF * 2];
+
+		option.m_ignoreWhitespace = WHITESPACE_COMPARE_ALL;
+		option.m_bIgnoreBlankLines = true;
+		bc.SetCompareOptions(option);
+
+		{// same
+			strcpy_s(buf_left, 
+"\r\n/* abc */\r\nabc(aaa);\r\n\r\n");
+			strcpy_s(buf_right, 
+"  \r\n/* abc */\r\nabc(aaa);\r\n  \r\n");
+			TempFile file_left (filename_left,  buf_left,  strlen(buf_left));
+			TempFile file_right(filename_right, buf_right, strlen(buf_right));
+
+			FilePair pair(filename_left, filename_right);
+
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+		}
+
+		{// diff 
+			strcpy_s(buf_left, 
+"\r\n /* abc */\r\nabc(aaa);\r\n\r\n");
+			strcpy_s(buf_right, 
+"  \r\n  /* abc */\r\nabc(aaa);\r\n  \r\n");
+			TempFile file_left (filename_left,  buf_left,  strlen(buf_left));
+			TempFile file_right(filename_right, buf_right, strlen(buf_right));
+
+			FilePair pair(filename_left, filename_right);
+
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+		}
+	}
+
+	TEST_F(ByteCompareTest, IgnoreBlankLinesAndIgnoreEOLDifference)
+	{
+		CompareEngines::ByteCompare bc;
+		QuickCompareOptions option;
+		std::string filename_left  = "_tmp_.txt";
+		std::string filename_right = "_tmp_2.txt";
+		char buf_left [WMCMPBUFF * 2];
+		char buf_right[WMCMPBUFF * 2];
+
+		option.m_ignoreWhitespace = WHITESPACE_COMPARE_ALL;
+		option.m_bIgnoreEOLDifference = true;
+		option.m_bIgnoreBlankLines = true;
+		bc.SetCompareOptions(option);
+
+		{// same
+			strcpy_s(buf_left, 
+"\n/* abc */\nabc(aaa);\n\n");
+			strcpy_s(buf_right, 
+"  \r\n/* abc */\r\nabc(aaa);\r\n  \r\n");
+			TempFile file_left (filename_left,  buf_left,  strlen(buf_left));
+			TempFile file_right(filename_right, buf_right, strlen(buf_right));
+
+			FilePair pair(filename_left, filename_right);
+
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+		}
+
+		{// diff 
+			strcpy_s(buf_left, 
+"\n/* abc */ \nabc(aaa);\n\n");
+			strcpy_s(buf_right, 
+"  \r\n/* abc */\r\nabc(aaa);\r\n  \r\n");
+			TempFile file_left (filename_left,  buf_left,  strlen(buf_left));
+			TempFile file_right(filename_right, buf_right, strlen(buf_right));
+
+			FilePair pair(filename_left, filename_right);
+
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 	}
 
@@ -482,9 +632,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right) - 1);
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		{
@@ -492,9 +641,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right)    );
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		{
@@ -502,9 +650,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right));
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		{
@@ -512,9 +659,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, WMCMPBUFF);
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		{
@@ -522,9 +668,8 @@ namespace
 			TempFile file_right(filename_right, buf_right, sizeof(buf_right) - 1);
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
 		{
@@ -532,11 +677,945 @@ namespace
 			TempFile file_right(filename_right, buf_right, WMCMPBUFF + 1);
 
 			FilePair pair(filename_left, filename_right);
-			bc.SetFileData(2, pair.filedata);
 
-			EXPECT_EQ(DIFFCODE::TEXT|DIFFCODE::DIFF, bc.CompareFiles(pair.location));
+			EXPECT_EQ(int(DIFFCODE::TEXT|DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
 		}
 
+	}
+
+	TEST_F(ByteCompareTest, IgnoreMissingTrailingEol)
+	{
+		CompareEngines::ByteCompare bc;
+		QuickCompareOptions option;
+		std::string filename_left  = "_tmp_.txt";
+		std::string filename_right = "_tmp_2.txt";
+
+		option.m_bIgnoreMissingTrailingEol = true;
+		bc.SetCompareOptions(option);
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// same left: LF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 1 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// same left: no EOL - right: LF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 1 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// same left: CRLF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// same left: no EOL - right: CRLF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: CR+A - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = 'A';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CR+A
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = 'A';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: LF+LF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[buf_left.size() - 2] = '\n';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: LF+LF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[buf_right.size() - 2] = '\n';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+		
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: CR+CR - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\r';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CR+CR
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\r';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			{// diff left: CRLF+CRLF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 4 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[buf_left.size() - 4] = '\r';
+				buf_left[buf_left.size() - 3] = '\n';
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CRLF+CRLF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 4 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[buf_right.size() - 4] = '\r';
+				buf_right[buf_right.size() - 3] = '\n';
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+	}
+
+	TEST_F(ByteCompareTest, IgnoreMissingTrailingEolAndIgnoreEOLDifference)
+	{
+		CompareEngines::ByteCompare bc;
+		QuickCompareOptions option;
+		std::string filename_left  = "_tmp_.txt";
+		std::string filename_right = "_tmp_2.txt";
+
+		option.m_bIgnoreMissingTrailingEol = true;
+		option.m_bIgnoreEOLDifference = true;
+		bc.SetCompareOptions(option);
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// same left: LF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 1 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 1 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// same left: no EOL - right: LF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 1 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 1 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// same left: CRLF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\r';
+				buf_right[20] = '\r';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// same left: no EOL - right: CRLF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\r';
+				buf_left[20] = '\r';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: CR+A - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\r';
+				buf_right[20] = '\r';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = 'A';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CR+A
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\r';
+				buf_left[20] = '\r';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = 'A';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: LF+LF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\r';
+				buf_right[20] = '\r';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\n';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: LF+LF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\r';
+				buf_left[20] = '\r';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\n';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+		
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: CR+CR - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\r';
+				buf_right[20] = '\r';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\r';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CR+CR
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\r';
+				buf_left[20] = '\r';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\r';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			{// diff left: CRLF+CRLF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 4 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 4 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\r';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\r';
+				buf_right[20] = '\r';
+				buf_right[21] = '\n';
+
+				buf_left[28] = '\r';
+				buf_right[30] = '\r';
+				buf_right[31] = '\n';
+
+				buf_left[buf_left.size() - 4] = '\r';
+				buf_left[buf_left.size() - 3] = '\n';
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CRLF+CRLF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 4 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 4 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\r';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\r';
+				buf_left[20] = '\r';
+				buf_left[21] = '\n';
+
+				buf_right[28] = '\r';
+				buf_left[30] = '\r';
+				buf_left[31] = '\n';
+
+				buf_right[buf_right.size() - 4] = '\r';
+				buf_right[buf_right.size() - 3] = '\n';
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+	}
+
+	TEST_F(ByteCompareTest, IgnoreMissingTrailingEolAndIgnoreBlankLines)
+	{
+		CompareEngines::ByteCompare bc;
+		QuickCompareOptions option;
+		std::string filename_left  = "_tmp_.txt";
+		std::string filename_right = "_tmp_2.txt";
+
+		option.m_bIgnoreMissingTrailingEol = true;
+		option.m_bIgnoreBlankLines = true;
+		bc.SetCompareOptions(option);
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// same left: LF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 1 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 1 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\n';
+				buf_right[11] = '\n';
+
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// same left: no EOL - right: LF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 1 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 1 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\n';
+				buf_left[11] = '\n';
+
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// same left: CRLF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\n';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\n';
+				buf_right[20] = '\n';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// same left: no EOL - right: CRLF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\n';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\n';
+				buf_left[20] = '\n';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::SAME), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: CR+A - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\n';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\n';
+				buf_right[20] = '\n';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = 'A';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CR+A
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\n';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\n';
+				buf_left[20] = '\n';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = 'A';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: LF+LF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\n';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\n';
+				buf_right[20] = '\n';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\n';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: LF+LF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\n';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\n';
+				buf_left[20] = '\n';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\n';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+		
+		for (int i = 0; i < 3; i++)
+		{
+			{// diff left: CR+CR - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\n';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\n';
+				buf_right[20] = '\n';
+				buf_right[21] = '\n';
+
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\r';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CR+CR
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 2 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 2 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\n';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\n';
+				buf_left[20] = '\n';
+				buf_left[21] = '\n';
+
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\r';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
+
+		for (int i = 0; i < 4; i++)
+		{
+			{// diff left: CRLF+CRLF - right: no EOL
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 4 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 4 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_left[10] = '\n';
+				buf_right[10] = '\n';
+				buf_right[11] = '\n';
+
+				buf_left[19] = '\n';
+				buf_right[20] = '\n';
+				buf_right[21] = '\n';
+
+				buf_left[28] = '\n';
+				buf_right[30] = '\n';
+				buf_right[31] = '\n';
+
+				buf_left[buf_left.size() - 4] = '\r';
+				buf_left[buf_left.size() - 3] = '\n';
+				buf_left[buf_left.size() - 2] = '\r';
+				buf_left[buf_left.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+
+			{// diff left: no EOL - right: CRLF+CRLF
+				std::vector<char> buf_left(WMCMPBUFF * 2 - 4 + i);
+				std::vector<char> buf_right(WMCMPBUFF * 2 - 4 + i);
+
+				memset(buf_left.data(), 'A', buf_left.size());
+				memset(buf_right.data(), 'A', buf_right.size());
+
+				buf_right[10] = '\n';
+				buf_left[10] = '\n';
+				buf_left[11] = '\n';
+
+				buf_right[19] = '\n';
+				buf_left[20] = '\n';
+				buf_left[21] = '\n';
+
+				buf_right[28] = '\n';
+				buf_left[30] = '\n';
+				buf_left[31] = '\n';
+
+				buf_right[buf_right.size() - 4] = '\r';
+				buf_right[buf_right.size() - 3] = '\n';
+				buf_right[buf_right.size() - 2] = '\r';
+				buf_right[buf_right.size() - 1] = '\n';
+
+				TempFile file_left(filename_left, buf_left.data(), buf_left.size());
+				TempFile file_right(filename_right, buf_right.data(), buf_right.size());
+
+				FilePair pair(filename_left, filename_right);
+
+				EXPECT_EQ(int(DIFFCODE::TEXT | DIFFCODE::DIFF), bc.CompareFiles(&pair.diffData));
+			}
+		}
 	}
 
 }  // namespace

@@ -10,7 +10,15 @@
 #include "OptionsMgr.h"
 #include "paths.h"
 #include "Merge.h"
-#include "FileTransform.h"
+#include "DiffContext.h"
+#include "DiffWrapper.h"
+#include "DiffItem.h"
+#include "CompareEngines/BinaryCompare.h"
+#include "MessageBoxDialog.h"
+#include "IAbortable.h"
+#include "IAsyncTask.h"
+#include "EditorFilePathBar.h"
+#include "ShellContextMenu.h"
 #include <../src/mfc/afximpl.h>
 
 IMPLEMENT_DYNCREATE(CMergeFrameCommon, CMDIChildWnd)
@@ -20,8 +28,62 @@ BEGIN_MESSAGE_MAP(CMergeFrameCommon, CMDIChildWnd)
 	ON_WM_GETMINMAXINFO()
 	ON_WM_DESTROY()
 	ON_WM_MDIACTIVATE()
+	ON_COMMAND(ID_EDITOR_EDIT_PATH, OnEditorEditPath)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
+
+/**
+ * @class AsyncCompareTask
+ * @brief An asynchronous task to perform exact binary comparison.
+ */
+class AsyncCompareTask : public IAsyncTask, public IAbortable
+{
+public:
+	AsyncCompareTask(const PathContext& paths) : m_paths(paths), m_pCancelFlag(nullptr)
+	{
+	}
+
+	/**
+	 * @brief Check whether the task should be aborted.
+	 */
+	bool ShouldAbort() const override
+	{
+		return *m_pCancelFlag;
+	};
+
+	/**
+	 * @brief Run the binary comparison and get the result message.
+	 */
+	String RunAndGetMessage(std::atomic_bool& cancelFlag) override
+	{
+		m_pCancelFlag = &cancelFlag;
+		DIFFITEM di;
+		PathContext paths;
+		for (int i = 0; i < m_paths.GetSize(); ++i)
+		{
+			paths.SetPath(i, paths::GetParentPath(m_paths[i]));
+			di.diffFileInfo[i].path = _T("");
+			di.diffFileInfo[i].filename = paths::FindFileName(m_paths[i]);
+			if (di.diffFileInfo[i].Update(m_paths[i]))
+				di.diffcode.setSideFlag(i);
+		}
+		if (m_paths.GetSize() == 3)
+			di.diffcode.diffcode |= DIFFCODE::THREEWAY;
+		CDiffContext ctxt(paths, CMP_BINARY_CONTENT);
+		ctxt.SetAbortable(this);
+		CompareEngines::BinaryCompare binaryCompare(ctxt);
+		binaryCompare.CompareFiles(di);
+		if (di.diffcode.isResultError())
+			return _("Selected files are identical (with current settings).\r\nBut binary comparison failed.");
+		return di.diffcode.isResultSame()
+			? _("Selected files are identical (binary match).")
+			: _("Selected files are identical (with current settings).\r\nBut differ at the binary level.");
+	}
+
+private:
+	std::atomic_bool* m_pCancelFlag;
+	PathContext m_paths;
+};
 
 CMergeFrameCommon::CMergeFrameCommon(int nIdenticalIcon, int nDifferentIcon)
 	: m_hIdentical(nIdenticalIcon < 0 ? nullptr : AfxGetApp()->LoadIcon(nIdenticalIcon))
@@ -30,12 +92,10 @@ CMergeFrameCommon::CMergeFrameCommon(int nIdenticalIcon, int nDifferentIcon)
 	, m_bActivated(false)
 	, m_nLastSplitPos{0}
 {
-	::PostMessage(AfxGetMainWnd()->GetSafeHwnd(), WMU_CHILDFRAMEADDED, 0, reinterpret_cast<LPARAM>(this));
 }
 
 CMergeFrameCommon::~CMergeFrameCommon()
 {
-	::PostMessage(AfxGetMainWnd()->GetSafeHwnd(), WMU_CHILDFRAMEREMOVED, 0, reinterpret_cast<LPARAM>(this));
 }
 
 void CMergeFrameCommon::ActivateFrame(int nCmdShow)
@@ -56,7 +116,7 @@ void CMergeFrameCommon::ActivateFrame(int nCmdShow)
 			nCmdShow = SW_SHOWNORMAL;
 	}
 
-	CMDIChildWnd::ActivateFrame(nCmdShow);
+	__super::ActivateFrame(nCmdShow);
 }
 
 void CMergeFrameCommon::SaveWindowState()
@@ -65,21 +125,9 @@ void CMergeFrameCommon::SaveWindowState()
 	// If we are not, do nothing and let the active frame do the job.
  	if (GetParentFrame()->GetActiveFrame() == this)
 	{
-		WINDOWPLACEMENT wp = {};
-		wp.length = sizeof(WINDOWPLACEMENT);
+		WINDOWPLACEMENT wp = { sizeof(WINDOWPLACEMENT) };
 		GetWindowPlacement(&wp);
 		GetOptionsMgr()->SaveOption(OPT_ACTIVE_FRAME_MAX, (wp.showCmd == SW_MAXIMIZE));
-	}
-}
-
-void CMergeFrameCommon::RemoveBarBorder()
-{
-	afxData.cxBorder2 = 0;
-	afxData.cyBorder2 = 0;
-	for (int i = 0; i < 4; ++i)
-	{
-		CControlBar* pBar = GetControlBar(i + AFX_IDW_DOCKBAR_TOP);
-		pBar->SetBarStyle(pBar->GetBarStyle() & ~(CBRS_BORDER_ANY | CBRS_BORDER_3D));
 	}
 }
 
@@ -89,7 +137,7 @@ void CMergeFrameCommon::RemoveBarBorder()
  */
 void CMergeFrameCommon::SetLastCompareResult(int nResult)
 {
-	HICON hReplace = (nResult == 0) ? m_hIdentical : m_hDifferent;
+	HICON hReplace = (nResult == 0) ? m_hIdentical : ((nResult < 0) ? nullptr : m_hDifferent);
 
 	if (m_hCurrent != hReplace)
 	{
@@ -103,7 +151,29 @@ void CMergeFrameCommon::SetLastCompareResult(int nResult)
 	theApp.SetLastCompareResult(nResult);
 }
 
-void CMergeFrameCommon::ShowIdenticalMessage(const PathContext& paths, bool bIdenticalAll, std::function<int(LPCTSTR, unsigned, unsigned)> fnMessageBox)
+void CMergeFrameCommon::ShowShellMenu(CWnd* pWnd, const String& path)
+{
+	CFrameWnd *pFrame = pWnd->GetTopLevelFrame();
+	ASSERT(pFrame != nullptr);
+	BOOL bAutoMenuEnableOld = pFrame->m_bAutoMenuEnable;
+	pFrame->m_bAutoMenuEnable = FALSE;
+
+	auto pContextMenu = std::make_unique<CShellContextMenu>(CShellContextMenu(0x9000, 0x9FFF));
+	pContextMenu->Initialize();
+	pContextMenu->AddItem(path);
+	pContextMenu->RequeryShellContextMenu();
+	CPoint point;
+	::GetCursorPos(&point);
+	HWND hWnd = pWnd->GetSafeHwnd();
+	BOOL nCmd = TrackPopupMenu(pContextMenu->GetHMENU(), TPM_LEFTALIGN | TPM_RIGHTBUTTON | TPM_RETURNCMD, point.x, point.y, 0, hWnd, nullptr);
+	if (nCmd)
+		pContextMenu->InvokeCommand(nCmd, hWnd);
+	pContextMenu->ReleaseShellContextMenu();
+
+	pFrame->m_bAutoMenuEnable = bAutoMenuEnableOld;
+}
+
+void CMergeFrameCommon::ShowIdenticalMessage(const PathContext& paths, bool bIdenticalAll, bool bExactCompareAsync)
 {
 	String s;
 	if (theApp.m_bExitIfNoDiff != MergeCmdLineInfo::ExitQuiet)
@@ -125,13 +195,28 @@ void CMergeFrameCommon::ShowIdenticalMessage(const PathContext& paths, bool bIde
 			  strutils::compare_nocase(paths.GetLeft(), paths.GetMiddle()) == 0)))
 		{
 			// compare file to itself, a custom message so user may hide the message in this case only
-			s = _("The same file is opened in both panels.");
-			fnMessageBox(s.c_str(), nFlags, IDS_FILE_TO_ITSELF);
+			s = _("Same file is opened in both panes.");
+			AfxMessageBox(s.c_str(), nFlags, IDS_FILE_TO_ITSELF);
 		}
 		else if (bIdenticalAll)
 		{
-			s = _("The selected files are identical.");
-			fnMessageBox(s.c_str(), nFlags, IDS_FILESSAME);
+			s = _("Selected files are identical.");
+			if (bExactCompareAsync)
+			{
+				if (theApp.GetNonInteractive())
+				{
+					theApp.OutputConsole(s + _T(": Cancel"));
+					return;
+				}
+				s = _("Selected files are identical (with current settings).\r\nChecking binary identity...");
+				CMessageBoxDialog dlgMessageBox(nullptr, s.c_str(), _T(""), nFlags, IDS_FILESSAME);
+				dlgMessageBox.SetAsyncTask(std::make_shared<AsyncCompareTask>(paths));
+				dlgMessageBox.DoModal();
+			}
+			else
+			{
+				AfxMessageBox(s.c_str(), nFlags, IDS_FILESSAME);
+			}
 		}
 	}
 
@@ -144,28 +229,6 @@ void CMergeFrameCommon::ShowIdenticalMessage(const PathContext& paths, bool bIde
 			AfxGetMainWnd()->PostMessage(WM_COMMAND, ID_APP_EXIT);
 		}
 	}
-}
-
-String CMergeFrameCommon::GetTitleString(const PathContext& paths, const String desc[],
-	PackingInfo *pInfoUnpacker, PrediffingInfo *pInfoPrediffer, bool hasTrivialDiffs)
-{
-	const int nBuffers = paths.GetSize();
-	String sFileName[3];
-	String sTitle;
-	for (int nBuffer = 0; nBuffer < paths.GetSize(); nBuffer++)
-		sFileName[nBuffer] = !desc[nBuffer].empty() ? desc[nBuffer] : paths::FindFileName(paths[nBuffer]);
-	if (std::count(&sFileName[0], &sFileName[0] + nBuffers, sFileName[0]) == nBuffers)
-		sTitle = sFileName[0] + strutils::format(_T(" x %d"), nBuffers);
-	else
-		sTitle = strutils::join(&sFileName[0], &sFileName[0] + nBuffers, _T(" - "));
-	String flags;
-	if (pInfoUnpacker && !pInfoUnpacker->GetPluginPipeline().empty())
-		flags += _T("U");
-	if (pInfoPrediffer && !pInfoPrediffer->GetPluginPipeline().empty())
-		flags += _T("P");
-	if (hasTrivialDiffs)
-		flags += _T("F");
-	return sTitle + (flags.empty() ? _T("") : (_T(" (") + flags + _T(")")));
 }
 
 void CMergeFrameCommon::ChangeMergeMenuText(int srcPane, int dstPane, CCmdUI* pCmdUI)
@@ -332,13 +395,11 @@ std::pair<int, int> CMergeFrameCommon::MenuIDtoXY(UINT nID, int nActivePane, int
 
 void CMergeFrameCommon::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
-	CMDIChildWnd::OnGetMinMaxInfo(lpMMI);
+	__super::OnGetMinMaxInfo(lpMMI);
 	// [Fix for MFC 8.0 MDI Maximizing Child Window bug on Vista]
 	// https://groups.google.com/forum/#!topic/microsoft.public.vc.mfc/iajCdW5DzTM
-#if _MFC_VER >= 0x0800
-	lpMMI->ptMaxTrackSize.x = max(lpMMI->ptMaxTrackSize.x, lpMMI->ptMaxSize.x);
-	lpMMI->ptMaxTrackSize.y = max(lpMMI->ptMaxTrackSize.y, lpMMI->ptMaxSize.y);
-#endif
+	lpMMI->ptMaxTrackSize.x = (std::max)(lpMMI->ptMaxTrackSize.x, lpMMI->ptMaxSize.x);
+	lpMMI->ptMaxTrackSize.y = (std::max)(lpMMI->ptMaxTrackSize.y, lpMMI->ptMaxSize.y);
 }
 
 void CMergeFrameCommon::OnDestroy()
@@ -351,8 +412,11 @@ void CMergeFrameCommon::OnMDIActivate(BOOL bActivate, CWnd* pActivateWnd, CWnd* 
 {
 	// call the base class to let standard processing switch to
 	// the top-level menu associated with this window
-	CMDIChildWnd::OnMDIActivate(bActivate, pActivateWnd, pDeactivateWnd);
+	__super::OnMDIActivate(bActivate, pActivateWnd, pDeactivateWnd);
+}
 
-	if (bActivate)
-		::PostMessage(AfxGetMainWnd()->GetSafeHwnd(), WMU_CHILDFRAMEACTIVATED, 0, reinterpret_cast<LPARAM>(this));
+void CMergeFrameCommon::OnEditorEditPath()
+{
+	if (GetHeaderInterface())
+		GetHeaderInterface()->EditActivePanePath();
 }

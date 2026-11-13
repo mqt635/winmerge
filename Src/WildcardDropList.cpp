@@ -14,6 +14,7 @@
 #endif
 
 #include "WildcardDropList.h"
+#include "DarkModeLib.h"
 
 /**
  * @brief DropList window procedure.
@@ -95,8 +96,7 @@ LRESULT WildcardDropList::LbWndProc(HWND hwnd, UINT message, WPARAM wParam, LPAR
  */
 void WildcardDropList::OnDropDown(HWND hCb, int columns, LPCTSTR fixedPatterns, bool allowUserAddedPatterns)
 {
-	COMBOBOXINFO info;
-	info.cbSize = sizeof info;
+	COMBOBOXINFO info{ sizeof info };
 	if (!::GetComboBoxInfo(hCb, &info))
 		return;
 	RECT rc, rcCombo;
@@ -164,6 +164,7 @@ void WildcardDropList::OnDropDown(HWND hCb, int columns, LPCTSTR fixedPatterns, 
 	::RegisterHotKey(info.hwndList, IDCANCEL, 0, VK_ESCAPE);
 	LONG_PTR pfnSuper = ::SetWindowLongPtr(info.hwndList, GWLP_WNDPROC, (LONG_PTR)LbWndProc);
 	::SetWindowLongPtr(info.hwndList, GWLP_USERDATA, pfnSuper);
+	DarkMode::setTabCtrlSubclass(hTc);
 }
 
 /**
@@ -172,8 +173,7 @@ void WildcardDropList::OnDropDown(HWND hCb, int columns, LPCTSTR fixedPatterns, 
  */
 bool WildcardDropList::OnCloseUp(HWND hCb)
 {
-	COMBOBOXINFO info;
-	info.cbSize = sizeof info;
+	COMBOBOXINFO info{ sizeof info };
 	if (!::GetComboBoxInfo(hCb, &info))
 		return false;
 	::UnregisterHotKey(info.hwndList, IDCANCEL);

@@ -2,6 +2,10 @@
 #include "RegKey.h"
 #include "LanguageSelect.h"
 #include "../ShellExtension/Resource.h"
+#include <shldisp.h>
+#include <shlobj.h>
+#include <exdisp.h>
+#include <atlbase.h>
 #include <Shlwapi.h>
 
 /// Max. filecount to select
@@ -54,7 +58,7 @@ static BOOL GetWinMergeDir(String &strDir)
 }
 
 /// Format commandline used to start WinMerge
-static String FormatCmdLine(const String &winmergePath,
+static String FormatCmdLine(DWORD verb, const String &winmergePath,
 		const std::vector<String>& paths, BOOL bAlterSubFolders)
 {
 	String strCommandline = winmergePath.empty() ? _T("") : _T("\"") + winmergePath + _T("\"");
@@ -78,13 +82,117 @@ static String FormatCmdLine(const String &winmergePath,
 	if (paths.size() > 2)
 		strCommandline += _T(" \"") + paths[2] + _T("\"");
 
+	if (verb == WinMergeContextMenu::CMD_COMPARE_AS)
+		strCommandline += _T(" /show-compare-as-menu");
+
 	return strCommandline;
 }
 
-static BOOL LaunchWinMerge(const String &winmergePath,
-		const std::vector<String>& paths, BOOL bAlterSubFolders)
+// https://devblogs.microsoft.com/oldnewthing/20130318-00/?p=4933
+static HRESULT FindDesktopFolderView(REFIID riid, void** ppv)
 {
-	String strCommandLine = FormatCmdLine(winmergePath, paths, bAlterSubFolders);
+	HRESULT hr;
+	CComPtr<IShellWindows> spShellWindows;
+	if (FAILED(hr = spShellWindows.CoCreateInstance(CLSID_ShellWindows)))
+		return hr;
+
+	CComVariant vtLoc(CSIDL_DESKTOP);
+	CComVariant vtEmpty;
+	long lhwnd;
+	CComPtr<IDispatch> spdisp;
+	if (FAILED(hr = spShellWindows->FindWindowSW(
+		&vtLoc, &vtEmpty,
+		SWC_DESKTOP, &lhwnd, SWFO_NEEDDISPATCH, &spdisp)))
+		return hr;
+
+	CComPtr<IShellBrowser> spBrowser;
+	if (FAILED(hr = CComQIPtr<IServiceProvider>(spdisp)->
+		QueryService(SID_STopLevelBrowser,
+			IID_PPV_ARGS(&spBrowser))))
+		return hr;
+
+	CComPtr<IShellView> spView;
+	if (FAILED(hr = spBrowser->QueryActiveShellView(&spView)))
+		return hr;
+
+	return spView->QueryInterface(riid, ppv);
+}
+
+// https://gitlab.com/tortoisegit/tortoisegit/-/merge_requests/187
+static HRESULT GetFolderView(IUnknown* pSite, IShellView** psv)
+{
+	CComPtr<IUnknown> site(pSite);
+	CComPtr<IServiceProvider> serviceProvider;
+	HRESULT hr;
+	if (FAILED(hr = site.QueryInterface(&serviceProvider)))
+		return hr;
+
+	CComPtr<IShellBrowser> shellBrowser;
+	if (FAILED(hr = serviceProvider->QueryService(SID_SShellBrowser, IID_PPV_ARGS(&shellBrowser))))
+		return hr;
+
+	return shellBrowser->QueryActiveShellView(psv);
+}
+
+// https://devblogs.microsoft.com/oldnewthing/20131118-00/?p=2643
+// https://gitlab.com/tortoisegit/tortoisegit/-/merge_requests/187
+static HRESULT GetFolderAutomationObject(IUnknown* pSite, REFIID riid, void** ppv)
+{
+	HRESULT hr;
+	CComPtr<IShellView> spsv;
+	if (FAILED(hr = GetFolderView(pSite, &spsv)))
+	{
+		if (FAILED(hr = FindDesktopFolderView(IID_PPV_ARGS(&spsv))))
+			return hr;
+	}
+
+	CComPtr<IDispatch> spdispView;
+	if (FAILED(hr = spsv->GetItemObject(SVGIO_BACKGROUND, IID_PPV_ARGS(&spdispView))))
+		return hr;
+	return spdispView->QueryInterface(riid, ppv);
+}
+
+// https://devblogs.microsoft.com/oldnewthing/20131118-00/?p=2643
+// https://gitlab.com/tortoisegit/tortoisegit/-/merge_requests/187
+static HRESULT ShellExecuteFromExplorer(
+	IUnknown* pSite,
+	PCWSTR pszFile,
+	PCWSTR pszParameters = nullptr,
+	PCWSTR pszDirectory = nullptr,
+	PCWSTR pszOperation = nullptr,
+	int nShowCmd = SW_SHOWNORMAL)
+{
+	HRESULT hr;
+	CComPtr<IShellFolderViewDual> spFolderView;
+	if (FAILED(hr = GetFolderAutomationObject(pSite, IID_PPV_ARGS(&spFolderView))))
+		return hr;
+
+	CComPtr<IDispatch> spdispShell;
+	if (FAILED(hr = spFolderView->get_Application(&spdispShell)))
+		return hr;
+
+	// without this, the launched app is not moved to the foreground
+	AllowSetForegroundWindow(ASFW_ANY);
+
+	return CComQIPtr<IShellDispatch2>(spdispShell)
+		->ShellExecute(CComBSTR(pszFile),
+			CComVariant(pszParameters ? pszParameters : L""),
+			CComVariant(pszDirectory ? pszDirectory : L""),
+			CComVariant(pszOperation ? pszOperation : L""),
+			CComVariant(nShowCmd));
+}
+
+static BOOL LaunchWinMerge(DWORD verb, const String &winmergePath,
+		const std::vector<String>& paths, BOOL bAlterSubFolders, IUnknown* pSite)
+{
+	if (pSite)
+	{
+		String strCommandLine = FormatCmdLine(verb, _T(""), paths, bAlterSubFolders);
+		if (SUCCEEDED(ShellExecuteFromExplorer(pSite, winmergePath.c_str(), strCommandLine.c_str())))
+			return TRUE;
+	}
+
+	String strCommandLine = FormatCmdLine(verb, winmergePath, paths, bAlterSubFolders);
 
 	// Finally start a new WinMerge process
 	BOOL retVal = FALSE;
@@ -103,7 +211,7 @@ static BOOL LaunchWinMerge(const String &winmergePath,
 	}
 	else if (GetLastError() == ERROR_ELEVATION_REQUIRED)
 	{
-		String strCommandLine = FormatCmdLine(_T(""), paths, bAlterSubFolders);
+		String strCommandLine = FormatCmdLine(verb, _T(""), paths, bAlterSubFolders);
 		HINSTANCE hInstance = ShellExecute(nullptr, _T("runas"), winmergePath.c_str(), strCommandLine.c_str(), 0, SW_SHOWNORMAL);
 		if (reinterpret_cast<intptr_t>(hInstance) < 32)
 			return FALSE;
@@ -121,6 +229,7 @@ WinMergeContextMenu::WinMergeContextMenu(HINSTANCE hInstance)
 	, m_dwMenuState(MENU_HIDDEN)
 	, m_dwContextMenuEnabled(0)
 	, m_langID(0)
+	, m_pSite(nullptr)
 {
 	CRegKeyEx reg;
 	if (reg.Open(HKEY_CURRENT_USER, f_RegDir) == ERROR_SUCCESS)
@@ -174,6 +283,7 @@ bool WinMergeContextMenu::UpdateMenuState(const std::vector<std::wstring>& paths
 std::vector<MenuItem> WinMergeContextMenu::GetMenuItemList() const
 {
 	std::vector<MenuItem> list;
+	list.reserve(3);
 	bool isdir = m_strPaths.empty() ? false : !!PathIsDirectory(m_strPaths[0].c_str());
 	bool enabled = (m_strPaths.size() <= MaxFileCount);
 	int icon = isdir ? IDI_WINMERGEDIR : IDI_WINMERGE;
@@ -198,6 +308,8 @@ std::vector<MenuItem> WinMergeContextMenu::GetMenuItemList() const
 		// Allow re-selecting first item or selecting second item
 	case MENU_ONESEL_PREV:
 		list.push_back({ enabled, icon, CMD_COMPARE, IDS_COMPARE, GetResourceString(IDS_COMPARE) });
+		if ((m_dwContextMenuEnabled & EXT_COMPARE_AS) != 0 && !isdir)
+			list.push_back({ enabled, icon, CMD_COMPARE_AS, IDS_COMPARE_AS, GetResourceString(IDS_COMPARE_AS) });
 		list.push_back({ enabled, icon, CMD_SELECT_MIDDLE, IDS_SELECT_MIDDLE, GetResourceString(IDS_SELECT_MIDDLE) });
 		list.push_back({ enabled, icon, CMD_RESELECT_LEFT, IDS_RESELECT_LEFT, GetResourceString(IDS_RESELECT_LEFT) });
 		break;
@@ -206,6 +318,8 @@ std::vector<MenuItem> WinMergeContextMenu::GetMenuItemList() const
 		// Allow re-selecting first item or selecting second item
 	case MENU_ONESEL_TWO_PREV:
 		list.push_back({ enabled, icon, CMD_COMPARE, IDS_COMPARE, GetResourceString(IDS_COMPARE) });
+		if ((m_dwContextMenuEnabled & EXT_COMPARE_AS) != 0 && !isdir)
+			list.push_back({ enabled, icon, CMD_COMPARE_AS, IDS_COMPARE_AS, GetResourceString(IDS_COMPARE_AS) });
 		list.push_back({ enabled, icon, CMD_RESELECT_LEFT, IDS_RESELECT_LEFT, GetResourceString(IDS_RESELECT_LEFT) });
 		break;
 
@@ -215,6 +329,8 @@ std::vector<MenuItem> WinMergeContextMenu::GetMenuItemList() const
 	case MENU_THREESEL:
 	default:
 		list.push_back({ enabled, icon, CMD_COMPARE, IDS_COMPARE, GetResourceString(IDS_COMPARE) });
+		if ((m_dwContextMenuEnabled & EXT_COMPARE_AS) != 0 && !isdir)
+			list.push_back({ enabled, icon, CMD_COMPARE_AS, IDS_COMPARE_AS, GetResourceString(IDS_COMPARE_AS) });
 		break;
 	}
 	return list;
@@ -236,7 +352,7 @@ HRESULT WinMergeContextMenu::InvokeCommand(DWORD verb)
 	if (!PathFileExists(strWinMergePath.c_str()))
 		return S_FALSE;
 
-	if (verb == CMD_COMPARE)
+	if (verb == CMD_COMPARE || verb == CMD_COMPARE_AS)
 	{
 		bCompare = TRUE;
 		switch (m_dwMenuState)
@@ -316,7 +432,7 @@ HRESULT WinMergeContextMenu::InvokeCommand(DWORD verb)
 	if ((GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0)
 		bAlterSubFolders = TRUE;
 
-	return LaunchWinMerge(strWinMergePath, m_strPaths, bAlterSubFolders) ? S_OK : S_FALSE;
+	return LaunchWinMerge(verb, strWinMergePath, m_strPaths, bAlterSubFolders, m_pSite) ? S_OK : S_FALSE;
 }
 
 /**

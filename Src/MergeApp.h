@@ -1,10 +1,7 @@
 #pragma once
 
 #include "UnicodeString.h"
-
-#define _(x) tr(x)
-#define N_(x) (x)
-#define NC_(c, x) (x)
+#include "I18n.h"
 
 class COptionsMgr;
 class FileFilterHelper;
@@ -25,6 +22,7 @@ COptionsMgr * GetOptionsMgr();
 void LogErrorString(const String& sz);
 void LogErrorStringUTF8(const std::string& sz);
 void AppErrorMessageBox(const String& msg);
+void* AppGetMainHWND();
 
 namespace AppMsgBox
 {
@@ -41,9 +39,3 @@ namespace AppMsgBox
 	int warning(const String& msg, int type = OK);
 	int information(const String& msg, int type = OK);
 };
-
-/** @brief Load string from string resources; shortcut for String::LoadString */
-String LoadResString(unsigned id);
-
-String tr(const std::string &str);
-String tr(const char *msgctxt, const std::string &str);

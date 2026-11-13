@@ -53,9 +53,7 @@ struct DIFFRANGE
 	int dend = 0;                /**< Synchronised (ghost lines added) last diff line in file1,2,3 */
 	int blank[3] = {-1, -1, -1}; /**< Number of blank lines in file1,2,3 */
 	OP_TYPE op = OP_NONE;        /**< Operation done with this diff */
-	DIFFRANGE()
-	{
-	}
+	DIFFRANGE() = default;
 	void swap_sides(int index1, int index2);
 };
 
@@ -75,7 +73,7 @@ public:
 
 	std::vector<int> m_map;
 
-	DiffMap() { }
+	DiffMap() = default;
 	void InitDiffMap(int nlines);
 };
 
@@ -110,13 +108,22 @@ struct DiffRangeInfo: public DIFFRANGE
 class DiffList
 {
 public:
+	struct DiffCounts
+	{
+		int significant = 0;
+		int ignored = 0;
+		int currentSignificantIndex = -1;
+	};
+
 	DiffList();
 	void Clear();
 	int GetSize() const;
 	int GetSignificantDiffs() const;
+	DiffCounts GetDiffCounts(int currentDiff) const;
 	void AddDiff(const DIFFRANGE & di);
 	bool IsDiffSignificant(int nDiff) const;
 	int GetSignificantIndex(int nDiff) const;
+	int GetDiffFromSignificantIndex(int nSignificantIndex) const;
 	bool GetDiff(int nDiff, DIFFRANGE & di) const;
 	bool SetDiff(int nDiff, const DIFFRANGE & di);
 	int LineRelDiff(int nLine, int nDiff) const;
@@ -151,7 +158,7 @@ public:
 
 	std::vector<DiffRangeInfo>& GetDiffRangeInfoVector() { return m_diffs; }
 
-	void AppendDiffList(const DiffList& list, int offset[] = nullptr, int doffset = 0);
+	void AppendDiffList(const DiffList& list, const int offset[] = nullptr, int doffset = 0);
 
 private:
 	std::vector<DiffRangeInfo> m_diffs; /**< Difference list. */

@@ -7,12 +7,15 @@
 #pragma once
 
 #include <vector>
+#include <memory>
 #include "UnicodeString.h"
 #include "PathContext.h"
 #include "DirReportTypes.h"
 #include "IListCtrl.h"
+#include "TempFile.h"
 
 struct DiffFuncStruct;
+class UniStdioFile;
 
 /**
  * @brief This class creates directory compare reports.
@@ -43,7 +46,7 @@ public:
 	void SetReportType(REPORT_TYPE nReportType) { m_nReportType = nReportType;  }
 	REPORT_TYPE GetReportType() const { return m_nReportType;  }
 	void SetReportFile(const String& sReportFile) { m_sReportFile = sReportFile; }
-	String GetReportFile() const { return m_sReportFile; }
+	const String& GetReportFile() const { return m_sReportFile; }
 	void SetColumns(int columns);
 	void SetFileCmpReport(IFileCmpReport *pFileCmpReport);
 	void SetCopyToClipboard(bool bCopyToClipbard) { m_bCopyToClipboard = bCopyToClipbard;  }
@@ -52,6 +55,7 @@ public:
 	bool GetIncludeFileCmpReport() const { return m_bIncludeFileCmpReport; }
 	void SetDiffFuncStruct(DiffFuncStruct* myStruct) { m_myStruct = myStruct; }
 	bool GenerateReport(String &errStr);
+	std::shared_ptr<TempFile> GetTempFile() const { return m_tempFile; }
 
 protected:
 	void GenerateReport(REPORT_TYPE nReportType);
@@ -65,6 +69,8 @@ protected:
 	void GenerateXmlHtmlContent(bool xml);
 	void GenerateHTMLFooter();
 	void GenerateXmlFooter();
+	bool GenerateReportToClipboard(String &errStr);
+	bool GenerateReportToFile(String &errStr);
 
 private:
 	std::unique_ptr<IListCtrl> m_pList; /**< Pointer to UI-list */
@@ -73,12 +79,13 @@ private:
 	String m_sReportFile;
 	int m_nColumns; /**< Columns in UI */
 	String m_sSeparator; /**< Column separator for report */
-	CFile *m_pFile; /**< File to write report to */
+	UniStdioFile *m_pFile; /**< File to write report to */
 	std::vector<String> m_colRegKeys; /**< Key names for currently displayed columns */
 	std::unique_ptr<IFileCmpReport> m_pFileCmpReport;
 	bool m_bIncludeFileCmpReport; /**< Do we include file compare report in folder compare report? */
 	bool m_bOutputUTF8;
 	REPORT_TYPE m_nReportType; /**< Report type integer */
 	bool m_bCopyToClipboard; /**< Do we copy report to clipboard? */
+	std::shared_ptr<TempFile> m_tempFile; /**< Temporary file for clipboard copy */
 	DiffFuncStruct* m_myStruct;
 };

@@ -21,6 +21,8 @@ PropArchive::PropArchive(COptionsMgr *optionsMgr)
 , m_bEnableSupport(false)
 , m_bProbeType(false)
 {
+	BindOption(OPT_ARCHIVE_ENABLE, m_bEnableSupport, IDC_ARCHIVE_ENABLE, DDX_Check);
+	BindOption(OPT_ARCHIVE_PROBETYPE, m_bProbeType, IDC_ARCHIVE_DETECTTYPE, DDX_Check);
 }
 
 /** 
@@ -29,33 +31,15 @@ PropArchive::PropArchive(COptionsMgr *optionsMgr)
 void PropArchive::DoDataExchange(CDataExchange* pDX)
 {
 	CPropertyPage::DoDataExchange(pDX);
-	DDX_Check(pDX, IDC_ARCHIVE_ENABLE, m_bEnableSupport);
-	DDX_Check(pDX, IDC_ARCHIVE_DETECTTYPE, m_bProbeType);
+	DoDataExchangeBindOptions(pDX);
 	UpdateControls();
 }
 
 
 BEGIN_MESSAGE_MAP(PropArchive, OptionsPanel)
+	ON_BN_CLICKED(IDC_COMPARE_DEFAULTS, OnDefaults)
 	ON_BN_CLICKED(IDC_ARCHIVE_ENABLE, OnEnableClicked)
 END_MESSAGE_MAP()
-
-/** 
- * @brief Reads options values from storage to UI.
- */
-void PropArchive::ReadOptions()
-{
-	m_bEnableSupport = GetOptionsMgr()->GetBool(OPT_ARCHIVE_ENABLE);
-	m_bProbeType = GetOptionsMgr()->GetBool(OPT_ARCHIVE_PROBETYPE);
-}
-
-/** 
- * @brief Writes options values from UI to storage.
- */
-void PropArchive::WriteOptions()
-{
-	GetOptionsMgr()->SaveOption(OPT_ARCHIVE_ENABLE, m_bEnableSupport);
-	GetOptionsMgr()->SaveOption(OPT_ARCHIVE_PROBETYPE, m_bProbeType);
-}
 
 /** 
  * @brief Called when archive support is enabled or disabled.

@@ -1,4 +1,4 @@
-#include <Windows.h>
+#include <windows.h>
 #include <filesystem>
 #include <set>
 #include <optional>
@@ -24,6 +24,7 @@ namespace GUITestUtils
 	void selectMenu(HWND hwnd, unsigned id, bool async = false);
 	inline void selectMenuAsync(HWND hwnd, unsigned id) { selectMenu(hwnd, id, true); };
 	HWND execWinMerge(const std::string& args = "/noprefs /maxmize");
+	bool execWinMergeAndWait(const std::wstring& args, DWORD dwMilliseconds);
 	HWND execInstaller(const std::string& args = "");
 	const std::set<int> languages();
 	const char * languageIdToName(int id);

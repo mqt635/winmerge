@@ -13,14 +13,16 @@
 
 #include "stdafx.h"
 #include "MergeEditFrm.h"
-#include "Merge.h"
-#include "MainFrm.h"
+#include "FrameWndHelper.h"
 #include "MergeDoc.h"
 #include "MergeEditView.h"
+#include "MergeResultView.h"
+#include "MainFrm.h"
 #include "LocationView.h"
-#include "DiffViewBar.h"
 #include "OptionsDef.h"
 #include "OptionsMgr.h"
+#include "DarkModeLib.h"
+#include "SplitterPositions.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -47,12 +49,23 @@ BEGIN_MESSAGE_MAP(CMergeEditFrame, CMergeFrameCommon)
 	ON_COMMAND_EX(ID_VIEW_DETAIL_BAR, OnBarCheck)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_LOCATION_BAR, OnUpdateControlBarMenu)
 	ON_COMMAND_EX(ID_VIEW_LOCATION_BAR, OnBarCheck)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_MERGE_RESULT_BAR, OnUpdateViewMergeResultBar)
+	ON_COMMAND_EX(ID_VIEW_MERGE_RESULT_BAR, OnBarCheck)
 	ON_COMMAND(ID_VIEW_SPLITVERTICALLY, OnViewSplitVertically)
 	ON_UPDATE_COMMAND_UI(ID_VIEW_SPLITVERTICALLY, OnUpdateViewSplitVertically)
+	// Display filter bar
+	ON_COMMAND(ID_VIEW_DISPLAY_FILTER_BAR_MENU, OnViewDisplayFilterBar)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_DISPLAY_FILTER_BAR_MENU, OnUpdateDisplayViewFilterBar)
+	ON_COMMAND(IDCANCEL, OnDisplayFilterBarClose)
+	ON_COMMAND(IDC_FILTERFILE_MASK_MENU, OnDisplayFilterBarMenu)
+	// [Window] menu
+	ON_COMMAND(ID_WINDOW_PRESERVE_SPLITTER_RATIOS, OnWindowPreserveSplitterPosition)
+	ON_UPDATE_COMMAND_UI(ID_WINDOW_PRESERVE_SPLITTER_RATIOS, OnUpdateWindowPreserveSplitterPosition)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
-#define IDT_SAVEPOSITION 2
+constexpr UINT_PTR IDT_SAVEPOSITION = 2;
+constexpr UINT_PTR IDT_PREVIEWMODE = 3;
 
 /////////////////////////////////////////////////////////////////////////////
 // CMergeEditFrame construction/destruction
@@ -63,6 +76,8 @@ END_MESSAGE_MAP()
 CMergeEditFrame::CMergeEditFrame()
 : CMergeFrameCommon(IDI_EQUALTEXTFILE, IDI_NOTEQUALTEXTFILE)
 , m_pwndDetailMergeEditSplitterView(nullptr)
+, m_pMergeResultView(nullptr)
+, m_bResultBarVisible(false)
 {
 	m_pMergeDoc = 0;
 }
@@ -106,7 +121,11 @@ BOOL CMergeEditFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 
 	m_pwndDetailMergeEditSplitterView = new CMergeEditSplitterView();
 	m_pwndDetailMergeEditSplitterView->m_bDetailView = true;
-	m_pwndDetailMergeEditSplitterView->Create(nullptr, nullptr, dwStyle, CRect(0,0,1,1), &m_wndDetailBar, ID_VIEW_DETAIL_BAR+1, pContext);
+	if (!m_pwndDetailMergeEditSplitterView->Create(nullptr, nullptr, dwStyle, CRect(0,0,1,1), &m_wndDetailBar, ID_VIEW_DETAIL_BAR+1, pContext))
+	{
+		TRACE0("Failed to create CMergeEditSplitterView\n");
+		return FALSE;
+	}
 
 	// tell merge doc about these views
 	m_pMergeDoc = dynamic_cast<CMergeDoc *>(pContext->m_pCurrentDoc);
@@ -115,16 +134,55 @@ BOOL CMergeEditFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 	});
 	m_pMergeDoc->SetLocationView(pLocationView);
 
+	// kdiff3-style merge result pane: a dockable
+	// bar at the bottom with a full-width editable result view
+	if (m_pMergeDoc->m_nBuffers >= 2)
+	{
+		sCaption = _("Merge Result Pane");
+		if (!m_wndResultBar.Create(this, sCaption.c_str(), WS_CHILD | WS_VISIBLE, ID_VIEW_MERGE_RESULT_BAR, pContext, m_pMergeDoc))
+		{
+			TRACE0("Failed to create MergeResultBar\n");
+			return FALSE;
+		}
+		// Store frame window handle for notification
+		m_wndResultBar.SetFrameHwnd(GetSafeHwnd());
+	}
+
 	m_wndFilePathBar.SetPaneCount(m_pMergeDoc->m_nBuffers);
 	m_wndFilePathBar.SetOnSetFocusCallback([&](int pane) {
-		m_pMergeDoc->GetView(0, pane)->SetActivePane();
+		const int nGroup = m_pMergeDoc->GetActiveMergeView()->m_nThisGroup;
+		m_pMergeDoc->GetView(nGroup, pane)->SetActivePane();
 	});
+	m_wndFilePathBar.SetOnCaptionChangedCallback([this](int pane, const String& sText) {
+		const int nGroup = m_pMergeDoc->GetActiveMergeView()->m_nThisGroup;
+		m_pMergeDoc->SetDescription(pane, sText);
+		m_pMergeDoc->UpdateHeaderPath(pane);
+		m_pMergeDoc->GetView(nGroup, pane)->SetFocus();
+	});
+	m_wndFilePathBar.SetOnFileSelectedCallback([this](int pane, const String& sFilepath, const String& sDescription) {
+		const int nGroup = m_pMergeDoc->GetActiveMergeView()->m_nThisGroup;
+		if (m_pMergeDoc->ChangeFile(pane, sFilepath, sDescription))
+		{
+			m_pMergeDoc->GetView(nGroup, pane)->SetFocus();
+			// Only add to MRU if description is empty (i.e., not from clipboard history)
+			if (sDescription.empty())
+				MruHelper::addToMru(pane, sFilepath);
+		}
+	});
+	m_wndFilePathBar.SetOnFileSaveCallback([&](int pane) {
+		const int id = (m_pMergeDoc->m_nBuffers < 3 && pane == 1) ? ID_FILE_SAVE_RIGHT : ID_FILE_SAVE_LEFT + pane;
+		PostMessage(WM_COMMAND, id);
+	});
+	m_wndFilePathBar.SetDefaultHistoryCallbacks();
 	m_wndStatusBar.SetPaneCount(m_pMergeDoc->m_nBuffers);
-	
+
 	// Set frame window handles so we can post stage changes back
 	pLocationView->SetFrameHwnd(GetSafeHwnd());
 	m_wndLocationBar.SetFrameHwnd(GetSafeHwnd());
 	m_wndDetailBar.SetFrameHwnd(GetSafeHwnd());
+
+	// Load splitter positions
+	LoadOptions();
 
 	return TRUE;
 }
@@ -159,12 +217,12 @@ BOOL CMergeEditFrame::OnCreateClient( LPCREATESTRUCT /*lpcs*/,
 */
 int CMergeEditFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) 
 {
-	if (CMDIChildWnd::OnCreate(lpCreateStruct) == -1)
+	if (__super::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
 	EnableDocking(CBRS_ALIGN_TOP|CBRS_ALIGN_BOTTOM|CBRS_ALIGN_LEFT|CBRS_ALIGN_RIGHT);
 
-	RemoveBarBorder();
+	FrameWndHelper::RemoveBarBorder(this);
 
 	// Merge frame has a header bar at top
 	if (!m_wndFilePathBar.Create(this))
@@ -187,11 +245,20 @@ int CMergeEditFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	DockControlBar(&m_wndLocationBar, AFX_IDW_DOCKBAR_LEFT, &rc);
 
 	// Merge frame also has a dockable bar at the very bottom
-	// created in OnCreateClient 
+	// created in OnCreateClient
 	m_wndDetailBar.SetBarStyle(m_wndDetailBar.GetBarStyle() |
 		CBRS_SIZE_DYNAMIC | CBRS_ALIGN_TOP);
 	m_wndDetailBar.EnableDocking(CBRS_ALIGN_TOP | CBRS_ALIGN_BOTTOM);
 	DockControlBar(&m_wndDetailBar, AFX_IDW_DOCKBAR_BOTTOM, &rc);
+
+	// Merge result pane bar, docked at the bottom
+	if (m_wndResultBar.m_hWnd != nullptr)
+	{
+		m_wndResultBar.SetBarStyle(m_wndResultBar.GetBarStyle() |
+			CBRS_SIZE_DYNAMIC | CBRS_ALIGN_TOP);
+		m_wndResultBar.EnableDocking(CBRS_ALIGN_TOP | CBRS_ALIGN_BOTTOM);
+		DockControlBar(&m_wndResultBar, AFX_IDW_DOCKBAR_BOTTOM, &rc);
+	}
 
 	// Merge frame also has a status bar at bottom, 
 	// m_wndDetailBar is below, so we create this bar after m_wndDetailBar
@@ -204,11 +271,20 @@ int CMergeEditFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	// load docking positions and sizes
 	CDockState pDockState;
 	pDockState.LoadState(_T("Settings"));
-	if (EnsureValidDockState(pDockState)) // checks for valid so won't ASSERT
+	if (FrameWndHelper::EnsureValidDockState(this, pDockState)) // checks for valid so won't ASSERT
 		SetDockState(pDockState);
 	// for the dimensions of the diff and location pane, use the CSizingControlBar loader
 	m_wndLocationBar.LoadState(_T("Settings"));
 	m_wndDetailBar.LoadState(_T("Settings"));
+	if (m_wndResultBar.m_hWnd != nullptr)
+	{
+		m_wndResultBar.LoadState(_T("Settings"));
+		// The merge result pane is opt-in per document: it is shown only
+		// when the compare was opened with a merge output path or conflict
+		// file, or when the user turns it on in the View menu. Compare
+		// sessions otherwise start without it, regardless of saved state.
+		ShowControlBar(&m_wndResultBar, FALSE, FALSE);
+	}
 
 	return 0;
 }
@@ -222,39 +298,41 @@ BOOL CMergeEditFrame::OnBarCheck(UINT nID)
 		int nDiff = m_pMergeDoc->GetCurrentDiff();
 		m_pMergeDoc->ForEachView ([nDiff](auto& pView) { if (pView->m_bDetailView) pView->OnDisplayDiff(nDiff); });
 	}
+	// The merge result pane's own state follows the bar's visibility, which
+	// is synchronized in OnIdleUpdateCmdUI (the bar can also be closed with
+	// its close button, which does not come through here)
+	if (nID == ID_VIEW_MERGE_RESULT_BAR)
+		GetMainFrame()->UpdateToolbar();
 	return result;
 }
 
 /**
- * @brief We must use this function before a call to SetDockState
- *
- * @note Without this, SetDockState will assert or crash if a bar from the 
- * CDockState is missing in the current CMergeEditFrame.
- * The bars are identified with their ID. This means the missing bar bug is triggered
- * when we run WinMerge after changing the ID of a bar. 
+ * @brief Make the merge result pane visible (used when the document was
+ * opened with an output path, e.g. as a merge tool or for conflict files).
  */
-bool CMergeEditFrame::EnsureValidDockState(CDockState& state) 
+void CMergeEditFrame::ShowMergeResultPane(bool bVisible)
 {
-	for (int i = (int) state.m_arrBarInfo.GetSize()-1 ; i >= 0; i--) 
+	if (m_wndResultBar.m_hWnd != nullptr && bVisible != !!m_wndResultBar.IsWindowVisible())
 	{
-		bool barIsCorrect = true;
-		CControlBarInfo* pInfo = (CControlBarInfo*)state.m_arrBarInfo[i];
-		if (pInfo == nullptr) 
-			barIsCorrect = false;
-		else
-		{
-			if (! pInfo->m_bFloating) 
-			{
-				pInfo->m_pBar = GetControlBar(pInfo->m_nBarID);
-				if (pInfo->m_pBar == nullptr) 
-					barIsCorrect = false; //toolbar id's probably changed	
-			}
-		}
-
-		if (! barIsCorrect)
-			state.m_arrBarInfo.RemoveAt(i);
+		ShowControlBar(&m_wndResultBar, bVisible , FALSE);
+		GetMainFrame()->UpdateToolbar();
 	}
-	return true;
+}
+
+/**
+ * @brief Enable the Merge Result Pane menu item when a merge session is active.
+ */
+void CMergeEditFrame::OnUpdateViewMergeResultBar(CCmdUI* pCmdUI)
+{
+	if (m_wndResultBar.m_hWnd == nullptr)
+	{
+		pCmdUI->Enable(FALSE);
+		pCmdUI->SetCheck(FALSE);
+		return;
+	}
+	CMergeDoc* pMergeDoc = GetMergeDoc();
+	pCmdUI->Enable(pMergeDoc->GetMergeResultBuildState());
+	OnUpdateControlBarMenu(pCmdUI);
 }
 
 void CMergeEditFrame::ActivateFrame(int nCmdShow) 
@@ -290,6 +368,11 @@ void CMergeEditFrame::SavePosition()
 	// for the dimensions of the diff pane, use the CSizingControlBar save
 	m_wndLocationBar.SaveState(_T("Settings"));
 	m_wndDetailBar.SaveState(_T("Settings"));
+	if (m_wndResultBar.m_hWnd != nullptr)
+		m_wndResultBar.SaveState(_T("Settings"));
+
+	// Save splitter positions
+	SaveOptions();
 }
 
 void CMergeEditFrame::SaveActivePane()
@@ -300,7 +383,7 @@ void CMergeEditFrame::SaveActivePane()
 		auto& splitterWnd = static_cast<CMergeEditSplitterView*>(m_wndSplitter.GetPane(iRowParent, 0))->m_wndSplitter;
 		splitterWnd.GetActivePane(&iRow, &iCol);
 		if (iRow >= 0 || iCol >= 0)
-			GetOptionsMgr()->SaveOption(OPT_ACTIVE_PANE, max(iRow, iCol));
+			GetOptionsMgr()->SaveOption(OPT_ACTIVE_PANE, (std::max)(iRow, iCol));
 	}
 }
 
@@ -308,8 +391,13 @@ void CMergeEditFrame::OnClose()
 {
 	// clean up pointers.
 	CMergeFrameCommon::OnClose();
+}
 
-	GetMainFrame()->ClearStatusbarItemCount();
+void CMergeEditFrame::OnSetPreviewMode(BOOL bPreview, CPrintPreviewState* pState)
+{
+	KillTimer(IDT_PREVIEWMODE);
+	SetTimer(IDT_PREVIEWMODE, 100, nullptr);
+	__super::OnSetPreviewMode(bPreview, pState);
 }
 
 /// update splitting position for panels 1/2 and headerbar and statusbar 
@@ -319,6 +407,7 @@ void CMergeEditFrame::UpdateHeaderSizes()
 		return;
 	
 	int w[3];
+	int wStatus[3]{};
 	int pane;
 	CMergeDoc * pDoc = GetMergeDoc();
 	auto& wndSplitter = GetMergeEditSplitterWnd(0);
@@ -329,6 +418,7 @@ void CMergeEditFrame::UpdateHeaderSizes()
 			int wmin;
 			wndSplitter.GetColumnInfo(pane, w[pane], wmin);
 			if (w[pane]<1) w[pane]=1; // Perry 2003-01-22 (I don't know why this happens)
+			wStatus[pane] = w[pane] + (pane == 0 ? 5 : 7);
 		}
 	}
 	else
@@ -336,17 +426,20 @@ void CMergeEditFrame::UpdateHeaderSizes()
 		int w2, wmin;
 		wndSplitter.GetColumnInfo(0, w2, wmin);
 		for (pane = 0; pane < pDoc->m_nBuffers; pane++)
+		{
 			w[pane] = (w2 - 4 * pDoc->m_nBuffers) / pDoc->m_nBuffers;
+			wStatus[pane] = w[pane];
+		}
 	}
 
-	if (!std::equal(m_nLastSplitPos, m_nLastSplitPos + pDoc->m_nBuffers - 1, w))
+	if (!std::equal(m_nLastSplitPos, m_nLastSplitPos + pDoc->m_nBuffers, w))
 	{
-		std::copy_n(w, pDoc->m_nBuffers - 1, m_nLastSplitPos);
+		std::copy_n(w, pDoc->m_nBuffers, m_nLastSplitPos);
 
 		// resize controls in header dialog bar
 		m_wndFilePathBar.Resize(w);
 
-		m_wndStatusBar.Resize(w);
+		m_wndStatusBar.Resize(wStatus);
 	}
 }
 
@@ -369,13 +462,87 @@ void CMergeEditFrame::UpdateSplitter()
 	m_pwndDetailMergeEditSplitterView->m_wndSplitter.RecalcLayout();
 }
 
+void CMergeEditFrame::LoadOptions()
+{
+	const String& optname = m_pMergeDoc->GetDocumentType() == IMergeDoc::DocumentType::Table ? OPT_CMP_TBL_SPLITTER_RATIOS : OPT_CMP_TEXT_SPLITTER_RATIOS;
+	auto& splitterWnd = GetMergeEditSplitterWnd(0);
+	// Text compare uses horizontal (columns) splitting
+	const bool horizontal = splitterWnd.GetColumnCount() != 1;
+	SplitterPositions::LoadPaneRatio(optname, 0, m_pMergeDoc->m_nBuffers,
+		[this, horizontal](const double* positions, int count) {
+			GetMergeEditSplitterWnd(0).SetSplitterRatios(positions, count, horizontal);
+		});
+	int rowCount = SplitterPositions::GetSplitterRowCount(optname);
+	if (rowCount > 1)
+		PostMessage(WM_COMMAND, ID_WINDOW_SPLIT);
+}
+
+void CMergeEditFrame::SaveOptions()
+{
+	const String& optname = m_pMergeDoc->GetDocumentType() == IMergeDoc::DocumentType::Table ? OPT_CMP_TBL_SPLITTER_RATIOS : OPT_CMP_TEXT_SPLITTER_RATIOS;
+	const auto& splitterWnd = GetMergeEditSplitterWnd(0);
+	// Text compare uses horizontal (columns) splitting
+	const bool horizontal = splitterWnd.GetColumnCount() != 1;
+	const int nRows = m_wndSplitter.GetRowCount();
+	if (!GetOptionsMgr()->GetString(optname).empty())
+	{
+		for (int r = 0; r < nRows; ++r)
+		{
+			SplitterPositions::SavePaneRatios(optname, r, m_pMergeDoc->m_nBuffers,
+				[this, r, horizontal](int i) {
+					return GetMergeEditSplitterWnd(r).GetSplitterRatio(i, horizontal);
+				});
+		}
+		double ratio = m_wndSplitter.GetSplitterRatio(0, false);
+		SplitterPositions::SaveRowRatio(optname, nRows > 1 ? &ratio : nullptr);
+	}
+}
+
 /**
  * @brief Synchronize control with splitter position,
  */
 void CMergeEditFrame::OnIdleUpdateCmdUI()
 {
 	UpdateHeaderSizes();
+	// Follow the merge result bar however it was shown or hidden (View menu,
+	// its close button, docking state), so that closing it always gives the
+	// compared files back their normal editable state
+	if (m_wndResultBar.m_hWnd != nullptr && m_pMergeDoc != nullptr)
+	{
+		const bool bVisible = !!m_wndResultBar.IsVisible();
+		// Update merge result conflict statistics in status bar
+		if (bVisible)
+		{
+			int nUnresolved = 0, nConflicts = 0, nWhiteSpaceOnly = 0;
+			m_pMergeDoc->GetResultUnresolvedCounts(nUnresolved, nConflicts, nWhiteSpaceOnly);
+			m_wndResultBar.UpdateConflictInfo(m_pMergeDoc->GetMergeResultSavePath(), m_pMergeDoc->IsMergeResultModified(),
+				nConflicts, nUnresolved, nWhiteSpaceOnly);
+		}
+	}
 	CMergeFrameCommon::OnIdleUpdateCmdUI();
+}
+
+LRESULT CMergeEditFrame::CPreviewNumPageButton::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+	switch (message)
+	{
+	case WM_SETTEXT:
+	{
+		// Translate the One Page Button and Two Page Button on the Print Preivew toolbar.
+		String text = reinterpret_cast<TCHAR*>(lParam);
+		String translated = I18n::tr(text);
+		if (translated != text)
+		{
+			SetWindowText(translated.c_str());
+			return TRUE;
+		}
+		break;
+	}
+	case WM_DESTROY:
+		UnsubclassWindow();
+		break;
+	}
+	return __super::WindowProc(message, wParam, lParam);
 }
 
 void CMergeEditFrame::OnTimer(UINT_PTR nIDEvent) 
@@ -384,6 +551,20 @@ void CMergeEditFrame::OnTimer(UINT_PTR nIDEvent)
 	{
 		SavePosition();
 		KillTimer(IDT_SAVEPOSITION);
+	}
+	else if (nIDEvent == IDT_PREVIEWMODE)
+	{
+		KillTimer(IDT_PREVIEWMODE);
+		CWnd* pPreviewBar = GetDlgItem(AFX_IDW_PREVIEW_BAR);
+		if (pPreviewBar)
+		{
+			pPreviewBar->Invalidate();
+			I18n::TranslateDialog(pPreviewBar->GetSafeHwnd());
+			m_wndPreviewNumPage.SubclassWindow(pPreviewBar->GetDlgItem(AFX_ID_PREVIEW_NUMPAGE)->GetSafeHwnd());
+			HWND hPreviewBar = pPreviewBar->GetSafeHwnd();
+			if (hPreviewBar != nullptr)
+				DarkMode::setChildCtrlsSubclassAndThemeEx(hPreviewBar, true, true);
+		}
 	}
 	else
 	{
@@ -434,6 +615,8 @@ void CMergeEditFrame::UpdateResources()
 	m_wndStatusBar.UpdateResources();
 	m_wndLocationBar.UpdateResources();
 	m_wndDetailBar.UpdateResources();
+	if (m_wndResultBar.m_hWnd != nullptr)
+		m_wndResultBar.UpdateResources();
 }
 
 /**
@@ -448,7 +631,88 @@ LRESULT CMergeEditFrame::OnStorePaneSizes(WPARAM wParam, LPARAM lParam)
 
 void CMergeEditFrame::OnSize(UINT nType, int cx, int cy) 
 {
-	CMDIChildWnd::OnSize(nType, cx, cy);
+	__super::OnSize(nType, cx, cy);
 	
 	UpdateHeaderSizes();
 }
+
+void CMergeEditFrame::OnViewDisplayFilterBar()
+{
+	if (!m_pFilterBar)
+		ShowFilterBar();
+	else
+		HideFilterBar();
+}
+
+void CMergeEditFrame::OnUpdateDisplayViewFilterBar(CCmdUI* pCmdUI)
+{
+	pCmdUI->Enable(TRUE);
+	pCmdUI->SetCheck(m_pFilterBar != nullptr);
+}
+
+void CMergeEditFrame::OnDisplayFilterBarClose()
+{
+	HideFilterBar();
+	GetActiveView()->SetFocus();
+}
+
+void CMergeEditFrame::OnDisplayFilterBarMenu()
+{
+	if (m_pFilterBar)
+		m_pFilterBar->ShowFilterMenu();
+}
+
+void CMergeEditFrame::ShowFilterBar()
+{
+	if (!m_pFilterBar)
+		m_pFilterBar.reset(new CLineFilterBar());
+	if (!::IsWindow(m_pFilterBar->GetSafeHwnd()) && !m_pFilterBar->Create(this))
+	{
+		TRACE0("Failed to create filter bar\n");
+		m_pFilterBar.reset();
+		return;
+	}
+	ShowControlBar(m_pFilterBar.get(), TRUE, FALSE);
+}
+
+void CMergeEditFrame::HideFilterBar()
+{
+	if (m_pFilterBar != nullptr && ::IsWindow(m_pFilterBar->GetSafeHwnd()))
+	{
+		ShowControlBar(m_pFilterBar.get(), FALSE, FALSE);
+		m_pFilterBar->DestroyWindow();
+	}
+	m_pFilterBar.reset();
+}
+
+/**
+ * @brief Remember/restore splitter position
+ */
+void CMergeEditFrame::OnWindowPreserveSplitterPosition()
+{
+	const String& optname = m_pMergeDoc->GetDocumentType() == IMergeDoc::DocumentType::Table ? OPT_CMP_TBL_SPLITTER_RATIOS : OPT_CMP_TEXT_SPLITTER_RATIOS;
+	auto& splitterWnd = GetMergeEditSplitterWnd(0);
+	if (!GetOptionsMgr()->GetString(optname).empty())
+	{
+		GetOptionsMgr()->SaveOption(optname, _T(""));
+		const bool horizontal = splitterWnd.GetColumnCount() != 1;
+		for (int r = 0; r < m_wndSplitter.GetRowCount(); ++r)
+			GetMergeEditSplitterWnd(r).ResetSplitterRatios(horizontal);
+		m_wndSplitter.ResetSplitterRatios(false);
+		return;
+	}
+	const bool horizontal = splitterWnd.GetColumnCount() != 1;
+	const int nRows = m_wndSplitter.GetRowCount();
+	for (int r = 0; r < nRows; ++r)
+	{
+		SplitterPositions::SavePaneRatios(optname, r, m_pMergeDoc->m_nBuffers,
+			[this, r, horizontal](int i) { return GetMergeEditSplitterWnd(r).GetSplitterRatio(i, horizontal); });
+	}
+}
+
+void CMergeEditFrame::OnUpdateWindowPreserveSplitterPosition(CCmdUI* pCmdUI)
+{
+	const String& optname = m_pMergeDoc->GetDocumentType() == IMergeDoc::DocumentType::Table ? OPT_CMP_TBL_SPLITTER_RATIOS : OPT_CMP_TEXT_SPLITTER_RATIOS;
+	pCmdUI->SetCheck(!GetOptionsMgr()->GetString(optname).empty());
+}
+

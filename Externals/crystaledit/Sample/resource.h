@@ -5,9 +5,9 @@
 #define IDD_ABOUTBOX                    100
 #define IDR_MAINFRAME                   128
 #define IDR_SAMPLETYPE                  129
-#define IDR_MARGIN_ICONS                131
 #define IDR_MARGIN_CURSOR               132
 #define IDR_MARGIN_ICONS_PNG            133
+#define IDR_TOOLBAR_PNG                 134
 #define IDD_EDIT_FIND                   220
 #define IDD_EDIT_REPLACE                221
 #define IDD_EDIT_MARKER                 222
@@ -52,6 +52,8 @@
 #define ID_EDIT_FIND_PREVIOUS           32799
 #define ID_VIEW_WHITESPACE              32800
 #define ID_VIEW_SELECT_FONT             32801
+#define ID_VIEW_LINENUMBERS             32802
+#define ID_FILE_CONVERT_TO_HTML         32803
 #define ID_EDIT_INDICATOR_COL           37900
 #define ID_READ_ONLY                    37901
 #define ID_INDICATOR_ENCODING           37905

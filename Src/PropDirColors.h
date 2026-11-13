@@ -12,7 +12,7 @@
 
 class COptionsMgr;
 
-const int CustomDirColorsAmount = 16;
+constexpr int CustomDirColorsAmount = 16;
 
 /** @brief Property page for folder compare colors options; used in options property sheet */
 class PropDirColors : public OptionsPanel
@@ -21,10 +21,6 @@ class PropDirColors : public OptionsPanel
 public:
 	explicit PropDirColors(COptionsMgr *optionsMgr);
 
-// Implement IOptionsPanel
-	virtual void ReadOptions() override;
-	virtual void WriteOptions() override;
-	
 // Dialog Data
 private:
 	//{{AFX_DATA(PropDirColors)
@@ -38,7 +34,16 @@ private:
 	CColorButton	m_cDirItemFiltered;
 	CColorButton	m_cDirItemFilteredText;
 	CColorButton	m_cDirMargin;
-	bool            m_bUseColors;
+	unsigned m_clrDirItemEqual;
+	unsigned m_clrDirItemEqualText;
+	unsigned m_clrDirItemDiff;
+	unsigned m_clrDirItemDiffText;
+	unsigned m_clrDirItemNotExistAll;
+	unsigned m_clrDirItemNotExistAllText;
+	unsigned m_clrDirItemFiltered;
+	unsigned m_clrDirItemFilteredText;
+	unsigned m_clrDirMargin;
+	bool     m_bUseColors;
 	//}}AFX_DATA
 
 	// Overrides
@@ -54,9 +59,7 @@ protected:
 	static const COLORREF COLOR_NONE = 0xffffffff;
 	typedef enum { WRITE_OPTIONS, READ_OPTIONS } OPERATION;
 
-	void BrowseColor(CColorButton & colorButton);
-	void SerializeColors(OPERATION op);
-	void SerializeColor(OPERATION op, CColorButton & btn, const String& optionName);
+	void BrowseColor(unsigned id);
 
 	std::array<COLORREF, CustomDirColorsAmount> m_cCustColors;
 

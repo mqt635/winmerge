@@ -10,6 +10,8 @@
 #include <windows.h>
 #include "paths.h"
 #include "TFile.h"
+#include "DirTravel.h"
+#include "DirItem.h"
 #include "Environment.h"
 #include "Constants.h"
 #include "unicoder.h"
@@ -50,7 +52,7 @@ String TempFile::Create(const String& prefix, const String& ext)
 		{
 			String tempext = temp + ext;
 			if (MoveFile(temp.c_str(), tempext.c_str()))
-				temp = tempext;
+				temp = std::move(tempext);
 		}
 		m_path = temp;
 	}
@@ -68,9 +70,48 @@ bool TempFile::Delete()
 	if (!m_path.empty())
 		success = !!DeleteFile(m_path.c_str());
 	if (success)
+		m_path.clear();
+	return success;
+}
+
+/**
+ * @brief Delete the temp file when instance is deleted.
+ */
+TempFolder::~TempFolder()
+{
+	Delete();
+}
+
+
+/**
+ * @brief Create a temporary folder with given prefix.
+ * @return Created temp file path.
+ */
+String TempFolder::Create()
+{
+	String temp = env::GetTempChildPath();
+	if (!temp.empty())
+	{
+		m_path = temp;
+	}
+
+	return temp;
+}
+
+/**
+ * @brief Delete the temporary folder, if it exists.
+ * @return true if there was no error.
+ */
+bool TempFolder::Delete()
+{
+	bool success = true;
+	if (!m_path.empty())
+		success = ClearTempfolder(m_path);
+	if (success)
 		m_path = _T("");
 	return success;
 }
+
 /** 
  * @brief Cleanup tempfiles created by WinMerge.
  * This function finds temp folders which don't have WinMerge instance using
@@ -78,50 +119,25 @@ bool TempFile::Delete()
  */
 void CleanupWMtemp()
 {
-	String foldername;
-	String tempfolderPID;
-	String filepattern(TempFolderPrefix);
-	filepattern += _T("*.*");
-	String pattern = paths::GetParentPath(env::GetTemporaryPath());
-	pattern = paths::ConcatPath(pattern, filepattern);
-	WIN32_FIND_DATA ff;
-	HANDLE h;
-	bool res = true;
-	bool bok = true;
-	
-	h = FindFirstFile (TFile(pattern).wpath().c_str(), &ff);
-	if (h == INVALID_HANDLE_VALUE)
-		bok = false;
+	DirItemArray dirs, files;
+	DirTravel::LoadFiles(paths::GetParentPath(env::GetTemporaryPath()), &dirs, &files, String(TempFolderPrefix) + _T("*"));
 
-	while (bok & res)
+	for (auto& dir : dirs)
 	{
-		foldername = ff.cFileName;
-		if (ff.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+		const String foldername = dir.filename;
+		// Remove leading "WM_" from filename to get the ProcessID
+		const String tempfolderPID = foldername.substr(tc::tcslen(TempFolderPrefix));
+		// Check if this instance of WM is still running
+		try
 		{
-			// Remove leading "WM_" from filename to get the ProcessID
-			tempfolderPID = foldername.substr(_tcslen(TempFolderPrefix));
-
-			// Check if this instance of WM is still running
-			try
-			{
-				int pid = atoi(ucr::toUTF8(tempfolderPID).c_str());
-				if (!WMrunning(pid))
-				{
-					tempfolderPID = paths::ConcatPath(paths::GetParentPath(pattern), ff.cFileName); 
-					res = ClearTempfolder(tempfolderPID);
-					if (res)
-						bok = !!FindNextFile(h, &ff) ;
-					continue;
-				}
-			}
-			catch (...)
-			{
-			}
+			int pid = atoi(ucr::toUTF8(tempfolderPID).c_str());
+			if (!WMrunning(pid))
+				ClearTempfolder(paths::ConcatPath(dir.path, foldername));
 		}
-		bok = !!FindNextFile(h, &ff) ;
+		catch (...)
+		{
+		}
 	}
-	if (h != INVALID_HANDLE_VALUE)
-		FindClose(h);
 }
 
 /**

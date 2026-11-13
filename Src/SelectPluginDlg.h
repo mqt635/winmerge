@@ -14,7 +14,9 @@
 #include <vector>
 #include <memory>
 #include "TrDialogs.h"
+#include "CMoveConstraint.h"
 #include "SuperComboBox.h"
+#include "ValidatingEdit.h"
 #include "UnicodeString.h"
 
 /////////////////////////////////////////////////////////////////////////////
@@ -40,7 +42,8 @@ public:
 // Dialog Data
 	//{{AFX_DATA(CSelectPluginDlg)
 	enum { IDD = IDD_PLUGINS_SELECTPLUGIN };
-	CComboBox	m_cboPluginName;
+	CComboBoxEx	m_cboPluginName;
+	CComboBox	m_cboTargetFiles;
 	bool	m_bNoExtensionCheck;
 	bool	m_bOpenInSameFrameType;
 	String	m_strDescription;
@@ -48,6 +51,8 @@ public:
 	String	m_strArguments;
 	String	m_strPluginPipeline;
 	CSuperComboBox m_ctlPluginPipeline;
+	CValidatingEdit m_ctlPluginPipelineEdit;
+	prdlg::CMoveConstraint m_constraint; //*< Resizes dialog controls when dialog resized */
 	
 	//}}AFX_DATA
 
@@ -81,9 +86,12 @@ protected:
 	virtual void OnOK();
 	virtual BOOL OnInitDialog() override;
 	afx_msg void OnUnpackerAllowAll();
-	afx_msg void OnSelchangeUnpackerName();
+	afx_msg void OnSelchangePluginName();
+	afx_msg void OnSelchangeTargets();
+	afx_msg void OnClickedAlias();
 	afx_msg void OnClickedAddPipe();
 	afx_msg void OnChangePipeline();
+	afx_msg void OnClickedSettings();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

@@ -10,8 +10,6 @@
 #include <vector>
 #include "UnicodeString.h"
 #include "Merge.h"
-#include "OptionsDef.h"
-#include "OptionsMgr.h"
 #include "ShellFileOperations.h"
 #include "paths.h"
 
@@ -38,9 +36,7 @@ FileActionScript::FileActionScript()
 /**
  * @brief Standard destructor.
  */
-FileActionScript::~FileActionScript()
-{
-}
+FileActionScript::~FileActionScript() = default;
 
 /**
  * @brief Remove last action item from the list.
@@ -51,6 +47,30 @@ FileActionItem FileActionScript::RemoveTailActionItem()
 	FileActionItem item = m_actions.back();
 	m_actions.pop_back();
 	return item;
+}
+
+/**
+ * @brief Removes duplicate entries from a vector of FileActionItem objects.
+ */
+void FileActionScript::RemoveDuplicates()
+{
+	auto compare = [](const FileActionItem& a, const FileActionItem& b) {
+		return std::tie(a.src, a.dest, a.atype) < std::tie(b.src, b.dest, b.atype);
+		};
+	
+	auto compare_by_context = [](const FileActionItem& a, const FileActionItem& b) {
+		return a.context < b.context;
+		};
+	
+	auto equal = [](const FileActionItem& a, const FileActionItem& b) {
+		return std::tie(a.src, a.dest, a.atype) == std::tie(b.src, b.dest, b.atype);
+		};
+	
+	std::sort(m_actions.begin(), m_actions.end(), compare);
+	
+	m_actions.erase(std::unique(m_actions.begin(), m_actions.end(), equal), m_actions.end());
+
+	std::sort(m_actions.begin(), m_actions.end(), compare_by_context);
 }
 
 /**
@@ -80,14 +100,11 @@ int FileActionScript::CreateOperationsScripts()
 		bool bSkip = false;
 		if ((*iter).atype == FileAction::ACT_COPY && !(*iter).dirflag)
 		{
-			if (bContinue)
+			if (!CMergeApp::CreateBackup(true, (*iter).dest))
 			{
-				if (!CMergeApp::CreateBackup(true, (*iter).dest))
-				{
-					String strErr = _("Error backing up file");
-					AfxMessageBox(strErr.c_str(), MB_OK | MB_ICONERROR);
-					bContinue = false;
-				}
+				String strErr = _("Error backing up file");
+				AfxMessageBox(strErr.c_str(), MB_OK | MB_ICONERROR);
+				bContinue = false;
 			}
 		}
 

@@ -13,9 +13,6 @@
 
 #include "stdafx.h"
 #include "DirFrame.h"
-#include "Merge.h"
-#include "OptionsDef.h"
-#include "OptionsMgr.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -26,21 +23,21 @@
  */
 enum
 {
-	PANE_COMPMETHOD = 1,
-	PANE_FILTER,
+	PANE_FILTER = 1,
+	PANE_COMPMETHOD,
 	PANE_LEFT_RO,
 	PANE_MIDDLE_RO,
 	PANE_RIGHT_RO,
 };
 
 /**
- * @brief Width of compare method name pane in statusbar
+ * @brief Minimum width of compare method name pane in statusbar
  */
-const int COMPMETHOD_PANEL_WIDTH = 100;
+const int COMPMETHOD_PANEL_MIN_WIDTH = 50;
 /**
- * @brief Width of filter name pane in statusbar
+ * @brief Minimum width of filter name pane in statusbar
  */
-const int FILTER_PANEL_WIDTH = 100;
+const int FILTER_PANEL_MIN_WIDTH = 50;
 
 /**
  * @brief Bottom statusbar panels and indicators
@@ -79,6 +76,10 @@ BEGIN_MESSAGE_MAP(CDirFrame, CMergeFrameCommon)
 	ON_WM_CREATE()
 	ON_WM_CLOSE()
 	ON_WM_SIZE()
+	ON_COMMAND(ID_VIEW_DISPLAY_FILTER_BAR_MENU, OnViewDisplayFilterBar)
+	ON_UPDATE_COMMAND_UI(ID_VIEW_DISPLAY_FILTER_BAR_MENU, OnUpdateDisplayViewFilterBar)
+	ON_COMMAND(IDCANCEL, OnDisplayFilterBarClose)
+	ON_COMMAND(IDC_FILTERFILE_MASK_MENU, OnDisplayFilterBarMenu)
 	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
@@ -90,7 +91,7 @@ END_MESSAGE_MAP()
  */
 int CDirFrame::OnCreate(LPCREATESTRUCT lpCreateStruct) 
 {
-	if (CMDIChildWnd::OnCreate(lpCreateStruct) == -1)
+	if (__super::OnCreate(lpCreateStruct) == -1)
 		return -1;
 
 	EnableDocking(CBRS_ALIGN_TOP);
@@ -103,7 +104,7 @@ int CDirFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	}	
 
 	// Directory frame has a status bar
-	if (!m_wndStatusBar.Create(this) ||
+	if (!m_wndStatusBar.Create(this, WS_CHILD | WS_VISIBLE | CBRS_BOTTOM, AFX_IDW_CONTROLBAR_FIRST+30) ||
 		!m_wndStatusBar.SetIndicators(indicators,
 		  sizeof(indicators)/sizeof(UINT)))
 	{
@@ -115,11 +116,13 @@ int CDirFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	const int lpx = CClientDC(this).GetDeviceCaps(LOGPIXELSX);
 	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
 	m_wndStatusBar.SetPaneInfo(0, 0, SBPS_STRETCH | SBPS_NOBORDERS, 0);
-	m_wndStatusBar.SetPaneInfo(PANE_COMPMETHOD, ID_STATUS_FILTER, 0, pointToPixel(COMPMETHOD_PANEL_WIDTH));
-	m_wndStatusBar.SetPaneInfo(PANE_FILTER, ID_STATUS_FILTER, 0, pointToPixel(FILTER_PANEL_WIDTH));
-	m_wndStatusBar.SetPaneInfo(PANE_LEFT_RO, ID_STATUS_LEFTDIR_RO, 0, pointToPixel(RO_PANEL_WIDTH));
-	m_wndStatusBar.SetPaneInfo(PANE_MIDDLE_RO, ID_STATUS_MIDDLEDIR_RO, 0, pointToPixel(RO_PANEL_WIDTH));
-	m_wndStatusBar.SetPaneInfo(PANE_RIGHT_RO, ID_STATUS_RIGHTDIR_RO, 0, pointToPixel(RO_PANEL_WIDTH));
+	m_wndStatusBar.SetPaneInfo(PANE_FILTER, ID_STATUS_FILTER,
+		SBPS_CLICKABLE | SBPS_AUTOWIDTH, pointToPixel(FILTER_PANEL_MIN_WIDTH));
+	m_wndStatusBar.SetPaneInfo(PANE_COMPMETHOD, ID_STATUS_FILTER,
+		SBPS_CLICKABLE | SBPS_AUTOWIDTH, pointToPixel(COMPMETHOD_PANEL_MIN_WIDTH));
+	m_wndStatusBar.SetPaneInfo(PANE_LEFT_RO, ID_STATUS_LEFTDIR_RO, SBPS_CLICKABLE, pointToPixel(RO_PANEL_WIDTH));
+	m_wndStatusBar.SetPaneInfo(PANE_MIDDLE_RO, ID_STATUS_MIDDLEDIR_RO, SBPS_CLICKABLE, pointToPixel(RO_PANEL_WIDTH));
+	m_wndStatusBar.SetPaneInfo(PANE_RIGHT_RO, ID_STATUS_RIGHTDIR_RO, SBPS_CLICKABLE, pointToPixel(RO_PANEL_WIDTH));
 	m_wndStatusBar.SetPaneText(PANE_LEFT_RO, sText.c_str(), TRUE); 
 	m_wndStatusBar.SetPaneText(PANE_MIDDLE_RO, sText.c_str(), TRUE); 
 	m_wndStatusBar.SetPaneText(PANE_RIGHT_RO, sText.c_str(), TRUE);
@@ -132,10 +135,20 @@ int CDirFrame::OnCreate(LPCREATESTRUCT lpCreateStruct)
 	return 0;
 }
 
+void CDirFrame::SetCompareDirs(int nDirs)
+{
+	if (m_nCompareDirs == nDirs)
+		return;
+	m_nCompareDirs = nDirs;
+	const int lpx = CClientDC(this).GetDeviceCaps(LOGPIXELSX);
+	const int width = nDirs < 3 ? 0 : MulDiv(RO_PANEL_WIDTH, lpx, 72);
+	m_wndStatusBar.SetPaneInfo(PANE_MIDDLE_RO, ID_STATUS_MIDDLEDIR_RO, SBPS_CLICKABLE, width);
+}
+
 /**
  * @brief Set statusbar text
  */
-void CDirFrame::SetStatus(LPCTSTR szStatus)
+void CDirFrame::SetStatus(const tchar_t* szStatus)
 {
 	m_wndStatusBar.SetPaneText(0, szStatus);
 }
@@ -146,14 +159,14 @@ void CDirFrame::SetStatus(LPCTSTR szStatus)
  */
 void CDirFrame::SetCompareMethodStatusDisplay(int nCompMethod)
 {
-	m_wndStatusBar.SetPaneText(PANE_COMPMETHOD, LoadResString(IDS_COMPMETHOD_FULL_CONTENTS + nCompMethod).c_str());
+	m_wndStatusBar.SetPaneText(PANE_COMPMETHOD, I18n::LoadString(IDS_COMPMETHOD_FULL_CONTENTS + nCompMethod).c_str());
 }
 
 /**
  * @brief Set active filter name to statusbar
  * @param [in] szFilter Filtername to show
  */
-void CDirFrame::SetFilterStatusDisplay(LPCTSTR szFilter)
+void CDirFrame::SetFilterStatusDisplay(const tchar_t* szFilter)
 {
 	m_wndStatusBar.SetPaneText(PANE_FILTER, szFilter);
 }
@@ -163,7 +176,7 @@ void CDirFrame::SetFilterStatusDisplay(LPCTSTR szFilter)
  */
 void CDirFrame::ActivateFrame(int nCmdShow) 
 {
-	CMergeFrameCommon::ActivateFrame(nCmdShow);
+	__super::ActivateFrame(nCmdShow);
 }
 
 /**
@@ -175,7 +188,7 @@ void CDirFrame::UpdateResources()
 
 void CDirFrame::OnClose() 
 {	
-	CMDIChildWnd::OnClose();
+	__super::OnClose();
 }
 
 /**
@@ -183,17 +196,90 @@ void CDirFrame::OnClose()
  */
 BOOL CDirFrame::DestroyWindow() 
 {
+	HideProgressBar();
+	HideFilterBar();
 	// save docking positions and sizes
 	CDockState dockState;
 	GetDockState(dockState);
 	dockState.SaveState(_T("Settings-DirFrame"));
 	SaveWindowState();
-	return CMDIChildWnd::DestroyWindow();
+	return __super::DestroyWindow();
 }
 
 void CDirFrame::OnSize(UINT nType, int cx, int cy) 
 {
-	CMDIChildWnd::OnSize(nType, cx, cy);
+	__super::OnSize(nType, cx, cy);
 	
 	m_wndFilePathBar.Resize();
 }
+
+void CDirFrame::ShowProgressBar()
+{
+	if (m_pCmpProgressBar == nullptr)
+		m_pCmpProgressBar.reset(new DirCompProgressBar());
+
+	if (!::IsWindow(m_pCmpProgressBar->GetSafeHwnd()))
+		m_pCmpProgressBar->Create(this);
+
+	ShowControlBar(m_pCmpProgressBar.get(), TRUE, FALSE);
+}
+
+void CDirFrame::HideProgressBar()
+{
+	if (m_pCmpProgressBar != nullptr && ::IsWindow(m_pCmpProgressBar->GetSafeHwnd()))
+	{
+		ShowControlBar(m_pCmpProgressBar.get(), FALSE, FALSE);
+		m_pCmpProgressBar->DestroyWindow();
+	}
+	m_pCmpProgressBar.reset();
+}
+
+void CDirFrame::OnViewDisplayFilterBar()
+{
+	if (!m_pFilterBar)
+		ShowFilterBar();
+	else
+		HideFilterBar();
+}
+
+void CDirFrame::OnUpdateDisplayViewFilterBar(CCmdUI* pCmdUI) 
+{
+	pCmdUI->Enable(TRUE);
+	pCmdUI->SetCheck(m_pFilterBar != nullptr);
+}
+
+void CDirFrame::OnDisplayFilterBarClose()
+{
+	HideFilterBar();
+	GetActiveView()->SetFocus();
+}
+
+void CDirFrame::OnDisplayFilterBarMenu()
+{
+	if (m_pFilterBar)
+		m_pFilterBar->ShowFilterMenu();
+}
+
+void CDirFrame::ShowFilterBar()
+{
+	if (!m_pFilterBar)
+		m_pFilterBar.reset(new CDirFilterBar());
+	if (!::IsWindow(m_pFilterBar->GetSafeHwnd()) && !m_pFilterBar->Create(this))
+	{
+		TRACE0("Failed to create filter bar\n");
+		m_pFilterBar.reset();
+		return;
+	}
+	ShowControlBar(m_pFilterBar.get(), TRUE, FALSE);
+}
+
+void CDirFrame::HideFilterBar()
+{
+	if (m_pFilterBar != nullptr && ::IsWindow(m_pFilterBar->GetSafeHwnd()))
+	{
+		ShowControlBar(m_pFilterBar.get(), FALSE, FALSE);
+		m_pFilterBar->DestroyWindow();
+	}
+	m_pFilterBar.reset();
+}
+

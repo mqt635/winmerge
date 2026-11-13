@@ -16,14 +16,14 @@ class CMergeEditView;
  */
 struct MovedLine
 {
-	int apparent0;
-	int apparent1;
-	int blockHeight;
+	int apparent0 = 0;
+	int apparent1 = 0;
+	int blockHeight = 0;
 	CPoint ptLeftUpper;
 	CPoint ptLeftLower;
 	CPoint ptRightUpper;
 	CPoint ptRightLower;
-	bool currentDiff;
+	bool currentDiff = false;
 };
 
 typedef CList<MovedLine, MovedLine&> MOVEDLINE_LIST;
@@ -64,6 +64,7 @@ public:
 	void UpdateVisiblePos(int nTopLine = -1, int nBottomLine = -1);
 	void SetFrameHwnd(HWND hwndFrame);
 	void ForceRecalculate();
+	void SetMoveCursorOnClick(bool bVal) { m_bMoveCursorOnClick = bVal; };
 
 protected:
 
@@ -86,7 +87,7 @@ protected:
 	void DrawDiffMarker(CDC* pDC, int yCoord);
 	void CalculateBars();
 	void CalculateBlocks();
-	void CalculateBlocksPixel(int nBlockStart, int nBlockEnd, int nBlockLength,
+	void CalculateBlocksPixel(int nBlockStart, int nBlockEnd,
 			int &nBeginY, int &nEndY);
 	COLORREF GetBackgroundColor();
 	void DrawBackground(CDC* pDC);
@@ -106,6 +107,7 @@ private:
 	std::vector<DiffBlock> m_diffBlocks; //*< List of pre-calculated diff blocks.
 	bool m_bRecalculateBlocks; //*< Recalculate diff blocks in next repaint.
 	CSize m_currentSize; //*< Current size of the panel.
+	bool m_bMoveCursorOnClick; //*< Setting for moving the cursor to line when clicking */
 
 	// Generated message map functions
 protected:
@@ -114,6 +116,7 @@ protected:
 	afx_msg void OnLButtonUp(UINT nFlags, CPoint point);
 	afx_msg void OnMouseMove(UINT nFlags, CPoint point);
 	afx_msg int  OnMouseActivate(CWnd* pDesktopWnd, UINT nHitTest, UINT message);
+	afx_msg BOOL OnMouseWheel(UINT nFlags, short zDelta, CPoint pt);
 	afx_msg void OnLButtonDblClk(UINT nFlags, CPoint point);
 	afx_msg void OnContextMenu(CWnd* pWnd, CPoint point);
 	afx_msg void OnClose();

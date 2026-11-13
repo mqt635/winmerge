@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|ARM">
@@ -55,7 +55,7 @@
     <ProjectGuid>{9FDA4AF0-CCFD-4812-BDB9-53EFEDB32BDE}</ProjectGuid>
     <RootNamespace>Merge</RootNamespace>
     <Keyword>MFCProj</Keyword>
-    <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' &gt;= '16'">$(LatestTargetPlatformVersion)</WindowsTargetPlatformVersion>
+    <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' &gt;= '16'">10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -64,8 +64,9 @@
     <CharacterSet>Unicode</CharacterSet>
     <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' == '15'">7.0</WindowsTargetPlatformVersion>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141_xp</PlatformToolset>
-    <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
-    <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v141_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v141_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v141_xp</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|Win32'" Label="Configuration">
@@ -74,8 +75,9 @@
     <CharacterSet>Unicode</CharacterSet>
     <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' == '15'">7.0</WindowsTargetPlatformVersion>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141_xp</PlatformToolset>
-    <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
-    <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v141_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v141_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v141_xp</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
@@ -84,8 +86,9 @@
     <CharacterSet>Unicode</CharacterSet>
     <WindowsTargetPlatformVersion Condition="'$(VisualStudioVersion)' == '15'">7.0</WindowsTargetPlatformVersion>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141_xp</PlatformToolset>
-    <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
-    <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v141_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v141_xp</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v141_xp</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -96,6 +99,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -105,6 +109,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|ARM'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -114,6 +119,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -123,6 +129,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|ARM64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -132,6 +139,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Test|ARM'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -141,6 +149,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
@@ -150,6 +159,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM64'" Label="Configuration">
@@ -160,6 +170,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|ARM'" Label="Configuration">
@@ -170,6 +181,7 @@
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '15'">v141</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '16'">v142</PlatformToolset>
     <PlatformToolset Condition="'$(VisualStudioVersion)' == '17'">v143</PlatformToolset>
+    <PlatformToolset Condition="'$(VisualStudioVersion)' == '18'">v145</PlatformToolset>
     <XPDeprecationWarning>false</XPDeprecationWarning>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
@@ -180,6 +192,12 @@
     <Import Project="..\Externals\xdiff\xdiff.vcxitems" Label="Shared" />
     <Import Project="diffutils\diffutils.vcxitems" Label="Shared" />
     <Import Project="CompareEngines\CompareEngines.vcxitems" Label="Shared" />
+    <Import Project="..\Externals\crystaledit\editlib\editlibparsers.vcxitems" Label="Shared" />
+    <Import Project="FilterEngine\FilterEngine.vcxitems" Label="Shared" />
+    <Import Project="..\Externals\poco\Foundation\Foundation.vcxitems" Label="Shared" />
+    <Import Project="..\Externals\poco\XML\XML.vcxitems" Label="Shared" />
+    <Import Project="CrashLogger\CrashLogger.vcxitems" Label="Shared" />
+    <Import Project="..\Externals\tree-sitter\tree-sitter.vcxitems" Label="Shared" />
   </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
@@ -280,8 +298,8 @@
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0501;NDEBUG;WIN32;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0501;NDEBUG;WIN32;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -298,17 +316,18 @@
       <SDLCheck>true</SDLCheck>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <DisableSpecificWarnings>4100;4189;4204;4505</DisableSpecificWarnings>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MSSHELLDLG;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/verbose:lib %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>msvcrtd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -322,6 +341,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
       <Profile>true</Profile>
+      <DelayLoadDLLs>wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -340,8 +360,8 @@
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0601;NDEBUG;WIN64;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0601;NDEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -358,7 +378,8 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <DisableSpecificWarnings>4100;4189;4204;4505</DisableSpecificWarnings>
       <ControlFlowGuard>Guard</ControlFlowGuard>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -366,9 +387,9 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/verbose:lib %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>msvcrtd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -378,7 +399,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <Profile>true</Profile>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -396,8 +417,8 @@
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0601;NDEBUG;WIN64;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0601;NDEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -414,7 +435,8 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <DisableSpecificWarnings>4100;4189;4204;4505</DisableSpecificWarnings>
       <ControlFlowGuard>Guard</ControlFlowGuard>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -422,9 +444,9 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/verbose:lib %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(Platform)%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>msvcrtd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -433,7 +455,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <Profile>true</Profile>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -451,8 +473,8 @@
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>MinSpace</Optimization>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0601;NDEBUG;WIN64;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0601;NDEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <StringPooling>true</StringPooling>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <FunctionLevelLinking>true</FunctionLevelLinking>
@@ -469,7 +491,8 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <DisableSpecificWarnings>4100;4189;4204;4505</DisableSpecificWarnings>
       <ControlFlowGuard>Guard</ControlFlowGuard>
-      <AssemblerOutput>AssemblyAndSourceCode</AssemblerOutput>
+      <AssemblerOutput>NoListing</AssemblerOutput>
+      <WholeProgramOptimization>true</WholeProgramOptimization>
     </ClCompile>
     <ResourceCompile>
       <PreprocessorDefinitions>NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
@@ -477,9 +500,9 @@
     </ResourceCompile>
     <Link>
       <AdditionalOptions>/verbose:lib %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <IgnoreSpecificDefaultLibraries>msvcrtd.lib;%(IgnoreSpecificDefaultLibraries)</IgnoreSpecificDefaultLibraries>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
@@ -488,7 +511,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <Profile>true</Profile>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -506,8 +529,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0501;_DEBUG;WIN32;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0501;_DEBUG;WIN32;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -525,13 +548,13 @@
       <DisableSpecificWarnings>4100;4189;4204;4505</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MSSHELLDLG;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
@@ -542,6 +565,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
+      <DelayLoadDLLs>wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -559,8 +583,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0501;_DEBUG;WIN32;_WINDOWS;POCO_STATIC;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0501;_DEBUG;WIN32;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -577,13 +601,13 @@
       <DisableSpecificWarnings>4100;4189;4204;4505</DisableSpecificWarnings>
     </ClCompile>
     <ResourceCompile>
-      <PreprocessorDefinitions>_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>MSSHELLDLG;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
@@ -594,6 +618,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
       <MinimumRequiredVersion>5.01</MinimumRequiredVersion>
+      <DelayLoadDLLs>wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -611,8 +636,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -634,9 +659,9 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
@@ -644,7 +669,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <Profile>false</Profile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -661,8 +686,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -684,16 +709,16 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(Platform)%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
       <Profile>false</Profile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -710,8 +735,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -733,16 +758,16 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Windows</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
       <Profile>false</Profile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -760,8 +785,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -782,9 +807,9 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
@@ -792,7 +817,7 @@
       <GenerateMapFile>true</GenerateMapFile>
       <Profile>false</Profile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -809,8 +834,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -831,16 +856,16 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
       <Profile>false</Profile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
@@ -857,8 +882,8 @@
     <ClCompile>
       <AdditionalOptions>/Zc:__cplusplus %(AdditionalOptions)</AdditionalOptions>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\Util\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>.;..\Externals\googletest\googletest\;..\Externals\googletest\googletest\include;.\CompareEngines;.\Common;..\Externals\crystaledit\editlib;.\diffutils;.\diffutils\lib;.\diffutils\src;..\Externals\boost;..\Externals\poco\Foundation\include;..\Externals\poco\XML\include;..\Externals\poco\dependencies\pcre2\src;..\Externals\poco\dependencies\expat\src;..\Externals\poco\dependencies\v8_double_conversion\src;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>TEST_WINMERGE;WINVER=0x0601;_DEBUG;WIN64;_WINDOWS;POCO_STATIC;POCO_NO_AUTOMATIC_LIBS;EDITPADC_CLASS=;UNICODE;_AFX_NO_MFC_CONTROLS_IN_DIALOGS;_SILENCE_ALL_CXX17_DEPRECATION_WARNINGS;GTEST_HAS_TR1_TUPLE=0;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <RuntimeTypeInfo>true</RuntimeTypeInfo>
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -879,47 +904,111 @@
       <Culture>0x0409</Culture>
     </ResourceCompile>
     <Link>
-      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>version.lib;shlwapi.lib;imm32.lib;HtmlHelp.lib;iphlpapi.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <AdditionalLibraryDirectories>..\Externals\poco\lib$(Platform);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <SubSystem>Console</SubSystem>
       <EntryPointSymbol>wWinMainCRTStartup</EntryPointSymbol>
       <GenerateMapFile>true</GenerateMapFile>
       <Profile>false</Profile>
       <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <DelayLoadDLLs>propsys.dll;bcrypt.dll</DelayLoadDLLs>
+      <DelayLoadDLLs>propsys.dll;bcrypt.dll;wininet.dll;comdlg32.dll;oledlg.dll;version.dll;winspool.drv</DelayLoadDLLs>
     </Link>
     <Manifest>
       <AdditionalManifestFiles>res\WinMerge.exe.manifest</AdditionalManifestFiles>
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="..\Externals\gtest\src\gtest-all.cc">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
+    <ClCompile Include="FileCmpReport.cpp" />
+    <ClCompile Include="FileCmpReportDlg.cpp" />
+    <ClCompile Include="MergeLogger.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="7zCommon.cpp">
+    <ClCompile Include="MergeResultBar.cpp" />
+    <ClCompile Include="MergeResultContainer.cpp" />
+    <ClCompile Include="MergeResultTextBuffer.cpp" />
+    <ClCompile Include="MergeTextFormatter.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="AboutDlg.cpp">
+    <ClCompile Include="PluginMenu.cpp" />
+    <ClCompile Include="SplitterPositions.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="SyntaxParserHelper.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="7zCommon.cpp" />
+    <ClCompile Include="AboutDlg.cpp" />
+    <ClCompile Include="ClipboardHistoryMenu.cpp" />
+    <ClCompile Include="FileSaveHelper.cpp" />
+    <ClCompile Include="BasicFlatStatusBar.cpp" />
+    <ClCompile Include="ClipboardHistory.cpp" />
+    <ClCompile Include="ColorSchemes.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="Common\AccentColor.cpp" />
+    <ClCompile Include="Common\cio.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="Common\IniOptionsMgr.cpp">
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="Common\RoundedRectWithShadow.cpp" />
     <ClCompile Include="Common\Shell.cpp">
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="Concurrent.cpp">
+    <ClCompile Include="Common\SysColorHook.cpp" />
+    <ClCompile Include="Common\ValidatingEdit.cpp" />
+    <ClCompile Include="Common\Concurrent.cpp">
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
     </ClCompile>
     <ClCompile Include="Common\BCMenu.cpp" />
     <ClCompile Include="Common\Bitmap.cpp" />
-    <ClCompile Include="charsets.c">
+    <ClCompile Include="Common\charsets.c">
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="DirFilterBar.cpp" />
+    <ClCompile Include="FilterHelperMenuBase.cpp" />
+    <ClCompile Include="FilterMenuHelpers.cpp" />
+    <ClCompile Include="LineFilterBar.cpp" />
+    <ClCompile Include="LineFilterHelper.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="LineFilterHelperMenu.cpp" />
+    <ClCompile Include="RenameMoveDetection.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="PropertySystemMenu.cpp" />
     <ClCompile Include="DirAdditionalPropertiesDlg.cpp" />
     <ClCompile Include="DirSelectFilesDlg.cpp" />
+    <ClCompile Include="DirWatcher.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="EditPluginDlg.cpp" />
+    <ClCompile Include="FileFilterHelperMenu.cpp" />
+    <ClCompile Include="ComparisonResultFilterDlg.cpp" />
+    <ClCompile Include="FilterConditionDlg.cpp" />
+    <ClCompile Include="MatchInsideDlg.cpp" />
+    <ClCompile Include="FilterErrorMessages.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="FiltersPropertySheet.cpp" />
+    <ClCompile Include="FrameWndHelper.cpp" />
+    <ClCompile Include="MruHelper.cpp" />
+    <ClCompile Include="I18nGUI.cpp" />
     <ClCompile Include="InternalPlugins.cpp">
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
@@ -928,18 +1017,73 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="Logger.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="ArchiveDlg.cpp" />
+    <ClCompile Include="ArchiveTool.cpp" />
+    <ClCompile Include="DiffImageListUtils.cpp" />
+    <ClInclude Include="ClipboardHistoryMenu.h" />
+    <ClInclude Include="Common\ScopeExit.h" />
+    <ClInclude Include="Common\ValidatingEdit.h" />
+    <ClInclude Include="FileCmpReport.h" />
+    <ClInclude Include="FileCmpReportDlg.h" />
+    <ClInclude Include="FileFilterHelperMenu.h" />
+    <ClInclude Include="DirFilterBar.h" />
+    <ClInclude Include="ComparisonResultFilterDlg.h" />
+    <ClInclude Include="FilterConditionDlg.h" />
+    <ClInclude Include="FilterHelperMenuBase.h" />
+    <ClInclude Include="FilterMenuHelpers.h" />
+    <ClInclude Include="FrameType.h" />
+    <ClInclude Include="MatchInsideDlg.h" />
+    <ClInclude Include="FilterErrorMessages.h" />
+    <ClInclude Include="FiltersPropertySheet.h" />
+    <ClInclude Include="FrameWndHelper.h" />
+    <ClInclude Include="LineFilterBar.h" />
+    <ClInclude Include="LineFilterHelper.h" />
+    <ClInclude Include="LineFilterHelperMenu.h" />
+    <ClInclude Include="MergeDiffNavigation.h" />
+    <ClInclude Include="MergeConflictNavigation.h" />
+    <ClInclude Include="MergeLogger.h" />
+    <ClInclude Include="MergeResultBar.h" />
+    <ClInclude Include="MergeResultContainer.h" />
+    <ClInclude Include="MergeResultTextBuffer.h" />
+    <ClInclude Include="MergeTextFormatter.h" />
+    <ClInclude Include="MruHelper.h" />
+    <ClInclude Include="I18n.h" />
+    <ClInclude Include="I18nGUI.h" />
+    <ClInclude Include="Logger.h">
+      <FileType>CppCode</FileType>
+    </ClInclude>
+    <ClCompile Include="MenuBar.cpp" />
+    <ClCompile Include="MergeDocDiffCopy.cpp" />
+    <ClCompile Include="MergeDocResultPane.cpp" />
+    <ClCompile Include="MergeResultStatusBar.cpp" />
+    <ClCompile Include="MergeResultView.cpp" />
+    <ClCompile Include="MouseHook.cpp" />
+    <ClCompile Include="MyColorDialog.cpp" />
+    <ClCompile Include="MyFontDialog.cpp" />
+    <ClCompile Include="MyReBar.cpp" />
+    <ClCompile Include="OutputBar.cpp" />
+    <ClCompile Include="OutputDoc.cpp" />
+    <ClCompile Include="OutputView.cpp" />
+    <ClCompile Include="PropCompareWebPage.cpp" />
+    <ClCompile Include="PropEditorCompareMerge.cpp" />
     <ClCompile Include="PropertySystem.cpp">
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="PropMessageBoxes.cpp" />
+    <ClCompile Include="PropSysColors.cpp" />
+    <ClCompile Include="ReplaceListHelper.cpp" />
     <ClCompile Include="SubstitutionFiltersList.cpp">
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="MergeFrameCommon.cpp" />
     <ClCompile Include="MergeEditFrm.cpp" />
-    <ClCompile Include="Common\ClipBoard.cpp">
+    <ClCompile Include="Common\Clipboard.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
@@ -1050,7 +1194,10 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="DirCmpReport.cpp" />
+    <ClCompile Include="DirCmpReport.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="DirCmpReportDlg.cpp" />
     <ClCompile Include="DirColsDlg.cpp" />
     <ClCompile Include="DirCompProgressBar.cpp" />
@@ -1080,7 +1227,7 @@
     <ClCompile Include="dllpstub.cpp" />
     <ClCompile Include="EditorFilepathBar.cpp" />
     <ClCompile Include="EncodingErrorBar.cpp" />
-    <ClCompile Include="Environment.cpp">
+    <ClCompile Include="Common\Environment.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
@@ -1158,7 +1305,7 @@
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="LoadSaveCodepageDlg.cpp" />
-    <ClCompile Include="locality.cpp">
+    <ClCompile Include="Common\locality.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
@@ -1188,6 +1335,7 @@
     <ClCompile Include="MergeDocLineDiffs.cpp" />
     <ClCompile Include="MergeEditView.cpp" />
     <ClCompile Include="Common\MessageBoxDialog.cpp" />
+    <ClCompile Include="Common\PopupList.cpp" />
     <ClCompile Include="MovedBlocks.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -1261,12 +1409,12 @@
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="PatchTool.cpp" />
-    <ClCompile Include="PathContext.cpp">
+    <ClCompile Include="Common\PathContext.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
-    <ClCompile Include="paths.cpp">
+    <ClCompile Include="Common\paths.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
@@ -1360,6 +1508,11 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="TableProps.cpp">
+      <PrecompiledHeader>Use</PrecompiledHeader>
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="TempFile.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
@@ -1383,6 +1536,8 @@
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
     <ClCompile Include="TestMain.cpp" />
+    <ClCompile Include="TitleBarHelper.cpp" />
+    <ClCompile Include="ToolbarButtons.cpp" />
     <ClCompile Include="TrDialogs.cpp" />
     <ClCompile Include="Common\varprop.cpp">
       <PrecompiledHeader>Use</PrecompiledHeader>
@@ -1394,46 +1549,83 @@
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClCompile Include="TreeSitterParser.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
+    <ClCompile Include="WebPageDiffFrm.cpp" />
     <ClCompile Include="WildcardDropList.cpp" />
+    <ClCompile Include="WindowListCtrl.cpp" />
+    <ClCompile Include="WindowsManager.cpp" />
     <ClCompile Include="WindowsManagerDialog.cpp" />
+    <ClCompile Include="WinRtLoader.cpp" />
     <ClCompile Include="WMGotoDlg.cpp" />
+    <ClCompile Include="MergeAppCOMClass.cpp">
+      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
+      <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
+    </ClCompile>
     <ClCompile Include="xdiff_gnudiff_compat.cpp">
       <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName)2.pch</PrecompiledHeaderOutputFile>
     </ClCompile>
+    <ClInclude Include="ArchiveDlg.h" />
+    <ClInclude Include="ArchiveTool.h" />
+    <ClInclude Include="DiffImageListUtils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\Externals\boost\boost\config.hpp" />
     <ClInclude Include="..\Externals\boost\boost\config\compiler\visualc.hpp" />
     <ClInclude Include="..\Externals\boost\boost\config\select_compiler_config.hpp" />
-    <ClInclude Include="..\Externals\gtest\include\gtest\gtest-printers.h">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="..\Externals\gtest\include\gtest\gtest.h">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClInclude>
-    <ClInclude Include="..\Externals\gtest\include\gtest\internal\gtest-port.h">
-      <ExcludedFromBuild>true</ExcludedFromBuild>
-    </ClInclude>
     <ClInclude Include="..\Version.h" />
     <ClInclude Include="7zCommon.h" />
     <ClInclude Include="AboutDlg.h" />
+    <ClInclude Include="FileSaveHelper.h" />
+    <ClInclude Include="BasicFlatStatusBar.h" />
+    <ClInclude Include="ClipboardHistory.h" />
+    <ClInclude Include="ColorSchemes.h" />
+    <ClInclude Include="Common\AccentColor.h" />
+    <ClInclude Include="Common\SysColorHook.h" />
+    <ClInclude Include="MouseHook.h" />
+    <ClInclude Include="MenuBar.h" />
+    <ClInclude Include="Common\cio.h" />
+    <ClInclude Include="Common\DebugNew.h" />
     <ClInclude Include="Common\IniOptionsMgr.h" />
+    <ClInclude Include="Common\IMDITab.h" />
+    <ClInclude Include="Common\RoundedRectWithShadow.h" />
     <ClInclude Include="Common\Shell.h" />
-    <ClInclude Include="Concurrent.h" />
+    <ClInclude Include="Common\Concurrent.h" />
     <ClInclude Include="Common\BCMenu.h" />
     <ClInclude Include="Common\Bitmap.h" />
-    <ClInclude Include="charsets.h" />
+    <ClInclude Include="Common\charsets.h" />
     <ClInclude Include="DirAdditionalPropertiesDlg.h" />
+    <ClInclude Include="DirWatcher.h" />
     <ClInclude Include="DirItemIterator.h" />
     <ClInclude Include="DirSelectFilesDlg.h" />
+    <ClInclude Include="EditPluginDlg.h" />
+    <ClInclude Include="FileOpenFlags.h" />
     <ClInclude Include="HashCalc.h" />
+    <ClInclude Include="IDirDoc.h" />
+    <ClInclude Include="InternalPlugins.h" />
+    <ClInclude Include="PluginMenu.h" />
+    <ClInclude Include="RenameMoveDetection.h" />
+    <ClInclude Include="MyColorDialog.h" />
+    <ClInclude Include="MyFontDialog.h" />
+    <ClInclude Include="MyReBar.h" />
+    <ClInclude Include="OutputBar.h" />
+    <ClInclude Include="OutputDoc.h" />
+    <ClInclude Include="OutputView.h" />
+    <ClInclude Include="PropCompareWebPage.h" />
+    <ClInclude Include="PropEditorCompareMerge.h" />
     <ClInclude Include="PropertySystem.h" />
+    <ClInclude Include="PropertySystemMenu.h" />
     <ClInclude Include="PropMessageBoxes.h" />
+    <ClInclude Include="PropSysColors.h" />
+    <ClInclude Include="ReplaceListHelper.h" />
+    <ClInclude Include="SplitterPositions.h" />
     <ClInclude Include="SubstitutionFiltersList.h" />
     <ClInclude Include="MergeFrameCommon.h" />
     <ClInclude Include="MergeEditFrm.h" />
-    <ClInclude Include="Common\ClipBoard.h" />
+    <ClInclude Include="Common\Clipboard.h" />
     <ClInclude Include="Common\CMoveConstraint.h" />
     <ClInclude Include="codepage_detect.h" />
     <ClInclude Include="Common\ColorButton.h" />
@@ -1468,6 +1660,9 @@
     <ClInclude Include="DiffTextBuffer.h" />
     <ClInclude Include="DiffThread.h" />
     <ClInclude Include="DiffViewBar.h" />
+    <ClInclude Include="MergeResultPane.h" />
+    <ClInclude Include="MergeResultStatusBar.h" />
+    <ClInclude Include="MergeResultView.h" />
     <ClInclude Include="DiffWrapper.h" />
     <ClInclude Include="DirCmpReport.h" />
     <ClInclude Include="DirCmpReportDlg.h" />
@@ -1484,7 +1679,7 @@
     <ClInclude Include="dllpstub.h" />
     <ClInclude Include="EditorFilepathBar.h" />
     <ClInclude Include="EncodingErrorBar.h" />
-    <ClInclude Include="Environment.h" />
+    <ClInclude Include="Common\Environment.h" />
     <ClInclude Include="Exceptions.h" />
     <ClInclude Include="FileActionScript.h" />
     <ClInclude Include="FileFilter.h" />
@@ -1495,7 +1690,7 @@
     <ClInclude Include="FileLocation.h" />
     <ClInclude Include="FileOrFolderSelect.h" />
     <ClInclude Include="FilepathEdit.h" />
-    <ClInclude Include="files.h" />
+    <ClInclude Include="FileLoadResult.h" />
     <ClInclude Include="FileTextEncoding.h" />
     <ClInclude Include="FileTextStats.h" />
     <ClInclude Include="FileTransform.h" />
@@ -1518,7 +1713,7 @@
     <ClInclude Include="LineFiltersList.h" />
     <ClInclude Include="SubstitutionList.h" />
     <ClInclude Include="LoadSaveCodepageDlg.h" />
-    <ClInclude Include="locality.h" />
+    <ClInclude Include="Common\locality.h" />
     <ClInclude Include="LocationBar.h" />
     <ClInclude Include="LocationView.h" />
     <ClInclude Include="Common\lwdisp.h" />
@@ -1534,6 +1729,7 @@
     <ClInclude Include="MergeEditView.h" />
     <ClInclude Include="MergeLineFlags.h" />
     <ClInclude Include="Common\MessageBoxDialog.h" />
+    <ClInclude Include="Common\PopupList.h" />
     <ClInclude Include="MovedLines.h" />
     <ClInclude Include="Common\multiformatText.h" />
     <ClInclude Include="OpenDoc.h" />
@@ -1553,8 +1749,8 @@
     <ClInclude Include="PatchDlg.h" />
     <ClInclude Include="PatchHTML.h" />
     <ClInclude Include="PatchTool.h" />
-    <ClInclude Include="PathContext.h" />
-    <ClInclude Include="paths.h" />
+    <ClInclude Include="Common\PathContext.h" />
+    <ClInclude Include="Common\paths.h" />
     <ClInclude Include="Common\PidlContainer.h" />
     <ClInclude Include="pch.h" />
     <ClInclude Include="PluginManager.h" />
@@ -1600,20 +1796,31 @@
     <ClInclude Include="stringdiffs.h" />
     <ClInclude Include="stringdiffsi.h" />
     <ClInclude Include="Common\SuperComboBox.h" />
+    <ClInclude Include="SyntaxParserHelper.h" />
+    <ClInclude Include="TableProps.h" />
     <ClInclude Include="TempFile.h" />
     <ClInclude Include="TestMain.h" />
     <ClInclude Include="TestFilterDlg.h" />
     <ClInclude Include="Common\unicoder.h" />
     <ClInclude Include="Common\UnicodeString.h" />
     <ClInclude Include="Common\UniFile.h" />
+    <ClInclude Include="TitleBarHelper.h" />
+    <ClInclude Include="ToolbarButtons.h" />
     <ClInclude Include="TrDialogs.h" />
     <ClInclude Include="Common\varprop.h" />
     <ClInclude Include="Common\VersionInfo.h" />
+    <ClInclude Include="TreeSitterParser.h" />
+    <ClInclude Include="WebPageDiffFrm.h" />
     <ClInclude Include="WildcardDropList.h" />
+    <ClInclude Include="WindowListCtrl.h" />
+    <ClInclude Include="WindowsManager.h" />
     <ClInclude Include="WindowsManagerDialog.h" />
+    <ClInclude Include="WinIMergeLib.h" />
     <ClInclude Include="WinMergePluginBase.h" />
+    <ClInclude Include="WinWebDiffLib.h" />
     <ClInclude Include="Win_VersionHelper.h" />
     <ClInclude Include="WMGotoDlg.h" />
+    <ClInclude Include="MergeAppCOMClass.h" />
     <ClInclude Include="xdiff_gnudiff_compat.h" />
   </ItemGroup>
   <ItemGroup>
@@ -1629,8 +1836,8 @@
     <None Include="res\folderup_disable.ico" />
     <None Include="res\hand.cur" />
     <None Include="res\left.bmp" />
-    <None Include="res\left_to_browse.bmp" />
-    <None Include="res\left_to_right.bmp" />
+    <None Include="res\copy_left_to_browse.bmp" />
+    <None Include="res\copy_left_to_right.bmp" />
     <None Include="res\lfile.ico" />
     <None Include="res\lfolder.ico" />
     <None Include="res\Merge.ico" />
@@ -1645,16 +1852,144 @@
     <None Include="res\rfile.ico" />
     <None Include="res\rfolder.ico" />
     <None Include="res\right.bmp" />
-    <None Include="res\right_to_browse.bmp" />
-    <None Include="res\right_to_left.bmp" />
+    <None Include="res\copy_right_to_browse.bmp" />
+    <None Include="res\copy_right_to_left.bmp" />
     <None Include="res\sigma.ico" />
     <None Include="..\Docs\Users\ChangeLog.md" />
   </ItemGroup>
   <ItemGroup>
-    <ResourceCompile Include="Merge.rc" />
+    <ResourceCompile Include="Merge.rc">
+      <AdditionalIncludeDirectories>$(INTDIR);%(AdditionalIncludeDirectories);$(_ZVcpkgCurrentInstalledDir)include</AdditionalIncludeDirectories>
+    </ResourceCompile>
     <ResourceCompile Include="Merge2.rc">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </ResourceCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="res\aborted.ico" />
+    <Image Include="res\all.bmp" />
+    <Image Include="res\archive.bmp" />
+    <Image Include="res\binarydiff12.ico" />
+    <Image Include="res\binarydiff13.ico" />
+    <Image Include="res\binarydiff23.ico" />
+    <Image Include="res\cascade.bmp" />
+    <Image Include="res\change_pane.bmp" />
+    <Image Include="res\clear_bookmarks.bmp" />
+    <Image Include="res\close.bmp" />
+    <Image Include="res\compare.bmp" />
+    <Image Include="res\compare_left1_left2.bmp" />
+    <Image Include="res\compare_left1_right2.bmp" />
+    <Image Include="res\compare_left2_right1.bmp" />
+    <Image Include="res\compare_right1_right2.bmp" />
+    <Image Include="res\copy.bmp" />
+    <Image Include="res\customize_columns.bmp" />
+    <Image Include="res\cut.bmp" />
+    <Image Include="res\delete.bmp" />
+    <Image Include="res\equalbinary12.ico" />
+    <Image Include="res\equalbinary13.ico" />
+    <Image Include="res\equalbinary23.ico" />
+    <Image Include="res\equalfile12.ico" />
+    <Image Include="res\equalfile13.ico" />
+    <Image Include="res\equalfile23.ico" />
+    <Image Include="res\equalfolder.ico" />
+    <Image Include="res\equalimage.ico" />
+    <Image Include="res\equaltextfile.ico" />
+    <Image Include="res\equalwebpage.ico" />
+    <Image Include="res\exit.bmp" />
+    <Image Include="res\FileFilter.ico" />
+    <Image Include="res\fileunknown.ico" />
+    <Image Include="res\filters.bmp" />
+    <Image Include="res\from_left.bmp" />
+    <Image Include="res\from_right.bmp" />
+    <Image Include="res\go_to.bmp" />
+    <Image Include="res\help_contents.bmp" />
+    <Image Include="res\horizontally.bmp" />
+    <Image Include="res\copy_left_to_middle.bmp" />
+    <Image Include="res\LineFilter.ico" />
+    <Image Include="res\lmissing.ico" />
+    <Image Include="res\lmissingfolder.ico" />
+    <Image Include="res\logo.jpg" />
+    <Image Include="res\logo.png" />
+    <Image Include="res\mfile.ico" />
+    <Image Include="res\mfolder.ico" />
+    <Image Include="res\mg_icons.bmp" />
+    <Image Include="res\mg_icons.png" />
+    <Image Include="res\middle.bmp" />
+    <Image Include="res\copy_middle_to_browse.bmp" />
+    <Image Include="res\copy_middle_to_left.bmp" />
+    <Image Include="res\copy_middle_to_right.bmp" />
+    <Image Include="res\mmissing.ico" />
+    <Image Include="res\mmissingfolder.ico" />
+    <Image Include="res\move_left_to_middle.bmp" />
+    <Image Include="res\move_left_to_right.bmp" />
+    <Image Include="res\move_middle_to_browse.bmp" />
+    <Image Include="res\move_middle_to_left.bmp" />
+    <Image Include="res\move_middle_to_right.bmp" />
+    <Image Include="res\move_right_to_left.bmp" />
+    <Image Include="res\move_right_to_middle.bmp" />
+    <Image Include="res\new3.bmp" />
+    <Image Include="res\new3_hex.bmp" />
+    <Image Include="res\new3_image.bmp" />
+    <Image Include="res\new3_table.bmp" />
+    <Image Include="res\new3_webpage.bmp" />
+    <Image Include="res\new_hex.bmp" />
+    <Image Include="res\new_image.bmp" />
+    <Image Include="res\new_table.bmp" />
+    <Image Include="res\new_webpage.bmp" />
+    <Image Include="res\next_bookmark.bmp" />
+    <Image Include="res\notequalfile12.ico" />
+    <Image Include="res\notequalfile13.ico" />
+    <Image Include="res\notequalfile23.ico" />
+    <Image Include="res\notequalfolder.ico" />
+    <Image Include="res\notequalimage.ico" />
+    <Image Include="res\notequaltextfile.ico" />
+    <Image Include="res\notequalwebpage.ico" />
+    <Image Include="res\open_conflict.bmp" />
+    <Image Include="res\paste.bmp" />
+    <Image Include="res\patch.bmp" />
+    <Image Include="res\plugins.bmp" />
+    <Image Include="res\prev_bookmark.bmp" />
+    <Image Include="res\print.bmp" />
+    <Image Include="res\replace.bmp" />
+    <Image Include="res\report.bmp" />
+    <Image Include="res\copy_right_to_middle.bmp" />
+    <Image Include="res\rmissing.ico" />
+    <Image Include="res\rmissingfolder.ico" />
+    <Image Include="res\rotate2.ico" />
+    <Image Include="res\search.bmp" />
+    <Image Include="res\selected_lines_from_left.bmp" />
+    <Image Include="res\selected_lines_from_right.bmp" />
+    <Image Include="res\selected_lines_left_to_middle.bmp" />
+    <Image Include="res\selected_lines_left_to_right.bmp" />
+    <Image Include="res\selected_lines_middle_to_left.bmp" />
+    <Image Include="res\selected_lines_middle_to_right.bmp" />
+    <Image Include="res\selected_lines_right_to_left.bmp" />
+    <Image Include="res\selected_lines_right_to_middle.bmp" />
+    <Image Include="res\select_all.bmp" />
+    <Image Include="res\select_font.bmp" />
+    <Image Include="res\splash.jpg" />
+    <Image Include="res\SubstitutionFilter.ico" />
+    <Image Include="res\toggle_bookmark.bmp" />
+    <Image Include="res\ToolbarEnabled.bmp" />
+    <Image Include="res\ToolbarEnabled32.bmp" />
+    <Image Include="res\ToolbarEnabled8bit.bmp" />
+    <Image Include="res\treestate_collapsed.ico" />
+    <Image Include="res\treestate_expanded.ico" />
+    <Image Include="res\vertically.bmp" />
+    <Image Include="res\zoom_in.bmp" />
+    <Image Include="res\zoom_out.bmp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Manifest Include="res\WinMerge.exe.manifest" />
+  </ItemGroup>
+  <ItemGroup>
+    <Xml Include="res\WinMergeU.VisualElementsManifest.xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Midl Include="MergeAppLib.idl">
+      <MkTypLibCompatible>false</MkTypLibCompatible>
+      <TypeLibraryName>$(IntDir)$(ProjectName).tlb</TypeLibraryName>
+    </Midl>
   </ItemGroup>
   <Target Name="CopyVisualElements" AfterTargets="Build">
     <ItemGroup>

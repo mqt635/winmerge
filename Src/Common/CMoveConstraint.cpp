@@ -17,6 +17,7 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 #include "StdAfx.h"
 #include "CMoveConstraint.h"
+#include "Win_VersionHelper.h"
 #include <afxtempl.h>       // MFC template collection classes
 #include <afxext.h> // needed for CFormView
 
@@ -74,7 +75,8 @@ CMoveConstraint::Constraint::Init()
 }
 
 CMoveConstraint::CMoveConstraint()
-: m_bSubclassed(false)
+: m_hTheme(nullptr)
+, m_bSubclassed(false)
 , m_oldWndProc(nullptr)
 , m_sRegistryValueName(_T("UnnamedWindow"))
 , m_sRegistrySubkey(_T("LastWindowPos"))
@@ -254,7 +256,7 @@ CMoveConstraint::ClearMostData()
 	m_fShrinkHeight=0;
 	m_bPropertyPage=false;
 	m_bPropertySheet=false;
-	m_ConstraintList.RemoveAll();
+	m_ConstraintList.clear();
 	m_bPersistent=false;
 	m_bConstrainNonChildren = false;
 }
@@ -305,8 +307,7 @@ DoConstrain(CWnd * pWnd, HWND hwndChild, double fLeftX, double fExpandX, double 
 		m_nDelayed++;
 	}
 
-	ConstraintList & constraintList = m_ConstraintList;
-	constraintList.AddTail(constraint);
+	m_ConstraintList.push_back(constraint);
 	return true;
 }
 
@@ -336,6 +337,8 @@ LRESULT CALLBACK
 CMoveConstraint::ConstraintWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
 	void * data = GetProp(hwnd, _T("CMoveConstraintData"));
+	if (!data)
+		return DefWindowProc(hwnd, msg, wParam, lParam);
 	CMoveConstraint * constraint = reinterpret_cast<CMoveConstraint *>(data);
 
 	LRESULT lresult;
@@ -350,10 +353,19 @@ CMoveConstraint::SubclassWnd()
 	void * data = reinterpret_cast<void *>(this);
 	// this will return false if this window/wndproc combination has already
 	// been established (subclassed)
-	m_bSubclassed = true;
 	m_oldWndProc = reinterpret_cast<WNDPROC>(GetWindowLongPtr(m_hwndDlg, GWLP_WNDPROC));
-	SetWindowLongPtr(m_hwndDlg, GWLP_WNDPROC, (__int3264)(LONG_PTR)(CMoveConstraint::ConstraintWndProc));
-	SetProp(m_hwndDlg, _T("CMoveConstraintData"), data);
+	if (SetWindowLongPtr(m_hwndDlg, GWLP_WNDPROC, (__int3264)(LONG_PTR)(CMoveConstraint::ConstraintWndProc)) != 0)
+	{
+		if (SetProp(m_hwndDlg, _T("CMoveConstraintData"), data))
+		{
+			m_bSubclassed = true;
+		}
+		else
+		{
+			SetWindowLongPtr(m_hwndDlg, GWLP_WNDPROC, (__int3264)(LONG_PTR)(m_oldWndProc));
+			m_oldWndProc = nullptr;
+		}
+	}
 	return m_bSubclassed;
 }
 bool
@@ -378,10 +390,8 @@ CMoveConstraint::CheckDeferredChildren()
 {
 	if (m_nDelayed == 0)
 		return;
-	ConstraintList & constraintList = m_ConstraintList;
-	for (POSITION pos=constraintList.GetHeadPosition(); pos != nullptr; constraintList.GetNext(pos))
+	for (auto& constraint : m_ConstraintList)
 	{
-		Constraint & constraint = constraintList.GetAt(pos);
 		if (constraint.m_hwndChild  != nullptr)
 			continue;
 		ASSERT(constraint.m_pWnd != nullptr);
@@ -425,10 +435,8 @@ CMoveConstraint::Resize(HWND hWnd, UINT nType)
 	int nDeltaWidth = (rectParentCurrent.right - m_rectDlgOriginal.right);
 	int nDeltaHeight = (rectParentCurrent.bottom - m_rectDlgOriginal.bottom);
 
-	ConstraintList & constraintList = m_ConstraintList;
-	for (POSITION pos=constraintList.GetHeadPosition(); pos != nullptr; constraintList.GetNext(pos))
+	for (auto& constraint : m_ConstraintList)
 	{
-		Constraint & constraint = constraintList.GetAt(pos);
 		if (constraint.m_hwndChild == nullptr)
 			continue;
 
@@ -474,7 +482,7 @@ CMoveConstraint::Resize(HWND hWnd, UINT nType)
  * Enforce any resizing limitations.
  */
 void
-CMoveConstraint::OnGetMinMaxInfo(MINMAXINFO FAR* lpMMI)
+CMoveConstraint::OnGetMinMaxInfo(MINMAXINFO* lpMMI)
 {
 	// views don't get WM_GETMINMAXINFO, but dialogs & frames do
 	if (m_hwndDlg == nullptr)
@@ -602,7 +610,7 @@ CMoveConstraint::OnTtnNeedText(TOOLTIPTEXT * pTTT, LRESULT * plresult)
 		}
 		else
 		{
-			pTTT->lpszText = (LPTSTR)(LPCTSTR)ti.m_sText;
+			pTTT->lpszText = (tchar_t*)(const tchar_t*)ti.m_sText;
 		}
 		*plresult = true; // return `true` from original window proc
 		return true; // stop processing this message
@@ -642,11 +650,30 @@ CMoveConstraint::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, L
 	} else if (WM_PAINT == msg && PaintGrip()) {
 		CPaintDC dc(CWnd::FromHandle(hWnd));
 		RECT rc = getGripRect(hWnd);
-		dc.DrawFrameControl(&rc, DFC_SCROLL, DFCS_SCROLLSIZEGRIP);
+		if (IsVista_OrGreater() && m_hTheme == nullptr && IsThemeActive()) {
+			m_hTheme = OpenThemeData(hWnd, WC_SCROLLBAR);
+		}
+		if (m_hTheme != nullptr) {
+			DrawThemeBackground(m_hTheme, dc.GetSafeHdc(), SBP_SIZEBOX, 0, &rc, nullptr);
+		} else {
+			dc.DrawFrameControl(&rc, DFC_SCROLL, DFCS_SCROLLSIZEGRIP);
+		}
+	} else if (WM_THEMECHANGED == msg) {
+		if (m_hTheme != nullptr) {
+			CloseThemeData(m_hTheme);
+			m_hTheme = nullptr;
+		}
+		if (m_hTheme == nullptr && IsThemeActive()) {
+			m_hTheme = OpenThemeData(hWnd, WC_SCROLLBAR);
+		}
 	} else if (WM_NCHITTEST == msg && !IsIconic(hWnd) && !IsZoomed(hWnd)) {
 		if (OnNcHitTest(msg, wParam, lParam, plresult))
 			return true;
 	} else if (WM_DESTROY == msg) {
+		if (m_hTheme != nullptr) {
+			CloseThemeData(m_hTheme);
+			m_hTheme = nullptr;
+		}
 		OnDestroy();
 	} else if (msg==WM_NOTIFY && TTN_NEEDTEXT==((NMHDR*)lParam)->code) {
 		if (OnTtnNeedText((TOOLTIPTEXT*)lParam, plresult))
@@ -660,7 +687,7 @@ CMoveConstraint::WindowProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam, L
  * Save size (& optionally position) in registry
  */
 void
-CMoveConstraint::LoadPosition(LPCTSTR szKeyName, LPCTSTR szValueName, bool position)
+CMoveConstraint::LoadPosition(const tchar_t* szKeyName, const tchar_t* szValueName, bool position)
 {
 	m_sRegistrySubkey = szKeyName;
 	LoadPosition(szValueName, position);
@@ -670,7 +697,7 @@ CMoveConstraint::LoadPosition(LPCTSTR szKeyName, LPCTSTR szValueName, bool posit
  * Save size (& optionally position) in registry
  */
 void
-CMoveConstraint::LoadPosition(LPCTSTR szValueName, bool position)
+CMoveConstraint::LoadPosition(const tchar_t* szValueName, bool position)
 {
 	m_sRegistryValueName = szValueName;
 	m_bPersistent=true;
@@ -680,7 +707,7 @@ CMoveConstraint::LoadPosition(LPCTSTR szValueName, bool position)
 void
 CMoveConstraint::Persist(bool saving, bool position)
 {
-	LPCTSTR szSection = m_sRegistrySubkey;
+	const tchar_t* szSection = m_sRegistrySubkey;
 	if (saving)
 	{
 		CString str;
@@ -722,7 +749,7 @@ CMoveConstraint::Persist(bool saving, bool position)
 
 
 void
-CMoveConstraint::SetTip(int id, LPCTSTR szTip)
+CMoveConstraint::SetTip(int id, const tchar_t* szTip)
 {
 	tip ti;
 	ti.m_sText = szTip;

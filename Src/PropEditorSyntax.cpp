@@ -6,7 +6,6 @@
 
 #include "stdafx.h"
 #include "PropEditorSyntax.h"
-#include "OptionsDef.h"
 #include "OptionsMgr.h"
 #include "OptionsPanel.h"
 #include "OptionsEditorSyntax.h"
@@ -58,7 +57,7 @@ void PropEditorSyntax::ReadOptions()
 void PropEditorSyntax::WriteOptions()
 {
 	if (m_init)
-		for (int i = CrystalLineParser::SRC_ASP; i <= CrystalLineParser::SRC_XML; ++i)
+		for (int i = LangServices::LanguageId::SRC_ABAP; i < LangServices::LanguageId::SRC_MAX_ENTRY; ++i)
 		{
 			m_Extension[i-1] = m_listSyntax.GetItemText(i-1, 1);
 			WildcardRemoveDuplicatePatterns(m_Extension[i-1]);
@@ -96,20 +95,18 @@ void PropEditorSyntax::InitList()
 	String title = _("File Type");
 	m_listSyntax.InsertColumn(0, title.c_str(), LVCFMT_LEFT, pointToPixel(60));
 	title = _("Extension");
-	m_listSyntax.InsertColumn(1, title.c_str(), LVCFMT_LEFT, pointToPixel(196));
+	m_listSyntax.InsertColumn(1, title.c_str(), LVCFMT_LEFT, pointToPixel(256));
 
 	m_listSyntax.SetReadOnlyColumn(0);
 	m_listSyntax.SetEditStyle(1, CSubeditList::EditStyle::WILDCARD_DROP_LIST);
 
-	int nLimitTextSize = (sizeof(CrystalLineParser::TextDefinition::exts) / sizeof(CrystalLineParser::TextDefinition::exts[0])) - 1;
-	m_listSyntax.SetLimitTextSize(1, nLimitTextSize);
 
-	String fixedPattern[CrystalLineParser::SRC_XML];
+	String fixedPattern[LangServices::LanguageId::SRC_MAX_ENTRY];
 	Options::EditorSyntax::GetDefaults(GetOptionsMgr(), fixedPattern);
 
-	for (int i = CrystalLineParser::SRC_ASP; i <= CrystalLineParser::SRC_XML; ++i)
+	for (int i = LangServices::LanguageId::SRC_ABAP; i < LangServices::LanguageId::SRC_MAX_ENTRY; ++i)
 	{
-		CrystalLineParser::TextDefinition* def = CrystalLineParser::GetTextType(i);
+		LangServices::TextDefinition* def = LangServices::GetTextType(i);
 		
 		ASSERT(def != nullptr);
 		if (def != nullptr)
@@ -127,6 +124,6 @@ void PropEditorSyntax::InitList()
 void PropEditorSyntax::OnDefaults()
 {
 	Options::EditorSyntax::GetDefaults(GetOptionsMgr(), m_Extension);
-	for (int i = CrystalLineParser::SRC_ASP; i <= CrystalLineParser::SRC_XML; ++i)
+	for (int i = LangServices::LanguageId::SRC_ABAP; i < LangServices::LanguageId::SRC_MAX_ENTRY; ++i)
 		m_listSyntax.SetItemText(i-1, 1, m_Extension[i-1].c_str());
 }

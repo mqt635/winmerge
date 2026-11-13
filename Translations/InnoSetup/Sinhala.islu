@@ -1,4 +1,9 @@
-﻿[CustomMessages]
+﻿[Messages]
+
+WizardInfoBefore=License Agreement
+InfoBeforeLabel=GNU General Public License
+
+[CustomMessages]
 
 ;Things we can also localize
 OptionalFeatures=Optional Features:
@@ -14,15 +19,12 @@ CustomInstallation=Custom Installation
 AppCoreFiles=WinMerge Core Files
 Filters=Filters
 Plugins=Plugins
-Frhed=Frhed(Free hex editor)
-WinIMerge=WinIMerge(Image Diff/Merge)
-ArchiveSupport=Archive Support
 ShellExtension32bit=32-bit WinMerge ShellExtension
-Commands=GnuWin32 Patch for Windows/HTML Tidy/jq
 
 ;Localization Components
 Languages=Languages
 ArabicLanguage=Arabic menus and dialogs
+AzerbaijaniLanguage=Azerbaijani menus and dialogs
 BasqueLanguage=Basque menus and dialogs
 BulgarianLanguage=Bulgarian menus and dialogs
 CatalanLanguage=Catalan menus and dialogs
@@ -38,8 +40,10 @@ FrenchLanguage=French menus and dialogs
 GalicianLanguage=Galician menus and dialogs
 GermanLanguage=German menus and dialogs
 GreekLanguage=Greek menus and dialogs
+HebrewLanguage=Hebrew menus and dialogs
 HungarianLanguage=Hungarian menus and dialogs
 ItalianLanguage=Italian menus and dialogs
+IndonesianLanguage=Indonesian menus and dialogs
 JapaneseLanguage=Japanese menus and dialogs
 KoreanLanguage=Korean menus and dialogs
 LithuanianLanguage=Lithuanian menus and dialogs
@@ -56,8 +60,10 @@ SlovakLanguage=Slovak menus and dialogs
 SlovenianLanguage=Slovenian menus and dialogs
 SpanishLanguage=Spanish menus and dialogs
 SwedishLanguage=Swedish menus and dialogs
+TamilLanguage=Tamil menus and dialogs
 TurkishLanguage=Turkish menus and dialogs
 UkrainianLanguage=Ukrainian menus and dialogs
+VietnameseLanguage=Vietnamese menus and dialogs
 
 ;Tasks
 ExplorerContextMenu=&Enable Explorer context menu integration
@@ -82,6 +88,7 @@ ViewStartMenuFolder=&View the WinMerge Start Menu Folder
 
 ;Code Dialogs
 DeletePreviousStartMenu=The installer has detected that you changed the location of your start menu from "%s" to "%s". Would you like to delete the previous start menu folder?
+ExplorerNeedsRestart=WinMerge ShellExtension requires a restart of Explorer to update. Would you like to restart Explorer?
 
 ; Project file description
 ProjectFileDesc=WinMerge Project file

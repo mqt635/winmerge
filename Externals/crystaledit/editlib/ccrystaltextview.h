@@ -31,12 +31,18 @@
 
 #pragma once
 
-#include <vector>
 #include "crystalparser.h"
-#include "parsers/crystallineparser.h"
+#include "LineInfo.h"
+#include "FindTextHelper.h"
+#include "cepoint.h"
+#include "cecolor.h"
+#include "TextDefinition.h"
+#include "ISyntaxParser.h"
 #include "renderers/ccrystalrenderer.h"
 #include "utils/cregexp.h"
 #include "utils/icu.hpp"
+#include <vector>
+#include <memory>
 
 ////////////////////////////////////////////////////////////////////////////
 // Forward class declarations
@@ -49,24 +55,15 @@ class CFindTextDlg;
 struct LastSearchInfos;
 class CCrystalTextMarkers;
 class CEditReplaceDlg;
+struct tagRECONVERTSTRING;
 
 ////////////////////////////////////////////////////////////////////////////
 // CCrystalTextView class declaration
 
-//  CCrystalTextView::FindText() flags
-enum : unsigned
-{
-  FIND_MATCH_CASE = 0x0001U,
-  FIND_WHOLE_WORD = 0x0002U,
-  FIND_REGEXP = 0x0004U,
-  FIND_DIRECTION_UP = 0x0010U,
-  REPLACE_SELECTION = 0x0100U, 
-  FIND_NO_WRAP = 0x200U,
-  FIND_NO_CLOSE = 0x400U
-};
-
 //  CCrystalTextView::UpdateView() flags
-enum : unsigned
+typedef unsigned updateview_flags_t;
+
+enum : updateview_flags_t
 {
   UPDATE_HORZRANGE = 0x0001U,  //  update horz scrollbar
   UPDATE_VERTRANGE = 0x0002U, //  update vert scrollbar
@@ -87,15 +84,15 @@ class EDITPADC_CLASS CCrystalTextView : public CView
   {
     DECLARE_DYNCREATE (CCrystalTextView)
 
-    friend CCrystalParser;
-    friend CCrystalTextBuffer;
-    friend CEditReplaceDlg;
+    friend class CCrystalParser;
+    friend class CCrystalTextBuffer;
+    friend class CEditReplaceDlg;
 
 protected:
     //  Search parameters
     bool m_bLastSearch;
-    DWORD m_dwLastSearchFlags;
-    LPTSTR m_pszLastFindWhat;
+    findtext_flags_t m_dwLastSearchFlags;
+    tchar_t* m_pszLastFindWhat;
     bool m_bMultipleSearch;       // More search
     CFindTextDlg *m_pFindTextDlg;
     bool m_bCursorHidden;
@@ -115,6 +112,7 @@ private :
     bool m_bTopMargin;
     bool m_bSelMargin;
     bool m_bViewLineNumbers;
+    int  m_nLineNumberUsedAsHeaders;
     DWORD m_dwFlags;
 
     //  Amount of lines/characters that completely fits the client area
@@ -132,8 +130,8 @@ private :
     Must create pointer, because contructor uses AFX_ZERO_INIT_OBJECT to
     initialize the member objects. This would destroy a CArray object.
     */
-    CArray<int, int> *m_panSubLines;
-    CArray<int, int> *m_panSubLineIndexCache;
+    std::vector<int> *m_panSubLines;
+    std::vector<int> *m_panSubLineIndexCache;
     int m_nLastLineIndexCalculatedSubLineIndex;
     //END SW
 
@@ -141,27 +139,15 @@ private :
 
     bool m_bFocused;
 protected:
-    CPoint m_ptAnchor;
-private:
-    LOGFONT m_lfBaseFont;
-    LOGFONT m_lfSavedBaseFont;
+    CEPoint m_ptAnchor;
 
     //  Parsing stuff
 
-    /**  
-    This array must be initialized to (DWORD) - 1, code for invalid values (not yet computed).
-    We prefer to limit the recomputing delay to the moment when we need to read
-    a parseCookie value for drawing.
-    GetParseCookie must always be used to read the m_ParseCookies value of a line.
-    If the actual value is invalid code, GetParseCookie computes the value, 
-    stores it in m_ParseCookies, and returns the new valid value.
-    When we edit the text, the parse cookies value may change for the modified line
-    and all the lines below (As m_ParseCookies[line i] depends on m_ParseCookies[line (i-1)])
-    It would be a loss of time to recompute all these values after each action.
-    So we just set all these values to invalid code (DWORD) - 1.
-    */
-    std::vector<DWORD> *m_ParseCookies;
-    DWORD GetParseCookie (int nLineIndex);
+    std::shared_ptr<LangServices::ISyntaxParser> m_pSyntaxParser;
+
+private:
+    LOGFONT m_lfBaseFont;
+    LOGFONT m_lfSavedBaseFont;
 
     /**
     Pre-calculated line lengths (in characters)
@@ -179,10 +165,10 @@ protected:
     UINT_PTR m_nDragSelTimer;
     DWORD m_dwLastDblClickTime;
 
-    CPoint m_ptDrawSelStart, m_ptDrawSelEnd;
+    CEPoint m_ptDrawSelStart, m_ptDrawSelEnd;
 
-    CPoint m_ptCursorPos, m_ptCursorLast;
-    CPoint m_ptSelStart, m_ptSelEnd;
+    CEPoint m_ptCursorPos, m_ptCursorLast;
+    CEPoint m_ptSelStart, m_ptSelEnd;
     void PrepareSelBounds ();
 
     //  Helper functions
@@ -196,8 +182,8 @@ protected:
     void AdjustTextPoint (CPoint & point);
     void DrawLineHelperImpl (CPoint & ptOrigin, const CRect & rcClip,
  int nColorIndex,
-                             int nBgColorIndex, COLORREF crText, COLORREF crBkgnd, int nLineIndex, int nOffset, int nCount, int &nActualOffset);
-    bool IsInsideSelBlock (CPoint ptTextPos);
+                             int nBgColorIndex, CEColor crText, CEColor crBkgnd, int nLineIndex, int nOffset, int nCount, int &nActualOffset);
+    bool IsInsideSelBlock (CEPoint ptTextPos);
 
     bool m_bBookmarkExist;        // More bookmarks
     void ToggleBookmark(int nLine);
@@ -215,7 +201,7 @@ public :
     };
 
     virtual void ResetView ();
-    virtual int GetLineCount ();
+    virtual int GetLineCount () const;
     virtual void OnUpdateCaret ();
     bool IsTextBufferInitialized () const;
     CString GetTextBufferEol (int nLine) const;
@@ -224,25 +210,27 @@ public :
     void SetColorContext(SyntaxColors * pColors) { m_pColors = pColors; }
     CCrystalTextMarkers * GetMarkers() const { return m_pMarkers; }
     void SetMarkersContext(CCrystalTextMarkers * pMarkers);
-    static CLIPFORMAT GetClipTcharTextFormat() { return sizeof(TCHAR) == 1 ? CF_TEXT : CF_UNICODETEXT; }
+    static CLIPFORMAT GetClipTcharTextFormat() { return sizeof(tchar_t) == 1 ? CF_TEXT : CF_UNICODETEXT; }
 
 protected :
-    CPoint WordToRight (CPoint pt);
-    CPoint WordToLeft (CPoint pt);
+    CEPoint WordToRight (CEPoint pt);
+    CEPoint WordToLeft (CEPoint pt);
     bool m_bOvrMode;
 
     bool m_bSingle;
     CCrystalTextBuffer *m_pTextBuffer;
     HACCEL m_hAccel;
     bool m_bVertScrollBarLocked, m_bHorzScrollBarLocked;
-    CPoint m_ptDraggedTextBegin, m_ptDraggedTextEnd;
+    CEPoint m_ptDraggedTextBegin, m_ptDraggedTextEnd;
+    int m_nRevMarkWidth;
+
     void UpdateCaret ();
-    void SetAnchor (const CPoint & ptNewAnchor);
+    void SetAnchor (const CEPoint & ptNewAnchor);
     int GetTopMarginHeight ();
     int GetMarginWidth (CDC *pdc = nullptr);
-    bool IsValidTextPos (const CPoint &point);
-    bool IsValidTextPosX (const CPoint &point);
-    bool IsValidTextPosY (const CPoint &point);
+    bool IsValidTextPos (const CEPoint &point);
+    bool IsValidTextPosX (const CEPoint &point);
+    bool IsValidTextPosY (const CEPoint &point);
 
     bool m_bShowInactiveSelection;
     //  [JRT]
@@ -255,10 +243,10 @@ protected :
     //END SW
 
     int ClientToIdealTextPos (int x);
-    CPoint ClientToText (const CPoint & point);
+    CEPoint ClientToText (const CPoint & point);
     int ClientToColumn (int x);
     int ClientToColumnResizing (int x);
-    CPoint TextToClient (const CPoint & point);
+    CPoint TextToClient (const CEPoint & point);
     int ColumnToClient (int nColumn);
     void InvalidateLines (int nLine1, int nLine2, bool bInvalidateMargin = false);
     int CalculateActualOffset (int nLineIndex, int nCharIndex, bool bAccumulate = false);
@@ -276,6 +264,9 @@ protected :
     virtual void PrintFooter (CDC * pdc, int nPageNum);
     virtual void GetPrintHeaderText (int nPageNum, CString & text);
     virtual void GetPrintFooterText (int nPageNum, CString & text);
+
+    int GetPreviousVisibleLine (int y) const;
+    int GetNextVisibleLine (int y) const;
 
     //  Keyboard handlers
     void MoveLeft (bool bSelect);
@@ -295,13 +286,13 @@ protected :
     void Copy ();
 
     bool IsSelection () const;
-    bool IsInsideSelection (const CPoint & ptTextPos);
+    bool IsInsideSelection (const CEPoint & ptTextPos);
     bool GetColumnSelection (int nLine, int & nLeftTextPos, int & nRightTextPos);
-    std::pair<CPoint, CPoint> GetSelection ();
-    void GetSelection (CPoint & ptStart, CPoint & ptEnd)
+    std::pair<CEPoint, CEPoint> GetSelection ();
+    void GetSelection (CEPoint & ptStart, CEPoint & ptEnd)
       { std::tie(ptStart, ptEnd) = GetSelection(); }
     void GetFullySelectedLines(int & firstLine, int & lastLine);
-    virtual void SetSelection (const CPoint & ptStart, const CPoint & ptEnd, bool bUpdateView = true);
+    virtual void SetSelection (const CEPoint & ptStart, const CEPoint & ptEnd, bool bUpdateView = true);
 
     int m_nTopLine, m_nOffsetChar;
     //BEGIN SW
@@ -341,7 +332,7 @@ protected :
 
     @return The character position of the beginning of the subline charPoint.y.
     */
-    int CharPosToPoint( int nLineIndex, int nCharPos, CPoint &charPoint, int* pnColumn = nullptr );
+    int CharPosToPoint( int nLineIndex, int nCharPos, CEPoint &charPoint, int* pnColumn = nullptr );
 
     /**
     Converts the given cursor point for the given line to the character position
@@ -357,7 +348,7 @@ protected :
 
     @return The character position the best matches the cursor position.
     */
-    int CursorPointToCharPos( int nLineIndex, const CPoint &curPoint );
+    int CursorPointToCharPos( int nLineIndex, const CEPoint &curPoint );
 
     /**
     Converts the given cursor position to a text position.
@@ -374,10 +365,10 @@ protected :
 
     @param subLinePos The sublinebased cursor position
         (see text above for detailed description).
-    @param textPos The calculated line and character position that best matches
+    @return The calculated line and character position that best matches
         the cursor position (see text above for detailed descritpion).
     */
-    void SubLineCursorPosToTextPos( const CPoint &subLinePos, CPoint &textPos );
+    CEPoint SubLineCursorPosToTextPos( const CEPoint &subLinePos );
 
     /**
     Returns the character position relative to the given line, that matches
@@ -405,6 +396,7 @@ protected :
     //END SW
     int GetCharWidth ();
     int GetMaxLineLength (int nTopLine, int nLines);
+    bool CoverLength(int nTopLine, int nLines, int min_length);
     int GetScreenLines ();
     int GetScreenChars ();
 
@@ -465,15 +457,15 @@ public:
     virtual int GetFullLineLength (int nLineIndex) const;
     virtual int GetViewableLineLength(int nLineIndex) const;
     virtual int GetLineActualLength (int nLineIndex);
-    virtual LPCTSTR GetLineChars (int nLineIndex) const;
+    virtual const tchar_t* GetLineChars (int nLineIndex) const;
 protected:
-    virtual DWORD GetLineFlags (int nLineIndex) const;
-    virtual void GetText (const CPoint & ptStart, const CPoint & ptEnd, CString & text, bool bExcludeInvisibleLines = true);
+    virtual lineflags_t GetLineFlags (int nLineIndex) const;
+    virtual void GetText (const CEPoint & ptStart, const CEPoint & ptEnd, CString & text, bool bExcludeInvisibleLines = true);
     virtual void GetTextInColumnSelection (CString & text, bool bExcludeInvisibleLines = true);
 
     //  Clipboard overridable
     virtual bool TextInClipboard ();
-    virtual bool PutToClipboard (LPCTSTR pszText, int cchText, bool bColumnSelection = false);
+    virtual bool PutToClipboard (const tchar_t* pszText, int cchText, bool bColumnSelection = false);
     virtual bool GetFromClipboard (CString & text, bool & bColumnSelection);
 
     //  Drag-n-drop overrideable
@@ -482,21 +474,25 @@ protected:
     virtual void OnDropSource (DROPEFFECT de);
     bool IsDraggingText () const;
 
-    virtual COLORREF GetColor (int nColorIndex) const;
-    virtual void GetLineColors (int nLineIndex, COLORREF & crBkgnd,
-                                COLORREF & crText, bool & bDrawWhitespace);
+    virtual CEColor GetColor (int nColorIndex) const;
+    virtual void GetLineColors (int nLineIndex, CEColor & crBkgnd,
+                                CEColor & crText, bool & bDrawWhitespace);
     virtual bool GetItalic (int nColorIndex);
     virtual bool GetBold (int nColorIndex);
 
+    bool GetSelectionLeftRight(int nLineIndex, int& nSelLeft, int& nSelRight);
     void DrawLineHelper (CPoint & ptOrigin, const CRect & rcClip, int nColorIndex, int nBgColorIndex,
-                         COLORREF crText, COLORREF crBkgnd, int nLineIndex, int nOffset, int nCount, int &nActualOffset, CPoint ptTextPos);
+                         CEColor crText, CEColor crBkgnd,
+                         int nLineIndex, int nOffset, int nCount, int &nActualOffset, CEPoint ptTextPos,
+                         int nSelLeft, int nSelRight);
     virtual void DrawSingleLine (const CRect & rect, int nLineIndex);
+    virtual void GetTopMarginText (const CRect& rect, CString& columnnames, std::vector<int>& nWidths);
     virtual void DrawTopMargin (const CRect & rect);
     virtual void DrawMargin (const CRect & rect, int nLineIndex, int nLineNumber);
 
-    inline int GetCharCellCountFromChar(const TCHAR *pch)
+    inline int GetCharCellCountFromChar(const tchar_t *pch)
     {
-        TCHAR ch = *pch;
+        tchar_t ch = *pch;
         if (ch >= _T('\x00') && ch <= _T('\x7F'))
           {
             if (ch <= _T('\x1F') && ch != '\t')
@@ -615,24 +611,25 @@ protected:
     // function to draw a single screen line
     // (a wrapped line can consist of many screen lines
     virtual void DrawScreenLine( CPoint &ptOrigin, const CRect &rcClip,
-         const std::vector<CrystalLineParser::TEXTBLOCK>& blocks,
-        int &nActualItem, COLORREF crText,
-        COLORREF crBkgnd, bool bDrawWhitespace,
+         const std::vector<LangServices::TEXTBLOCK>& blocks,
+        int &nActualItem, CEColor crText,
+        CEColor crBkgnd, bool bDrawWhitespace,
         int nLineIndex, int nOffset,
-        int nCount, int &nActualOffset, CPoint ptTextPos );
+        int nCount, int &nActualOffset, CEPoint ptTextPos );
     //END SW
 
-    std::vector<CrystalLineParser::TEXTBLOCK> MergeTextBlocks(const std::vector<CrystalLineParser::TEXTBLOCK>& blocks1, const std::vector<CrystalLineParser::TEXTBLOCK>& blocks2) const;
-    virtual std::vector<CrystalLineParser::TEXTBLOCK> GetWhitespaceTextBlocks(int nLineIndex) const;
-    virtual std::vector<CrystalLineParser::TEXTBLOCK> GetMarkerTextBlocks(int nLineIndex) const;
-    virtual std::vector<CrystalLineParser::TEXTBLOCK> GetAdditionalTextBlocks (int nLineIndex);
+    std::vector<LangServices::TEXTBLOCK> MergeTextBlocks(const std::vector<LangServices::TEXTBLOCK>& blocks1, const std::vector<LangServices::TEXTBLOCK>& blocks2) const;
+    virtual std::vector<LangServices::TEXTBLOCK> GetWhitespaceTextBlocks(int nLineIndex) const;
+    virtual std::vector<LangServices::TEXTBLOCK> GetMarkerTextBlocks(int nLineIndex) const;
+    virtual std::vector<LangServices::TEXTBLOCK> GetAdditionalTextBlocks (int nLineIndex);
 
 public:
-    virtual CString GetHTMLLine (int nLineIndex, LPCTSTR pszTag);
+    virtual CString GetColumnName(int nColumn);
+    virtual CString GetHTMLLine (int nLineIndex, const tchar_t* pszTag, int nColumnCountMax);
     virtual CString GetHTMLStyles ();
-    std::vector<CrystalLineParser::TEXTBLOCK> GetTextBlocks(int nLineIndex);
+    std::vector<LangServices::TEXTBLOCK> GetTextBlocks(int nLineIndex);
 protected:
-    virtual CString GetHTMLAttribute (int nColorIndex, int nBgColorIndex, COLORREF crText, COLORREF crBkgnd);
+    virtual CString GetHTMLAttribute (int nColorIndex, int nBgColorIndex, CEColor crText, CEColor crBkgnd);
 
     //BEGIN SW
     // helpers for incremental search
@@ -676,22 +673,22 @@ private:
     CString *m_pstrIncrementalSearchStringOld;
 
     /** Start of selection at the time the incremental search started */
-    CPoint m_selStartBeforeIncrementalSearch;
+    CEPoint m_selStartBeforeIncrementalSearch;
 
     /** Start of selection at the time the incremental search started */
-    CPoint m_selEndBeforeIncrementalSearch;
+    CEPoint m_selEndBeforeIncrementalSearch;
 
     /** Cursor position at the time the incremental search started */
-    CPoint m_cursorPosBeforeIncrementalSearch;
+    CEPoint m_cursorPosBeforeIncrementalSearch;
 
     /** position to start the incremental search at */
-    CPoint m_incrementalSearchStartPos;
+    CEPoint m_incrementalSearchStartPos;
 
     //END SW
 
 public :
     void GoToLine (int nLine, bool bRelative);
-    unsigned ParseLine (unsigned dwCookie, const TCHAR *pszChars, int nLength, CrystalLineParser::TEXTBLOCK * pBuf, int &nActualItems);
+    std::vector<LangServices::TEXTBLOCK> ParseLine (int nLineIndex);
 
     // Attributes
 public :
@@ -707,8 +704,12 @@ public :
     void SetTopMargin (bool bTopMargin);
     bool GetSelectionMargin () const { return m_bSelMargin; }
     void SetSelectionMargin (bool bSelMargin);
+    int GetRevisionMarkWidth() const { return m_nRevMarkWidth; }
+    void SetRevisionMarkWidth(int width) { m_nRevMarkWidth = width; };
     bool GetViewLineNumbers() const { return m_bViewLineNumbers; }
     void SetViewLineNumbers(bool bViewLineNumbers);
+    int  GetLineUsedAsHeaders () const { return m_nLineNumberUsedAsHeaders; }
+    void SetLineUsedAsHeaders(int nLineNumberUsedAsHeaders) { m_nLineNumberUsedAsHeaders = nLineNumberUsedAsHeaders; }
     void GetFont (LOGFONT & lf) const { lf = m_lfBaseFont; }
     void SetFont (const LOGFONT & lf);
     DWORD GetFlags () const { return m_dwFlags; }
@@ -738,10 +739,33 @@ public :
     @return Pointer to parser used before or `nullptr`, if no parser has been used before.
     */
     CCrystalParser *SetParser( CCrystalParser *pParser );
+
+    /**
+     * @brief Set syntax parser using the new interface.
+     * @param pParser Unique pointer to ISyntaxParser implementation.
+     * 
+     * This method enables use of the new parser abstraction while maintaining
+     * backward compatibility with the legacy parser system.
+     */
+    void SetSyntaxParser(std::shared_ptr<LangServices::ISyntaxParser> pParser);
+
+    /**
+     * @brief Get the current syntax parser.
+     * @return Pointer to ISyntaxParser, or nullptr if using legacy parser.
+     */
+    std::shared_ptr<LangServices::ISyntaxParser> GetSyntaxParser() const { return m_pSyntaxParser; }
+
+    void ShareSyntaxParser(CCrystalTextView* pSource)
+    {
+        m_CurSourceDef = pSource->m_CurSourceDef;
+        m_dwFlags = pSource->m_dwFlags;
+        m_pSyntaxParser = pSource->GetSyntaxParser();
+    }
+
     //END SW
 
     bool GetEnableHideLines () const { return m_bHideLines; }
-    void SetEnableHideLines (bool bHideLines) { m_bHideLines = bHideLines; }
+    void SetEnableHideLines (bool bHideLines);
     bool GetLineVisible (int nLineIndex) const;
 
     //  Default handle to resources
@@ -750,7 +774,7 @@ public :
     int m_nLastFindWhatLen;
     RxNode *m_rxnode;
     RxMatchRes m_rxmatch;
-    LPTSTR m_pszMatched;
+    tchar_t* m_pszMatched;
     static LOGFONT m_LogFont;
     static RENDERING_MODE s_nRenderingModeDefault;
     RENDERING_MODE m_nRenderingMode;
@@ -759,15 +783,12 @@ public :
     CCrystalRenderer *m_pCrystalRendererSaved;
 
     //  Source type
-    CrystalLineParser::TextDefinition *m_CurSourceDef;
-    bool m_bRememberLastPos;
-    virtual bool DoSetTextType (CrystalLineParser::TextDefinition *def);
-    virtual bool SetTextType (LPCTSTR pszExt);
-    virtual bool SetTextType (CrystalLineParser::TextType enuType);
-    virtual bool SetTextType (CrystalLineParser::TextDefinition *def);
-    virtual bool SetTextTypeByContent (LPCTSTR pszContent);
-    static void LoadSettings ();
-    static void SaveSettings ();
+    LangServices::TextDefinition *m_CurSourceDef;
+    virtual bool DoSetTextType (LangServices::TextDefinition *def);
+    virtual bool SetTextType (const tchar_t* pszExt);
+    virtual bool SetTextType (LangServices::LanguageId enuType);
+    virtual bool SetTextType (LangServices::TextDefinition *def);
+    virtual bool SetTextTypeByContent (const tchar_t* pszContent);
 
     // Operations
 public :
@@ -777,28 +798,28 @@ public :
 
     //  Buffer-view interaction, multiple views
     virtual CCrystalTextBuffer *LocateTextBuffer ();
-    virtual void UpdateView (CCrystalTextView * pSource, CUpdateContext * pContext, DWORD dwFlags, int nLineIndex = -1);
+    virtual void UpdateView (CCrystalTextView * pSource, CUpdateContext * pContext, updateview_flags_t dwFlags, int nLineIndex = -1);
 
     //  Attributes
-    CPoint GetCursorPos () const { return m_ptCursorPos; }
-    virtual void SetCursorPos (const CPoint & ptCursorPos);
+    CEPoint GetCursorPos () const { return m_ptCursorPos; }
+    virtual void SetCursorPos (const CEPoint & ptCursorPos);
     void ShowCursor ();
     void HideCursor ();
-    CPoint GetAnchor() const { return m_ptAnchor; }
-    void SetNewAnchor (const CPoint & ptNewAnchor) { SetAnchor(ptNewAnchor); }
-    void SetNewSelection (const CPoint & ptStart, const CPoint & ptEnd, bool bUpdateView = true) { SetSelection(ptStart, ptEnd, bUpdateView); }
+    CEPoint GetAnchor() const { return m_ptAnchor; }
+    void SetNewAnchor (const CEPoint & ptNewAnchor) { SetAnchor(ptNewAnchor); }
+    void SetNewSelection (const CEPoint & ptStart, const CEPoint & ptEnd, bool bUpdateView = true) { SetSelection(ptStart, ptEnd, bUpdateView); }
 
     //  Operations
-    virtual void EnsureVisible (CPoint pt);
-    virtual void EnsureVisible (CPoint ptStart, CPoint ptEnd);
+    virtual void EnsureVisible (CEPoint pt);
+    virtual void EnsureVisible (CEPoint ptStart, CEPoint ptEnd);
 
     //  Text search helpers
-    CPoint GetSearchPos (DWORD dwSearchFlags);
-    bool FindText (LPCTSTR pszText, const CPoint & ptStartPos, DWORD dwFlags, bool bWrapSearch, CPoint * pptFoundPos);
-    bool FindTextInBlock (LPCTSTR pszText, const CPoint & ptStartPos, const CPoint & ptBlockBegin, const CPoint & ptBlockEnd,
-                          DWORD dwFlags, bool bWrapSearch, CPoint * pptFoundPos);
+    CEPoint GetSearchPos (findtext_flags_t dwSearchFlags);
+    bool FindText (const tchar_t* pszText, const CEPoint & ptStartPos, DWORD dwFlags, bool bWrapSearch, CEPoint * pptFoundPos);
+    bool FindTextInBlock (const tchar_t* pszText, const CEPoint & ptStartPos, const CEPoint & ptBlockBegin, const CEPoint & ptBlockEnd,
+                          findtext_flags_t dwFlags, bool bWrapSearch, CEPoint * pptFoundPos);
     bool FindText (const LastSearchInfos * lastSearch);
-    bool HighlightText (const CPoint & ptStartPos, int nLength,
+    bool HighlightText (const CEPoint & ptStartPos, int nLength,
       bool bCursorToLeft = false, bool bUpdateView = true);
 
     // IME (input method editor)
@@ -806,7 +827,8 @@ public :
     void UpdateCompositionWindowFont();
 
     //  Overridable: an opportunity for Auto-Indent, Smart-Indent etc.
-    virtual void OnEditOperation (int nAction, LPCTSTR pszText, size_t cchText);
+    virtual void OnEditOperation (int nAction, const tchar_t* pszText, size_t cchText) {};
+    virtual void OnTextBufferChanged (bool bInsert, const CEPoint& ptStartPos, const CEPoint& ptEndPos, const tchar_t* pszText, size_t cchText, int nActionType) {};
 
     // Overrides
     // ClassWizard generated virtual function overrides
@@ -837,7 +859,7 @@ protected :
     // Generated message map functions
 protected :
 #ifdef _DEBUG
-    void AssertValidTextPos (const CPoint & pt);
+    void AssertValidTextPos (const CEPoint & pt);
 #endif
 
     //{{AFX_MSG(CCrystalTextView)
@@ -871,6 +893,8 @@ protected :
     afx_msg BOOL OnMouseWheel (UINT nFlags, short zDelta, CPoint pt);
     afx_msg void OnMouseHWheel (UINT nFlags, short zDelta, CPoint pt);
     LRESULT OnImeStartComposition(WPARAM wParam, LPARAM lParam);
+    LRESULT BuildReconvertString(struct tagRECONVERTSTRING* pReconv, int nLineIndex, DWORD dwTargetCharOffset, DWORD dwTargetCharLen);
+    LRESULT OnImeRequest(WPARAM wParam, LPARAM lParam);
     //}}AFX_MSG
     afx_msg void OnFilePageSetup ();
 

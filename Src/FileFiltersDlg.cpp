@@ -18,6 +18,12 @@
 #include "SharedFilterDlg.h"
 #include "TestFilterDlg.h"
 #include "FileOrFolderSelect.h"
+#include "UniFile.h"
+#include "Constants.h"
+#include "FilterErrorMessages.h"
+#include "FileFilterHelperMenu.h"
+#include "DirWatcher.h"
+#include "Environment.h"
 
 using std::vector;
 
@@ -26,10 +32,7 @@ using std::vector;
 #endif
 
 /** @brief Template file used when creating new filefilter. */
-static const TCHAR FILE_FILTER_TEMPLATE[] = _T("FileFilter.tmpl");
-
-/** @brief Location for filters specific help to open. */
-static const TCHAR FilterHelpLocation[] = _T("::/htmlhelp/Filters.html");
+static const tchar_t FILE_FILTER_TEMPLATE[] = _T("FileFilter.tmpl");
 
 /////////////////////////////////////////////////////////////////////////////
 // CFiltersDlg dialog
@@ -38,9 +41,12 @@ IMPLEMENT_DYNCREATE(FileFiltersDlg, CTrPropertyPage)
 /**
  * @brief Constructor.
  */
-FileFiltersDlg::FileFiltersDlg() : CTrPropertyPage(FileFiltersDlg::IDD)
+FileFiltersDlg::FileFiltersDlg()
+	: CTrPropertyPage(FileFiltersDlg::IDD)
+	, m_pFileFilterHelper(new FileFilterHelper())
+	, m_pFileFilterHelperOrg(nullptr)
 {
-	m_strCaption = theApp.LoadDialogCaption(m_lpszTemplateName).c_str();
+	m_strCaption = I18n::LoadDialogCaption(m_lpszTemplateName).c_str();
 	m_psp.pszTitle = m_strCaption;
 	m_psp.dwFlags |= PSP_USETITLE;
 	m_psp.hIcon = AfxGetApp()->LoadIcon(IDI_FILEFILTER);
@@ -51,56 +57,42 @@ void FileFiltersDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(FileFiltersDlg)
+	DDX_CBStringExact(pDX, IDC_FILTERFILE_MASK, m_sMask);
 	DDX_Control(pDX, IDC_FILTERFILE_LIST, m_listFilters);
+	DDX_Control(pDX, IDC_FILTERFILE_MASK, m_ctlMask);
 	//}}AFX_DATA_MAP
 }
 
 
 BEGIN_MESSAGE_MAP(FileFiltersDlg, CTrPropertyPage)
 	//{{AFX_MSG_MAP(FileFiltersDlg)
+	ON_CBN_KILLFOCUS(IDC_FILTERFILE_MASK, OnKillFocusFilterfileMask)
+	ON_CBN_EDITCHANGE(IDC_FILTERFILE_MASK, OnEditChangeFilterfileMask)
+	ON_CBN_SELCHANGE(IDC_FILTERFILE_MASK, OnEditChangeFilterfileMask)
+	ON_BN_CLICKED(IDC_FILTERFILE_MASK_MENU, OnFilterfileMaskMenu)
 	ON_BN_CLICKED(IDC_FILTERFILE_EDITBTN, OnFiltersEditbtn)
 	ON_NOTIFY(NM_DBLCLK, IDC_FILTERFILE_LIST, OnDblclkFiltersList)
+	ON_NOTIFY(NM_CUSTOMDRAW, IDC_FILTERFILE_LIST, OnCustomDrawFiltersList)
+	ON_NOTIFY(LVN_ITEMCHANGED, IDC_FILTERFILE_LIST, OnLvnItemchangedFilterfileList)
+	ON_NOTIFY(LVN_GETINFOTIP, IDC_FILTERFILE_LIST, OnInfoTip)
 	ON_WM_MOUSEMOVE()
 	ON_BN_CLICKED(IDC_FILTERFILE_TEST_BTN, OnBnClickedFilterfileTestButton)
 	ON_BN_CLICKED(IDC_FILTERFILE_NEWBTN, OnBnClickedFilterfileNewbutton)
 	ON_BN_CLICKED(IDC_FILTERFILE_DELETEBTN, OnBnClickedFilterfileDelete)
 	ON_COMMAND(ID_HELP, OnHelp)
-	//}}AFX_MSG_MAP
-	ON_NOTIFY(LVN_ITEMCHANGED, IDC_FILTERFILE_LIST, OnLvnItemchangedFilterfileList)
-	ON_NOTIFY(LVN_GETINFOTIP, IDC_FILTERFILE_LIST, OnInfoTip)
 	ON_BN_CLICKED(IDC_FILTERFILE_INSTALL, OnBnClickedFilterfileInstall)
+	ON_MESSAGE(WM_USER+1, OnFileFilterUpdated)
+	//}}AFX_MSG_MAP
 END_MESSAGE_MAP()
 
 /////////////////////////////////////////////////////////////////////////////
 // CFiltersDlg message handlers
 
-/**
- * @brief Set array of filters.
- * @param [in] fileFilters Array of filters to show in the dialog.
- * @note Call this before actually showing the dialog.
- */
-void FileFiltersDlg::SetFilterArray(const vector<FileFilterInfo>& fileFilters)
+void FileFiltersDlg::SetFileFilterHelper(FileFilterHelper* pFileFilterHelper)
 {
-	m_Filters = fileFilters;
-}
-
-/**
- * @brief Returns path (cont. filename) of selected filter
- * @return Full path to selected filter file.
- */
-String FileFiltersDlg::GetSelected()
-{
-	return m_sFileFilterPath;
-}
-
-/**
- * @brief Set path of selected filter.
- * @param [in] Path for selected filter.
- * @note Call this before actually showing the dialog.
- */
-void FileFiltersDlg::SetSelected(const String & selected)
-{
-	m_sFileFilterPath = selected;
+	m_pFileFilterHelper->CloneFrom(pFileFilterHelper);
+	m_pFileFilterHelperOrg = pFileFilterHelper;
+	m_Filters = m_pFileFilterHelper->GetFileFilters();
 }
 
 /**
@@ -110,7 +102,7 @@ void FileFiltersDlg::InitList()
 {
 	// Show selection across entire row.
 	// Also enable infotips.
-	m_listFilters.SetExtendedStyle(LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP);
+	m_listFilters.SetExtendedStyle(LVS_EX_CHECKBOXES | LVS_EX_FULLROWSELECT | LVS_EX_INFOTIP);
 
 	const int lpx = CClientDC(this).GetDeviceCaps(LOGPIXELSX);
 	auto pointToPixel = [lpx](int point) { return MulDiv(point, lpx, 72); };
@@ -122,17 +114,9 @@ void FileFiltersDlg::InitList()
 	title = _("Location");
 	m_listFilters.InsertColumn(2, title.c_str(), LVCFMT_LEFT, pointToPixel(262));
 
-	title = _("<None>");
-	m_listFilters.InsertItem(1, title.c_str());
-	m_listFilters.SetItemText(0, 1, title.c_str());
-	m_listFilters.SetItemText(0, 2, title.c_str());
-
-	const int count = (int) m_Filters.size();
-
+	const int count = (int) m_pFileFilterHelper->GetFileFilters().size();
 	for (int i = 0; i < count; i++)
-	{
 		AddToGrid(i);
-	}
 }
 
 /**
@@ -141,9 +125,95 @@ void FileFiltersDlg::InitList()
  */
 void FileFiltersDlg::SelectFilterByIndex(int index)
 {
-	m_listFilters.SetItemState(index, LVIS_SELECTED, LVIS_SELECTED);
+	m_listFilters.SetCheck(index, TRUE);
 	bool bPartialOk = false;
 	m_listFilters.EnsureVisible(index, bPartialOk);
+}
+
+/**
+ * @brief Select filter by file path in the listview.
+ * @param [in] path file path
+ */
+void FileFiltersDlg::SelectFilterByFilePath(const String& path)
+{
+	for (size_t i = 0; i < m_Filters.size(); ++i)
+	{
+		if (m_Filters[i].fullpath == path)
+		{
+			SelectFilterByIndex(static_cast<int>(i + 1));
+			break;
+		}
+	}
+}
+
+/**
+ * @brief Get preset filters from last group in filter expression.
+ */
+static std::vector<String> GetPresetFiltersFromLastGroup(const String& filterExpression)
+{
+	std::vector<String> presetFilters;
+	std::vector<String> filterGroups = FileFilterHelper::SplitFilterGroups(filterExpression);
+	String filterGroup = filterGroups.back();
+	auto parts = strutils::split(filterGroup, ';');
+	std::vector<String> result;
+	for (const auto& part : parts)
+	{
+		const String partTrimmed = strutils::trim_ws(String(part.data(), part.length()));
+		if (partTrimmed.substr(0, 3) == _T("pf:"))
+			presetFilters.push_back(partTrimmed.substr(3));
+	}
+	return presetFilters;
+}
+
+/**
+ * @brief Remove preset filters from filter expression and return the rest.
+ */
+static String RemovePresetFiltersFromLastGroup(const String& filterExpression)
+{
+	std::vector<String> filterGroups = FileFilterHelper::SplitFilterGroups(filterExpression);
+	String filterGroup = filterGroups.back();
+	auto parts = strutils::split(filterGroup, ';');
+	std::vector<String> result;
+	for (const auto& part : parts)
+	{
+		const String partTrimmed = strutils::trim_ws(String(part.data(), part.length()));
+		if (partTrimmed.substr(0, 3) != _T("pf:"))
+			result.push_back(partTrimmed);
+	}
+	filterGroups.back() = strutils::join(result.begin(), result.end(), _T(";"));
+	return FileFilterHelper::JoinFilterGroups(filterGroups);
+}
+
+/**
+ * @brief Add preset filters to last group in filter expression.
+ */
+static String AddPresetFiltersToLastGroup(const String& mask, const CListCtrl& list)
+{
+	std::vector<String> filterGroups = FileFilterHelper::SplitFilterGroups(mask);
+	String result = filterGroups.back();
+	const int count = list.GetItemCount();
+	for (int i = 0; i < count; i++)
+	{
+		if (list.GetCheck(i))
+		{
+			if (!result.empty())
+				result += _T(";");
+			result += _T("pf:") + list.GetItemText(i, 0);
+		}
+	}
+	filterGroups.back() = result;
+	return FileFilterHelper::JoinFilterGroups(filterGroups);
+}
+
+static void SetCheckedState(CListCtrl& list, std::vector<String>& presetFilters)
+{
+	const int count = list.GetItemCount();
+	for (int i = 0; i < count; i++)
+	{
+		String desc = list.GetItemText(i, 0);
+		const bool isChecked = std::find(presetFilters.begin(), presetFilters.end(), desc) != presetFilters.end();
+		list.SetCheck(i, isChecked);
+	}
 }
 
 /**
@@ -154,23 +224,34 @@ BOOL FileFiltersDlg::OnInitDialog()
 {
 	CTrPropertyPage::OnInitDialog();
 
+	m_ctlMask.LoadState(_T("Files\\Ext"));
+
 	InitList();
 
-	if (m_sFileFilterPath.empty())
-	{
-		SelectFilterByIndex(0);
-		return TRUE;
-	}
+	m_sMask = m_pFileFilterHelper->GetMaskOrExpression();
+	SetDlgItemText(IDC_FILTERFILE_MASK, m_sMask.c_str());
 
-	int count = m_listFilters.GetItemCount();
-	for (int i = 0; i < count; i++)
-	{
-		String desc = m_listFilters.GetItemText(i, 2);
-		if (strutils::compare_nocase(desc, m_sFileFilterPath) == 0)
+	std::vector<String> presetFilters = GetPresetFiltersFromLastGroup(m_sMask);
+	SetCheckedState(m_listFilters, presetFilters);
+
+	SetButtonState();
+
+	COMBOBOXINFO cbi{sizeof(COMBOBOXINFO)};
+	GetComboBoxInfo(m_ctlMask.m_hWnd, &cbi);
+	m_ctlMaskEdit.SubclassWindow(cbi.hwndItem);
+	m_ctlMaskEdit.m_validator = [this](const CString& text, CString& error) -> bool
 		{
-			SelectFilterByIndex(i);
-		}
-	}
+			m_pFileFilterHelper->SetMaskOrExpression((const tchar_t *)text);
+			const bool bError = !m_pFileFilterHelper->GetErrorList().empty();
+			if (bError)
+			{
+				for (const auto* errorItem : m_pFileFilterHelper->GetErrorList())
+					error += (FormatFilterErrorSummary(*errorItem) + _T("\r\n")).c_str();
+			}
+			return !bError;
+		};
+	m_ctlMaskEdit.Validate();
+	m_ctlMaskEdit.SetCueBanner(strutils::format_string1(_("e.g. %1"), _T("*.txt|fe:Size > 100KB")).c_str());
 
 	return TRUE;  // return TRUE unless you set the focus to a control
 	              // EXCEPTION: OCX Property Pages should return FALSE
@@ -183,7 +264,7 @@ BOOL FileFiltersDlg::OnInitDialog()
 void FileFiltersDlg::AddToGrid(int filterIndex)
 {
 	const FileFilterInfo & filterinfo = m_Filters.at(filterIndex);
-	const int item = filterIndex + 1;
+	const int item = filterIndex;
 
 	m_listFilters.InsertItem(item, filterinfo.name.c_str());
 	m_listFilters.SetItemText(item, 1, filterinfo.description.c_str());
@@ -195,12 +276,45 @@ void FileFiltersDlg::AddToGrid(int filterIndex)
  */
 void FileFiltersDlg::OnOK()
 {
-	int sel = m_listFilters.GetNextItem(-1, LVNI_SELECTED);
-	m_sFileFilterPath = m_listFilters.GetItemText(sel, 2);
+	if (strutils::trim_ws(m_sMask).empty())
+		m_sMask = _T("*.*");
+	m_pFileFilterHelper->SetMaskOrExpression(m_sMask);
+	m_pFileFilterHelperOrg->CloneFrom(m_pFileFilterHelper.get());
 
 	AfxGetApp()->WriteProfileInt(_T("Settings"), _T("FilterStartPage"), GetParentSheet()->GetActiveIndex());
 
+	m_ctlMask.SetWindowTextW(m_sMask.c_str());
+	m_ctlMask.SaveState(_T("Files\\Ext"));
+
 	CDialog::OnOK();
+}
+
+void FileFiltersDlg::OnKillFocusFilterfileMask()
+{
+	UpdateData(TRUE);
+	std::vector<String> presetFilters = GetPresetFiltersFromLastGroup(m_sMask);
+	SetCheckedState(m_listFilters, presetFilters);
+}
+
+void FileFiltersDlg::OnEditChangeFilterfileMask()
+{
+	m_ctlMaskEdit.OnEnChange();
+}
+
+void FileFiltersDlg::OnFilterfileMaskMenu()
+{
+	UpdateData(TRUE);
+	CRect rc;
+	GetDlgItem(IDC_FILTERFILE_MASK_MENU)->GetWindowRect(&rc);
+	const std::optional<String> filter = m_menu.ShowMenu(m_sMask, rc.left, rc.bottom, this);
+	if (filter.has_value())
+	{
+		m_sMask = *filter;
+		UpdateData(FALSE);
+		std::vector<String> presetFilters = GetPresetFiltersFromLastGroup(m_sMask);
+		SetCheckedState(m_listFilters, presetFilters);
+		m_ctlMaskEdit.OnEnChange();
+	}
 }
 
 /**
@@ -217,16 +331,18 @@ void FileFiltersDlg::OnOK()
  */
 void FileFiltersDlg::OnFiltersEditbtn()
 {
-	int sel =- 1;
-
+	int sel = -1;
 	sel = m_listFilters.GetNextItem(sel, LVNI_SELECTED);
-
-	// Can't edit first "None"
-	if (sel > 0)
-	{
-		String path = m_listFilters.GetItemText(sel, 2);
-		EditFileFilter(path);
-	}
+	String path = m_listFilters.GetItemText(sel, 2);
+	EditFileFilter(path);
+	if (!m_pDirWatcher)
+		m_pDirWatcher = std::make_unique<DirWatcher>();
+	m_pDirWatcher->Remove(sel);
+	m_pDirWatcher->Add(sel, false, path,
+		[this](const String& path, DirWatcher::ACTION action)
+		{
+			PostMessage(WM_USER + 1);
+		});
 }
 
 /**
@@ -251,23 +367,36 @@ void FileFiltersDlg::OnDblclkFiltersList(NMHDR* pNMHDR, LRESULT* pResult)
 	*pResult = 0;
 }
 
-/**
- * @brief Is item in list the <None> item?
- * @param [in] item Item to test.
- * @return true if item is <None> item.
- */
-bool FileFiltersDlg::IsFilterItemNone(int item) const
+void FileFiltersDlg::OnCustomDrawFiltersList(NMHDR* pNMHDR, LRESULT* pResult)
 {
-	String txtNone = _("<None>");
-	String txt = m_listFilters.GetItemText(item, 0);
+	NMLVCUSTOMDRAW* pLVCD = reinterpret_cast<NMLVCUSTOMDRAW*>(pNMHDR);
+	*pResult = CDRF_DODEFAULT;
 
-	return (strutils::compare_nocase(txt, txtNone) == 0);
+	if (pLVCD->nmcd.dwDrawStage == CDDS_PREPAINT)
+	{
+		*pResult = CDRF_NOTIFYITEMDRAW;
+	}
+	else if (pLVCD->nmcd.dwDrawStage == CDDS_ITEMPREPAINT)
+	{
+		int nItem = static_cast<int>(pLVCD->nmcd.dwItemSpec);
+		if (auto pFilter = m_pFileFilterHelper->GetManager()->GetFilterByIndex(nItem))
+		{
+			if (!pFilter->errors.empty())
+			{
+				const COLORREF sysBk = GetSysColor(COLOR_WINDOW);
+				const COLORREF bk = ((GetRValue(sysBk) + GetGValue(sysBk) + GetBValue(sysBk)) / 3 < 128) ? 
+					RGB(80, 40, 40) : RGB(255, 200, 200);
+				pLVCD->clrTextBk = bk;
+			}
+		}
+		*pResult = CDRF_DODEFAULT;
+	}
 }
 
 /**
  * @brief Called when item state is changed.
  *
- * Disable Edit-button when "None" filter is selected.
+ * Disable the "Test", "Edit" and "Remove" buttons when no item is selected.
  * @param [in] pNMHDR Listview item data.
  * @param [out] pResult Result of the action is returned in here.
  */
@@ -275,17 +404,18 @@ void FileFiltersDlg::OnLvnItemchangedFilterfileList(NMHDR *pNMHDR, LRESULT *pRes
 {
 	LPNMLISTVIEW pNMLV = reinterpret_cast<LPNMLISTVIEW>(pNMHDR);
 
-	// If item got selected
-	if (pNMLV->uNewState & LVIS_SELECTED)
+	// If item got selected or deselected
+	if ((pNMLV->uNewState & LVIS_SELECTED) || (pNMLV->uOldState & LVIS_SELECTED))
 	{
-		String txtNone = _("<None>");
-		String txt = m_listFilters.GetItemText(pNMLV->iItem, 0);
-
-		bool isNone = strutils::compare_nocase(txt, txtNone) == 0;
-
-		EnableDlgItem(IDC_FILTERFILE_TEST_BTN, !isNone);
-		EnableDlgItem(IDC_FILTERFILE_EDITBTN, !isNone);
-		EnableDlgItem(IDC_FILTERFILE_DELETEBTN, !isNone);
+		SetButtonState();
+	}
+	if ((pNMLV->uChanged & LVIF_STATE) &&
+		((pNMLV->uOldState & LVIS_STATEIMAGEMASK) != (pNMLV->uNewState & LVIS_STATEIMAGEMASK)))
+	{
+		m_sMask = RemovePresetFiltersFromLastGroup(m_sMask);
+		m_sMask = AddPresetFiltersToLastGroup(m_sMask, m_listFilters);
+		UpdateData(FALSE);
+		m_ctlMaskEdit.OnEnChange();
 	}
 	*pResult = 0;
 }
@@ -297,24 +427,18 @@ void FileFiltersDlg::OnLvnItemchangedFilterfileList(NMHDR *pNMHDR, LRESULT *pRes
  */
 void FileFiltersDlg::OnInfoTip(NMHDR * pNMHDR, LRESULT * pResult)
 {
-	LVHITTESTINFO lvhti = {0};
 	NMLVGETINFOTIP * pInfoTip = reinterpret_cast<NMLVGETINFOTIP*>(pNMHDR);
 	ASSERT(pInfoTip != nullptr);
 
-	// Get subitem under mouse cursor
-	lvhti.pt = m_ptLastMousePos;
-	m_listFilters.SubItemHitTest(&lvhti);
-
-	if (lvhti.iSubItem > 1)
+	auto* pFilter = m_pFileFilterHelper->GetManager()->GetFilterByIndex(pInfoTip->iItem);
+	if (pFilter)
 	{
-		// Check that we are over icon or label
-		if ((lvhti.flags & LVHT_ONITEMICON) || (lvhti.flags & LVHT_ONITEMLABEL))
-		{
-			// Set item text to tooltip
-			String strText = m_listFilters.GetItemText(lvhti.iItem, lvhti.iSubItem);
-			_tcscpy_s(pInfoTip->pszText, pInfoTip->cchTextMax, strText.c_str());
-		}
+		String strText;
+		for (const auto& error : pFilter->errors)
+			strText += FormatFilterErrorSummary(error) + _T("\r\n");
+		_tcsncpy_s(pInfoTip->pszText, pInfoTip->cchTextMax, strText.c_str(), _TRUNCATE);
 	}
+	*pResult = 0;
 }
 
 /**
@@ -341,25 +465,26 @@ void FileFiltersDlg::OnBnClickedFilterfileTestButton()
 {
 	UpdateData(TRUE);
 
-	int sel = m_listFilters.GetNextItem(-1, LVNI_SELECTED);
-	if (sel == -1)
-		return;
-	if (IsFilterItemNone(sel))
-		return;
-	
-	m_sFileFilterPath = m_listFilters.GetItemText(sel, 2);
-
 	// Ensure filter is up-to-date (user probably just edited it)
-	auto* pGlobalFileFilter = theApp.GetGlobalFileFilter();
-	pGlobalFileFilter->ReloadUpdatedFilters();
+	m_pFileFilterHelper->ReloadUpdatedFilters();
 
-	FileFilterMgr *pMgr = pGlobalFileFilter->GetManager();
-	FileFilter * pFileFilter = pMgr->GetFilterByPath(m_sFileFilterPath);
-	if (pFileFilter == nullptr)
-		return;
+	const String mask = AddPresetFiltersToLastGroup(m_sMask, m_listFilters);
+	m_pFileFilterHelper->SetMaskOrExpression(mask);
 
-	CTestFilterDlg dlg(this, pFileFilter, pMgr);
+	CTestFilterDlg dlg(this, m_pFileFilterHelper.get());
 	dlg.DoModal();
+}
+
+/**
+ * @brief Get user filter path.
+ */
+static String GetUserPath()
+{
+	String userPath = GetOptionsMgr()->GetString(OPT_FILTER_USERPATH);
+	if (userPath.empty())
+		userPath = paths::ConcatPath(GetOptionsMgr()->GetInt(OPT_USERDATA_LOCATION) == 0 ? env::GetAppDataPath() : env::GetMyDocuments(), _T("WinMerge\\Filters"));
+	paths::normalize(userPath);
+	return userPath;
 }
 
 /**
@@ -376,12 +501,13 @@ void FileFiltersDlg::OnBnClickedFilterfileNewbutton()
 {
 	auto* pGlobalFileFilter = theApp.GetGlobalFileFilter();
 	String globalPath = pGlobalFileFilter->GetGlobalFilterPathWithCreate();
-	String userPath = pGlobalFileFilter->GetUserFilterPathWithCreate();
+	String userPath = GetUserPath();
+	paths::CreateIfNeeded(userPath);
 
 	if (globalPath.empty() && userPath.empty())
 	{
 		AfxMessageBox(
-			_("User's filter file folder is not defined!\n\nPlease select filter folder in Options/System.").c_str(), MB_ICONSTOP);
+			_("User's filter folder is not defined!\n\nSelect filter folder in Options/System.").c_str(), MB_ICONSTOP);
 		return;
 	}
 
@@ -391,7 +517,7 @@ void FileFiltersDlg::OnBnClickedFilterfileNewbutton()
 	if (paths::DoesPathExist(templatePath) != paths::IS_EXISTING_FILE)
 	{
 		String msg = strutils::format_string2(
-			_("Cannot find file filter template file!\n\nPlease copy file %1 to WinMerge/Filters -folder:\n%2."),
+			_("Cannot find filter template!\n\nCopy %1 to WinMerge/Filters Folder:\n%2."),
 			FILE_FILTER_TEMPLATE, templatePath);
 		AfxMessageBox(msg.c_str(), MB_ICONERROR);
 		return;
@@ -414,20 +540,20 @@ void FileFiltersDlg::OnBnClickedFilterfileNewbutton()
 		path = paths::AddTrailingSlash(path);
 	
 	String s;
-	if (SelectFile(GetSafeHwnd(), s, false, path.c_str(), _("Select filename for new filter"),
+	if (SelectFile(GetSafeHwnd(), s, false, path.c_str(), _("Select Filename for New Filter"),
 		_("File Filters (*.flt)|*.flt|All Files (*.*)|*.*||")))
 	{
 		// Fix file extension
-		TCHAR file[_MAX_FNAME] = {0};
-		TCHAR ext[_MAX_EXT] = {0};
-		TCHAR dir[_MAX_DIR] = {0};
-		TCHAR drive[_MAX_DRIVE] = {0};
+		tchar_t file[_MAX_FNAME] = {0};
+		tchar_t ext[_MAX_EXT] = {0};
+		tchar_t dir[_MAX_DIR] = {0};
+		tchar_t drive[_MAX_DRIVE] = {0};
 		_tsplitpath_s(s.c_str(), drive, _MAX_DRIVE, dir, _MAX_DIR, file, _MAX_FNAME, ext, _MAX_EXT);
-		if (_tcslen(ext) == 0)
+		if (ext[0] == '\0')
 		{
 			s += FileFilterExt;
 		}
-		else if (_tcsicmp(ext, FileFilterExt) != 0)
+		else if (tc::tcsicmp(ext, FileFilterExt) != 0)
 		{
 			s = drive;
 			s += dir;
@@ -437,25 +563,34 @@ void FileFiltersDlg::OnBnClickedFilterfileNewbutton()
 
 		// Open-dialog asks about overwriting, so we can overwrite filter file
 		// user has already allowed it.
-		if (!CopyFile(templatePath.c_str(), s.c_str(), FALSE))
+		UniMemFile fileIn;
+		UniStdioFile fileOut;
+		if (!fileIn.OpenReadOnly(templatePath) || !fileOut.OpenCreate(s))
 		{
 			String msg = strutils::format_string1(
-				_( "Cannot copy filter template file to filter folder:\n%1\n\nPlease make sure the folder exists and is writable."),
+				_( "Cannot copy filter template:\n%1\n\nMake sure the folder exists and is writable."),
 				templatePath);
 			AfxMessageBox(msg.c_str(), MB_ICONERROR);
 			return;
 		}
+		String lines;
+		fileIn.ReadStringAll(lines);
+		strutils::replace(lines, _T("${name}"), file);
+		fileOut.WriteString(lines);
+		fileIn.Close();
+		fileOut.Close();
+
 		EditFileFilter(s);
-		FileFilterMgr *pMgr = pGlobalFileFilter->GetManager();
-		int retval = pMgr->AddFilter(s);
+		int retval = m_pFileFilterHelper->GetManager()->AddFilter(s);
 		if (retval == FILTER_OK)
 		{
 			// Remove all from filterslist and re-add so we can update UI
-			String selected;
 			pGlobalFileFilter->LoadAllFileFilters();
-			m_Filters = pGlobalFileFilter->GetFileFilters(selected);
+			m_pFileFilterHelper->LoadAllFileFilters();
+			m_Filters = m_pFileFilterHelper->GetFileFilters();
 
 			UpdateFiltersList();
+			SelectFilterByFilePath(s);
 		}
 	}
 }
@@ -465,41 +600,34 @@ void FileFiltersDlg::OnBnClickedFilterfileNewbutton()
  */
 void FileFiltersDlg::OnBnClickedFilterfileDelete()
 {
-	String path;
-	int sel =- 1;
-
+	int sel = -1;
 	sel = m_listFilters.GetNextItem(sel, LVNI_SELECTED);
+	const String path = m_listFilters.GetItemText(sel, 2);
 
-	// Can't delete first "None"
-	if (sel > 0)
+	String sConfirm = strutils::format_string1(_("Are you sure you want to delete\n\n%1 ?"), path);
+	int res = AfxMessageBox(sConfirm.c_str(), MB_ICONWARNING | MB_YESNO);
+	if (res == IDYES)
 	{
-		path = m_listFilters.GetItemText(sel, 2);
-
-		String sConfirm = strutils::format_string1(_("Are you sure you want to delete\n\n%1 ?"), path);
-		int res = AfxMessageBox(sConfirm.c_str(), MB_ICONWARNING | MB_YESNO);
-		if (res == IDYES)
+		if (DeleteFile(path.c_str()))
 		{
-			if (DeleteFile(path.c_str()))
-			{
-				auto* pGlobalFileFilter = theApp.GetGlobalFileFilter();
-				FileFilterMgr *pMgr = pGlobalFileFilter->GetManager();
-				pMgr->RemoveFilter(path);
-				
-				// Remove all from filterslist and re-add so we can update UI
-				String selected;
-				m_Filters = pGlobalFileFilter->GetFileFilters(selected);
+			auto* pGlobalFileFilter = theApp.GetGlobalFileFilter();
+			pGlobalFileFilter->GetManager()->RemoveFilter(path);
+			m_pFileFilterHelper->GetManager()->RemoveFilter(path);
+			
+			// Remove all from filterslist and re-add so we can update UI
+			m_Filters = m_pFileFilterHelper->GetFileFilters();
 
-				UpdateFiltersList();
-			}
-			else
-			{
-				String msg = strutils::format_string1(
-					_("Failed to delete the filter file:\n%1\n\nMaybe the file is read-only?"),
-					path);
-				AfxMessageBox(msg.c_str(), MB_ICONSTOP);
-			}
+			UpdateFiltersList();
+		}
+		else
+		{
+			String msg = strutils::format_string1(
+				_("Failed to delete filter:\n%1\n\nFile may be read-only."),
+				path);
+			AfxMessageBox(msg.c_str(), MB_ICONSTOP);
 		}
 	}
+	SetButtonState();
 }
 
 /**
@@ -507,15 +635,9 @@ void FileFiltersDlg::OnBnClickedFilterfileDelete()
  */
 void FileFiltersDlg::UpdateFiltersList()
 {
-	int count = (int) m_Filters.size();
-
 	m_listFilters.DeleteAllItems();
 
-	String title = _("<None>");
-	m_listFilters.InsertItem(1, title.c_str());
-	m_listFilters.SetItemText(0, 1, title.c_str());
-	m_listFilters.SetItemText(0, 2, title.c_str());
-
+	const int count = (int) m_Filters.size();
 	for (int i = 0; i < count; i++)
 	{
 		AddToGrid(i);
@@ -527,7 +649,7 @@ void FileFiltersDlg::UpdateFiltersList()
  */
 void FileFiltersDlg::OnHelp()
 {
-	theApp.ShowHelp(FilterHelpLocation);
+	CMergeApp::ShowHelp(FilterHelpLocation);
 }
 
 /**
@@ -543,11 +665,12 @@ void FileFiltersDlg::OnBnClickedFilterfileInstall()
 	auto* pGlobalFileFilter = theApp.GetGlobalFileFilter();
 	String s;
 	String path;
-	String userPath = pGlobalFileFilter->GetUserFilterPathWithCreate();
 
-	if (SelectFile(GetSafeHwnd(), s, true, path.c_str(),_("Locate filter file to install"),
+	if (SelectFile(GetSafeHwnd(), s, true, path.c_str(),_("Locate Filter File to Install"),
 		_("File Filters (*.flt)|*.flt|All Files (*.*)|*.*||")))
 	{
+		String userPath = GetUserPath();
+		paths::CreateIfNeeded(userPath);
 		userPath = paths::ConcatPath(userPath, paths::FindFileName(s));
 		if (!CopyFile(s.c_str(), userPath.c_str(), TRUE))
 		{
@@ -555,31 +678,52 @@ void FileFiltersDlg::OnBnClickedFilterfileInstall()
 			// If user wants to, overwrite existing filter
 			if (paths::DoesPathExist(userPath) == paths::IS_EXISTING_FILE)
 			{
-				int res = LangMessageBox(IDS_FILEFILTER_OVERWRITE, MB_YESNO |
+				int res = I18n::MessageBox(IDS_FILEFILTER_OVERWRITE, MB_YESNO |
 					MB_ICONWARNING);
 				if (res == IDYES)
 				{
 					if (!CopyFile(s.c_str(), userPath.c_str(), FALSE))
 					{
-						LangMessageBox(IDS_FILEFILTER_INSTALLFAIL, MB_ICONSTOP);
+						I18n::MessageBox(IDS_FILEFILTER_INSTALLFAIL, MB_ICONSTOP);
 					}
 				}
 			}
 			else
 			{
-				LangMessageBox(IDS_FILEFILTER_INSTALLFAIL, MB_ICONSTOP);
+				I18n::MessageBox(IDS_FILEFILTER_INSTALLFAIL, MB_ICONSTOP);
 			}
 		}
 		else
 		{
-			FileFilterMgr *pMgr = pGlobalFileFilter->GetManager();
-			pMgr->AddFilter(userPath);
+			pGlobalFileFilter->GetManager()->AddFilter(userPath);
+			m_pFileFilterHelper->GetManager()->AddFilter(userPath);
 
 			// Remove all from filterslist and re-add so we can update UI
-			String selected;
-			m_Filters = pGlobalFileFilter->GetFileFilters(selected);
+			m_Filters = m_pFileFilterHelper->GetFileFilters();
 
 			UpdateFiltersList();
+			SelectFilterByFilePath(userPath);
 		}
 	}
 }
+
+/**
+ * @brief Disable the "Test", "Edit" and "Remove" buttons when no item is selected.
+ */
+void FileFiltersDlg::SetButtonState()
+{
+	int sel = -1;
+	sel = m_listFilters.GetNextItem(sel, LVNI_SELECTED);
+	const bool isNone = (sel == -1);
+
+	EnableDlgItem(IDC_FILTERFILE_EDITBTN, !isNone);
+	EnableDlgItem(IDC_FILTERFILE_DELETEBTN, !isNone);
+}
+
+LRESULT FileFiltersDlg::OnFileFilterUpdated(WPARAM wParam, LPARAM lParam)
+{
+	m_pFileFilterHelper->ReloadUpdatedFilters();
+	m_listFilters.Invalidate();
+	return 0;
+}
+

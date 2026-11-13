@@ -5,11 +5,10 @@
 #pragma once
 
 #include "CCrystalEditView.h"
-#include "CrystalEditViewEx.h"
 
 class CSampleDoc;
 
-class CSampleView : public CCrystalEditViewEx
+class CSampleView : public CCrystalEditView
 {
 protected: // create from serialization only
 	CSampleView();
@@ -21,6 +20,7 @@ public:
 	CSampleDoc* GetDocument();
 
 	virtual CCrystalTextBuffer *LocateTextBuffer() override;
+	bool ConvertToHTML(const CString& filename);
 
 protected:
 
@@ -48,12 +48,15 @@ protected:
 // Generated message map functions
 protected:
 	//{{AFX_MSG(CSampleView)
+	afx_msg void OnFileConvertToHTML();
 	afx_msg void OnContextMenu(CWnd* pWnd, CPoint point);
 	afx_msg void OnSelMargin();
 	afx_msg void OnTopMargin();
 	afx_msg void OnWordWrap();
 	afx_msg void OnViewWhitespace();
 	afx_msg void OnUpdateViewWhitespace(CCmdUI* pCmdUI);
+	afx_msg void OnViewLineNumbers();
+	afx_msg void OnUpdateViewLineNumbers(CCmdUI* pCmdUI);
 	afx_msg void OnViewSelectFont();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()

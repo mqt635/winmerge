@@ -103,20 +103,35 @@ typedef std::map<String, COption> OptionsMap;
  */
 class COptionsMgr
 {
+	template <class... T> struct always_false : std::false_type {};
 public:
 	virtual ~COptionsMgr() {}
 	int AddOption(const String& name, const varprop::VariantValue& defaultValue);
 	const varprop::VariantValue& Get(const String& name) const;
+	template <typename T> T GetT(const String& name) const
+	{
+		if constexpr (std::is_same_v<T, int>)
+			return GetOptionsMgr()->GetInt(name);
+		else if constexpr (std::is_same_v<T, unsigned>)
+			return static_cast<unsigned>(GetOptionsMgr()->GetInt(name));
+		else if constexpr (std::is_same_v<T, bool>)
+			return GetOptionsMgr()->GetBool(name);
+		else if constexpr (std::is_same_v<T, String>)
+			return GetOptionsMgr()->GetString(name);
+		else
+			static_assert(always_false<T>::value, "Unsupported option type");
+	}
 	const String& GetString(const String& name) const;
 	int GetInt(const String& name) const;
 	bool GetBool(const String& name) const;
 	int Set(const String& name, const varprop::VariantValue& value);
 	int Set(const String& name, const String& value);
-	int Set(const String& name, const TCHAR *value);
+	int Set(const String& name, const tchar_t *value);
 	int Set(const String& name, bool value);
 	int Set(const String& name, int value);
 	int Reset(const String& name);
 	int GetDefault(const String& name, String & value) const;
+	int GetDefault(const String& name, int & value) const;
 	int GetDefault(const String& name, unsigned & value) const;
 	int GetDefault(const String& name, bool & value) const;
 	template <typename T> T GetDefault(const String& name) const { T v; GetDefault(name, v); return v; }
@@ -132,7 +147,7 @@ public:
 
 	virtual int InitOption(const String& name, const varprop::VariantValue& defaultValue) = 0;
 	virtual int InitOption(const String& name, const String& defaultValue) = 0;
-	virtual int InitOption(const String& name, const TCHAR *defaultValue) = 0;
+	virtual int InitOption(const String& name, const tchar_t *defaultValue) = 0;
 	virtual int InitOption(const String& name, int defaultValue, bool serializable = true) = 0;
 	virtual int InitOption(const String& name, int defaultValue, int minValue, int maxValue, bool serializable = true);
 	virtual int InitOption(const String& name, bool defaultValue) = 0;
@@ -140,12 +155,23 @@ public:
 	virtual int SaveOption(const String& name) = 0;
 	virtual int SaveOption(const String& name, const varprop::VariantValue& value) = 0;
 	virtual int SaveOption(const String& name, const String& value) = 0;
-	virtual int SaveOption(const String& name, const TCHAR *value) = 0;
+	virtual int SaveOption(const String& name, const tchar_t *value) = 0;
 	virtual int SaveOption(const String& name, int value) = 0;
 	virtual int SaveOption(const String& name, bool value) = 0;
 	virtual int SaveOption(const String& name, unsigned value);
 
 	virtual int RemoveOption(const String& name);
+
+	virtual int FlushOptions() = 0;
+
+	/**
+	 * @brief Read the string values stored under a section from the storage itself (registry or ini file)
+	 * rather than from the options loaded in this process, after this process's pending writes.
+	 * For data that several WinMerge processes update, such as the recent comparison list.
+	 * @param [in] section Section path without the trailing '/', e.g. "Recent Compare List"
+	 * @return Value name (without the section) and value of each stored string value
+	 */
+	virtual std::map<String, String> ReadStoredSection(const String& section) = 0;
 
 	virtual int ExportOptions(const String& filename, const bool bHexColor=false) const;
 	virtual int ImportOptions(const String& filename);
@@ -156,6 +182,7 @@ protected:
 	static String EscapeValue(const String& text);
 	static String UnescapeValue(const String& text);
 	static std::pair<String, String> SplitName(const String& strName);
+	static std::map<String, String> ReadIniFile(const String& filename, const String& section);
 
 	OptionsMap m_optionsMap; /**< Map where options are stored. */
 

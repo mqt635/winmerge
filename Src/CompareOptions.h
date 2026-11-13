@@ -32,6 +32,7 @@ enum DiffAlgorithm
 	DIFF_ALGORITHM_MINIMAL = 1,
 	DIFF_ALGORITHM_PATIENCE = 2,
 	DIFF_ALGORITHM_HISTOGRAM = 3,
+	DIFF_ALGORITHM_NONE = 4,
 };
 
 /**
@@ -78,14 +79,31 @@ enum DiffOutputType
 struct DIFFOPTIONS
 {
 	int nIgnoreWhitespace; /**< Ignore whitespace -option. */
+	int nDiffAlgorithm; /**< Diff algorithm -option. */
 	bool bIgnoreCase; /**< Ignore case -option. */
 	bool bIgnoreNumbers; /**< Ignore numbers -option. */
 	bool bIgnoreBlankLines; /**< Ignore blank lines -option. */
 	bool bIgnoreEol; /**< Ignore EOL differences -option. */
 	bool bFilterCommentsLines; /**< Ignore Multiline comments differences -option. */
-	int nDiffAlgorithm; /**< Diff algorithm -option. */
 	bool bIndentHeuristic; /**< Ident heuristic -option */
 	bool bCompletelyBlankOutIgnoredChanges;
+	bool bIgnoreMissingTrailingEol; /**< Ignore missing trailing EOL -option. */
+	bool bIgnoreLineBreaks; /**< Ignore line breaks (treat as spaces) -option. */
+
+	bool operator==(const DIFFOPTIONS& other) const
+	{
+		return nIgnoreWhitespace == other.nIgnoreWhitespace &&
+			nDiffAlgorithm == other.nDiffAlgorithm &&
+			bIgnoreCase == other.bIgnoreCase &&
+			bIgnoreNumbers == other.bIgnoreNumbers &&
+			bIgnoreBlankLines == other.bIgnoreBlankLines &&
+			bIgnoreEol == other.bIgnoreEol &&
+			bFilterCommentsLines == other.bFilterCommentsLines &&
+			bIndentHeuristic == other.bIndentHeuristic &&
+			bCompletelyBlankOutIgnoredChanges == other.bCompletelyBlankOutIgnoredChanges &&
+			bIgnoreMissingTrailingEol == other.bIgnoreMissingTrailingEol &&
+			bIgnoreLineBreaks == other.bIgnoreLineBreaks;
+	}
 };
 
 /**
@@ -104,6 +122,8 @@ public:
 	bool m_bIgnoreCase; /**< Ignore case differences? */
 	bool m_bIgnoreNumbers; /**< Ignore number differences? */
 	bool m_bIgnoreEOLDifference; /**< Ignore EOL style differences? */
+	bool m_bIgnoreMissingTrailingEol; /**< Ignore missing trailing EOL */
+	bool m_bIgnoreLineBreaks; /**< Ignore line breaks (treat as spaces) */
 };
 
 /**
@@ -121,10 +141,10 @@ public:
 	void GetAsDiffOptions(DIFFOPTIONS &options) const;
 	virtual void SetFromDiffOptions(const DIFFOPTIONS & options) override;
 
-	enum DiffOutputType m_outputStyle; /**< Output style (for patch files) */
+	DiffOutputType m_outputStyle; /**< Output style (for patch files) */
+	DiffAlgorithm m_diffAlgorithm; /** Diff algorithm */
 	int m_contextLines; /**< Number of context lines (for patch files) */
 	bool m_filterCommentsLines;/**< Ignore Multiline comments differences.*/
-	enum DiffAlgorithm m_diffAlgorithm; /** Diff algorithm */
 	bool m_bIndentHeuristic; /**< Indent heuristic */
 	bool m_bCompletelyBlankOutIgnoredDiffereneces; /**< Completely blank out ignored differences */
 };

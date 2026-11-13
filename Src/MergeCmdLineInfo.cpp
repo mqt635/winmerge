@@ -13,7 +13,6 @@
 
 #include "pch.h"
 #include "MergeCmdLineInfo.h"
-#include "Constants.h"
 #include "Paths.h"
 #include "OptionsDef.h"
 #include "unicoder.h"
@@ -27,14 +26,14 @@
  * @param [out] flag Tells whether param is the name of a flag.
  * @return Points to the remaining portion of the command line.
  */
-const TCHAR *MergeCmdLineInfo::EatParam(const TCHAR *p, String &param, bool *flag /*= nullptr*/)
+const tchar_t *MergeCmdLineInfo::EatParam(const tchar_t *p, String &param, bool *flag /*= nullptr*/)
 {
-	if (p != nullptr && *(p += _tcsspn(p, _T(" \t\r\n"))) == _T('\0'))
+	if (p != nullptr && *(p += tc::tcsspn(p, _T(" \t\r\n"))) == _T('\0'))
 		p = nullptr;
-	const TCHAR *q = p;
+	const tchar_t *q = p;
 	if (q != nullptr)
 	{
-		TCHAR c = *q;
+		tchar_t c = *q;
 		bool quoted = false;
 		do
 		{
@@ -50,7 +49,7 @@ const TCHAR *MergeCmdLineInfo::EatParam(const TCHAR *p, String &param, bool *fla
 		{
 			*flag = true;
 			++p;
-			for (const TCHAR *i = q; i >= p; --i)
+			for (const tchar_t *i = q; i >= p; --i)
 				if (*i == ':')
 				{
 					q = i;
@@ -69,8 +68,36 @@ const TCHAR *MergeCmdLineInfo::EatParam(const TCHAR *p, String &param, bool *fla
 		param = strutils::makelower(param);
 	}
 	// Strip any leading or trailing whitespace or quotes
-	param.erase(0, param.find_first_not_of(_T(" \t\r\n\"")));
-	param.erase(param.find_last_not_of(_T(" \t\r\n\"")) + 1);
+	param.erase(0, param.find_first_not_of(_T(" \t\r\n")));
+	param.erase(param.find_last_not_of(_T(" \t\r\n")) + 1);
+	if (!param.empty() && param.front() == '"')
+	{
+		param = ([](const String& param) -> String
+			{
+				String result;
+				bool inquotes = false;
+				for (int i = 0; i < param.length(); ++i)
+				{
+					if (param[i] == '"')
+					{
+						if (inquotes && i < param.length() - 1 && param[i + 1] == '"')
+						{
+							result += '"';
+							++i;
+						}
+						else
+						{
+							inquotes = !inquotes;
+						}
+					}
+					else
+					{
+						result += param[i];
+					}
+				}
+				return result;
+			})(param);
+	}
 	return q;
 }
 
@@ -81,8 +108,10 @@ const TCHAR *MergeCmdLineInfo::EatParam(const TCHAR *p, String &param, bool *fla
  * @param [in] value Default value in case none is specified.
  * @return Points to the remaining portion of the command line.
  */
-const TCHAR *MergeCmdLineInfo::SetOption(const TCHAR *q, const String& key, const TCHAR *value)
+const tchar_t *MergeCmdLineInfo::SetOption(const tchar_t *q, const String& key, const tchar_t *value)
 {
+	if (!q)
+		return nullptr;
 	String s;
 	if (*q == _T(':'))
 	{
@@ -93,7 +122,7 @@ const TCHAR *MergeCmdLineInfo::SetOption(const TCHAR *q, const String& key, cons
 	return q;
 }
 
-const TCHAR *MergeCmdLineInfo::SetConfig(const TCHAR *q)
+const tchar_t *MergeCmdLineInfo::SetConfig(const tchar_t *q)
 {
 	String s;
 	if (*q == ':')
@@ -113,18 +142,20 @@ const TCHAR *MergeCmdLineInfo::SetConfig(const TCHAR *q)
  * @brief MergeCmdLineParser's constructor.
  * @param [in] q Points to the beginning of the command line.
  */
-MergeCmdLineInfo::MergeCmdLineInfo(const TCHAR* q)
+MergeCmdLineInfo::MergeCmdLineInfo(const tchar_t* q)
 	: m_nCmdShow(SHOWNORMAL)
 	, m_nWindowType(AUTOMATIC)
+	, m_nDialogType(NO_DIALOG)
+	, m_bShowCompareAsMenu(false)
 	, m_bEscShutdown(false)
 	, m_bExitIfNoDiff(Disabled)
-	, m_bRecurse(false)
 	, m_bNonInteractive(false)
 	, m_nSingleInstance()
 	, m_bShowUsage(false)
 	, m_bNoPrefs(false)
 	, m_nCodepage(0)
 	, m_bSelfCompare(false)
+	, m_bClipboardCompare(false)
 	, m_bNewCompare(false)
 	, m_dwLeftFlags(FFILEOPEN_NONE)
 	, m_dwMiddleFlags(FFILEOPEN_NONE)
@@ -179,7 +210,7 @@ void MergeCmdLineInfo::AddPath(const String &path)
  * @brief Parse native WinMerge command line.
  * @param [in] p Points into the command line.
  */
-void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
+void MergeCmdLineInfo::ParseWinMergeCmdLine(const tchar_t *q)
 {
 	String param;
 	bool flag;
@@ -246,8 +277,33 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 				m_nWindowType = WindowType::BINARY;
 			else if (param == _T("image"))
 				m_nWindowType = WindowType::IMAGE;
+			else if (param.substr(0, 3) == _T("web"))
+				m_nWindowType = WindowType::WEBPAGE;
+			else if (param == _T("folder"))
+				m_nWindowType = WindowType::FOLDER;
 			else
-				m_sErrorMessages.push_back(_T("Unknown window type '") + param + _T("' specified"));
+				m_sErrorMessages.emplace_back(_T("Unknown window type '") + param + _T("' specified"));
+		}
+		else if (param == _T("show-dialog"))
+		{
+			// -show-dialog "type" - dialog type
+			q = EatParam(q, param);
+			param = strutils::makelower(param);
+			if (param == _T("options"))
+				m_nDialogType = DialogType::OPTIONS_DIALOG;
+			else if (param == _T("about"))
+				m_nDialogType = DialogType::ABOUT_DIALOG;
+			else
+				m_sErrorMessages.emplace_back(_T("Unknown dialog type '") + param + _T("' specified"));
+		}
+		else if (param == _T("show-compare-as-menu"))
+		{
+			m_bShowCompareAsMenu = true;
+		}
+		else if (param == _T("set-usertasks-to-jumplist"))
+		{
+			q = EatParam(q, param);
+			m_dwUserTasksFlags = tc::ttoi(param.c_str());
 		}
 		else if (param == _T("m"))
 		{
@@ -270,13 +326,26 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 				m_nCompMethod = CompareMethodType::DATE_SIZE;
 			else if (param == _T("size"))
 				m_nCompMethod = CompareMethodType::SIZE;
+			else if (param == _T("existence"))
+				m_nCompMethod = CompareMethodType::EXISTENCE;
 			else
-				m_sErrorMessages.push_back(_T("Unknown compare method '") + param + _T("' specified"));
+				m_sErrorMessages.emplace_back(_T("Unknown compare method '") + param + _T("' specified"));
 		}
 		else if (param == _T("r"))
 		{
 			// -r to compare recursively
-			m_bRecurse = true;
+			if (*q == ':')
+			{
+				q = EatParam(q + 1, param);
+				m_bRecurse = (tc::ttoi(param.c_str()) != 0);
+			}
+			else
+				m_bRecurse = true;
+		}
+		else if (param == _T("r-"))
+		{
+			// -r to compare non-recursively
+			m_bRecurse = false;
 		}
 		else if (param == _T("s-"))
 		{
@@ -294,11 +363,20 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 			if (*q == ':')
 			{
 				q = EatParam(q + 1, param);
-				m_nSingleInstance = _ttoi(param.c_str());
+				m_nSingleInstance = tc::ttoi(param.c_str());
 			}
-				
 			else
 				m_nSingleInstance = 1;
+		}
+		else if (param == _T("g"))
+		{
+			// -g "groupname" - group name for instance grouping
+			String sGroupName;
+			q = EatParam(q, sGroupName);
+			if (sGroupName.size() == 0 || sGroupName.size() > 128 || sGroupName.find_first_of(_T("\\")) != String::npos)
+				m_sErrorMessages.emplace_back(_T("Invalid group name specified"));
+			else
+				m_sGroupName = sGroupName;
 		}
 		else if (param == _T("noninteractive"))
 		{
@@ -314,6 +392,11 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 		{
 			// -self-compare means compare a specified file with a copy of the file
 			m_bSelfCompare = true;
+		}
+		else if (param == _T("clipboard-compare"))
+		{
+			// -clipboard-compare means to compare the two most recent contents of the clipboard history.
+			m_bClipboardCompare = true;
 		}
 		else if (param == _T("new"))
 		{
@@ -401,7 +484,7 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 			// -l to set the destination line nubmer
 			String line;
 			q = EatParam(q, line);
-			m_nLineIndex = _ttoi(line.c_str());
+			m_nLineIndex = tc::ttoi(line.c_str());
 			if (m_nLineIndex <= 0)
 			{
 				m_nLineIndex = -1;
@@ -417,7 +500,7 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 			// -c to set the destination character position 
 			String charpos;
 			q = EatParam(q, charpos);
-			m_nCharIndex = _ttoi(charpos.c_str());
+			m_nCharIndex = tc::ttoi(charpos.c_str());
 			if (m_nCharIndex <= 0)
 			{
 				m_nCharIndex = -1;
@@ -444,7 +527,7 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 		{
 			String value;
 			q = EatParam(q, value);
-			TCHAR c = strutils::makelower(value).c_str()[0];
+			tchar_t c = strutils::makelower(value).c_str()[0];
 			m_bTableAllowNewlinesInQuotes = (c == 0 || c == 'y' || c == 't' || c == '1');
 		}
 		else if (param == _T("al"))
@@ -519,18 +602,7 @@ void MergeCmdLineInfo::ParseWinMergeCmdLine(const TCHAR *q)
 		}
 		else
 		{
-			m_sErrorMessages.push_back(_T("Unknown option '/") + param + _T("'"));
-		}
-	}
-	// If "compare file dir" make it "compare file dir\file".
-	if (m_Files.GetSize() >= 2)
-	{
-		paths::PATH_EXISTENCE p1 = paths::DoesPathExist(m_Files[0]);
-		paths::PATH_EXISTENCE p2 = paths::DoesPathExist(m_Files[1]);
-
-		if ((p1 == paths::IS_EXISTING_FILE) && (p2 == paths::IS_EXISTING_DIR))
-		{
-			m_Files[1] = paths::ConcatPath(m_Files[1], paths::FindFileName(m_Files[0]));
+			m_sErrorMessages.emplace_back(_T("Unknown option '/") + param + _T("'"));
 		}
 	}
 	if (m_bShowUsage)

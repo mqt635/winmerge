@@ -11,6 +11,11 @@
 
 class PrediffingInfo;
 class PackingInfo;
+class CompareStats;
+class IHeaderBar;
+struct FileLocation;
+struct IMergeDoc;
+struct CEPoint;
 
 class CMergeFrameCommon: public CMDIChildWnd
 {
@@ -20,19 +25,22 @@ public:
 	bool IsActivated() const { return m_bActivated; }
 	void ActivateFrame(int nCmdShow);
 	void SetLastCompareResult(int nResult);
-	static void ShowIdenticalMessage(const PathContext& paths, bool bIdenticalAll, std::function<int (LPCTSTR, UINT, UINT)> funcMessageBox);
-	static String GetTitleString(const PathContext& paths, const String desc[], PackingInfo *pInfoUnpacker, PrediffingInfo *pInfoPrediffer, bool hasTrivialDiffs = false);
+	static void ShowShellMenu(CWnd* pWnd, const String& path);
+	static void ShowIdenticalMessage(const PathContext& paths, bool bIdenticalAll, bool bExactCompareAsync = false);
 	static void ChangeMergeMenuText(int srcPane, int dstPane, CCmdUI* pCmdUI);
 	static std::pair<int, int> MenuIDtoXY(UINT nID, int nActivePane, int nBuffers);
 	void SaveWindowState();
 	void SetSharedMenu(HMENU hMenu) { m_hMenuShared = hMenu; }
-	void RemoveBarBorder();
 	virtual BOOL IsTabbedMDIChild()
 	{
 		return TRUE; // https://stackoverflow.com/questions/35553955/getting-rid-of-3d-look-of-mdi-frame-window
 	}
+	virtual IHeaderBar* GetHeaderInterface()
+	{
+		return nullptr;
+	}
 protected:
-	int m_nLastSplitPos[2];
+	int m_nLastSplitPos[3];
 private:
 	bool m_bActivated;
 	HICON m_hCurrent;
@@ -47,6 +55,7 @@ protected:
 	afx_msg void OnGetMinMaxInfo(MINMAXINFO* lpMMI);
 	afx_msg void OnDestroy();
 	afx_msg void OnMDIActivate(BOOL bActivate, CWnd* pActivateWnd, CWnd* pDeactivateWnd);
+	afx_msg void OnEditorEditPath();
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 };

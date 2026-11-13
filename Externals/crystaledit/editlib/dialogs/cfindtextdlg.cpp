@@ -30,6 +30,8 @@
 #include "DDXHelper.h"
 #include "../ccrystaltextview.h"
 
+#include "darkmodelib.h"
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -102,7 +104,7 @@ FindText (int nDirection)
       if (!m_pBuddy->FindText(GetLastSearchInfos()))
         {
           CString prompt, text(m_sText);
-          prompt.Format (LoadResString(IDS_EDIT_TEXT_NOT_FOUND).c_str(), (LPCTSTR)text);
+          prompt.Format (LoadResString(IDS_EDIT_TEXT_NOT_FOUND).c_str(), (const tchar_t*)text);
           AfxMessageBox (prompt, MB_ICONINFORMATION);
         }
       else
@@ -169,7 +171,20 @@ OnInitDialog ()
   CDialog::OnInitDialog ();
 
   CMemComboBox::LoadSettings();
-  
+
+  LOGFONT lf{}, lfOld{};
+  CFont *pOldFont = m_ctlFindText.GetFont ();
+  if (pOldFont)
+    {
+      pOldFont->GetLogFont (&lfOld);
+      m_pBuddy->GetFont (lf);
+      lf.lfHeight = lfOld.lfHeight;
+      m_font.CreateFontIndirect (&lf);
+      m_ctlFindText.SetFont (&m_font);
+    }
+#if defined(USE_DARKMODELIB)
+  DarkMode::setDarkWndSafe(GetSafeHwnd(), true);
+#endif
   return true;
 }
 
@@ -212,7 +227,7 @@ UpdateControls()
 // Last search functions
 //
 void CFindTextDlg::
-SetLastSearch (LPCTSTR sText, bool bMatchCase, bool bWholeWord, bool bRegExp, int nDirection)
+SetLastSearch (const tchar_t* sText, bool bMatchCase, bool bWholeWord, bool bRegExp, int nDirection)
 {
   lastSearch.m_bMatchCase = bMatchCase;
   lastSearch.m_bWholeWord = bWholeWord;
@@ -242,7 +257,3 @@ UseLastSearch ()
   m_bNoClose = lastSearch.m_bNoClose;
 }
 
-void CFindTextDlg::PostNcDestroy()
-{
-  delete this;
-}

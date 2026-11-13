@@ -68,7 +68,7 @@ BOOL ConfirmFolderCopyDlg::OnInitDialog()
 		SendDlgItemMessage(IDC_FLDCONFIRM_ICON, STM_SETICON, (WPARAM)icon, 0L);
 
 		if (!m_caption.empty())
-			SetWindowText(m_caption.c_str());
+			SetTitleText(m_caption);
 
 		// setup handler for resizing this dialog	
 		m_constraint.InitializeCurrentSize(this);
@@ -77,8 +77,8 @@ BOOL ConfirmFolderCopyDlg::OnInitDialog()
 		// persist size via registry
 		m_constraint.LoadPosition(_T("ResizeableDialogs"), _T("FolderCopyConfirmDlg"), false);
 
-		String strDontAskAgain = LoadResString(IDS_MESSAGEBOX_DONT_ASK_AGAIN);
-		GetDlgItem(IDC_FLDCONFIRM_DONTASKAGAIN)->SetWindowText(strDontAskAgain.c_str());
+		String strDontAskAgain = I18n::LoadString(IDS_MESSAGEBOX_DONT_ASK_AGAIN);
+		SetDlgItemText(IDC_FLDCONFIRM_DONTASKAGAIN, strDontAskAgain);
 	}
 
 	return TRUE;  // return TRUE unless you set the focus to a control
@@ -109,8 +109,6 @@ void ConfirmFolderCopyDlg::OnBnClickedYes()
 void ConfirmFolderCopyDlg::OnBnClickedDontAskAgain()
 {
 	UpdateData();
-	if (m_dontAskAgain)
-		AfxGetApp()->WriteProfileInt(REGISTRY_SECTION_MESSAGEBOX, _T("FolderCopyConfirmDlgDontAskAgain"), IDYES);
-	else
-		AfxGetApp()->WriteProfileInt(REGISTRY_SECTION_MESSAGEBOX, _T("FolderCopyConfirmDlgDontAskAgain"), IDNO);
+	AfxGetApp()->WriteProfileInt(REGISTRY_SECTION_MESSAGEBOX, _T("FolderCopyConfirmDlgDontAskAgain"),
+		m_dontAskAgain ? IDYES : IDNO);
 }

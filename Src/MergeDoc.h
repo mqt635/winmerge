@@ -10,16 +10,28 @@
  */
 #pragma once
 
+#include "IMDITab.h"
+#include "IMergeDoc.h"
+#include "FilterEngine/ILineDataProvider.h"
 #include "DiffTextBuffer.h"
-#include <vector>
-#include <map>
-#include <memory>
-#include <optional>
 #include "DiffWrapper.h"
 #include "DiffList.h"
 #include "TempFile.h"
 #include "PathContext.h"
-#include "IMergeDoc.h"
+#include "FileLoadResult.h"
+#include "FileTransform.h"
+#include "LineFilterHelper.h"
+#include "MergeResultPane.h"
+#include "TableProps.h"
+#include <vector>
+#include <map>
+#include <memory>
+#include <optional>
+
+class CLineFilterHelperMenu;
+class CMainFrame;
+class CMergeResultTextBuffer;
+typedef CTypedPtrList<CPtrList, CMergeDoc*> MergeDocList;
 
 /**
  * @brief Additional action codes for WinMerge.
@@ -101,31 +113,34 @@ struct CurrentWordDiff
 	int nDiff;
 	size_t nWordDiff;
 	int nPane;
-	CPoint ptStart;
-	CPoint ptEnd;
+	CEPoint ptStart;
+	CEPoint ptEnd;
 };
 
+struct IDirDoc;
 struct DiffFileInfo;
 class CMergeEditView;
 class PackingInfo;
 class PrediffingInfo;
 class CMergeEditFrame;
-class CDirDoc;
 class CEncodingErrorBar;
 class CLocationView;
+class CMergeEditSplitterView;
+class CMergeResultView;
 
 /**
  * @brief Document class for merging two files
  */
-class CMergeDoc : public CDocument, public IMergeDoc
+class CMergeDoc : public CDocument, public IMergeDoc, public IMDITab, public ILineDataProvider
 {
 public:
-	struct TableProps { bool istable; TCHAR delimiter; TCHAR quote; bool allowNewlinesInQuotes; };
-// Attributes
+	// Attributes
 public:
 	static int m_nBuffersTemp;
+	static inline IMergeDoc::DocumentType m_documentTypeTemp;
+	IMergeDoc::DocumentType m_documentType;
 
-// Begin declaration of CMergeDoc
+	// Begin declaration of CMergeDoc
 
 	std::unique_ptr<CDiffTextBuffer> m_ptBuf[3]; /**< Left/Middle/Right side text buffer */
 	int m_nBuffers;
@@ -136,7 +151,7 @@ protected: // create from serialization only
 	DECLARE_DYNCREATE(CMergeDoc)
 
 	// Operations
-public:	
+public:
 	std::unique_ptr<DiffFileInfo> m_pSaveFileInfo[3];
 	std::unique_ptr<DiffFileInfo> m_pRescanFileInfo[3];
 	DiffList m_diffList;
@@ -145,56 +160,69 @@ public:
 	/// String of concatenated filenames as text to apply plugins filter to
 	String m_strBothFilenames;
 
-	CMergeEditView * GetActiveMergeView();
-	CMergeEditView * GetActiveMergeGroupView(int nBuffer);
+	CMergeEditView* GetActiveMergeView();
+	CMergeEditView* GetActiveMergeGroupView(int nBuffer);
 	void UpdateHeaderPath(int pane);
 	void UpdateHeaderActivity(int pane, bool bActivate);
 	void RefreshOptions();
 	void UpdateResources();
 	bool OpenDocs(int nFiles, const FileLocation fileloc[],
 		const bool bRO[], const String strDesc[]);
-	int LoadFile(CString sFileName, int nBuffer, bool & readOnly, const FileTextEncoding & encoding);
+	int LoadFile(const String& sFileName, int nBuffer, bool& readOnly, const FileTextEncoding& encoding);
 	void MoveOnLoad(int nPane = -1, int nLinIndex = -1, bool bRealLine = false, int nCharIndex = -1);
-	void ChangeFile(int nBuffer, const String& path, int nLineIndex = -1);
+	bool ChangeFile(int nBuffer, const String& path, const String& description = _T(""), int nLineIndex = -1);
 	void RescanIfNeeded(float timeOutInSecond);
-	int Rescan(bool &bBinary, IDENTLEVEL &identical, bool bForced = false);
+	int Rescan(bool& bBinary, IDENTLEVEL& identical, bool bForced = false);
 	void CheckFileChanged(void) override;
 	int ShowMessageBox(const String& sText, unsigned nType = MB_OK, unsigned nIDHelp = 0);
 	void ShowRescanError(int nRescanResult, IDENTLEVEL identical);
 	bool Undo();
 	void CopyAllList(int srcPane, int dstPane);
 	void CopyMultipleList(int srcPane, int dstPane, int firstDiff, int lastDiff, int firstWordDiff = -1, int lastWordDiff = -1);
-	void CopyMultiplePartialList(int srcPane, int dstPane, int firstDiff, int lastDiff, int firstLineDiff = -1, int lastLineDiff = -1);
+	void CopyMultiplePartialList(int srcPane, int dstPane, int activePane,
+		int firstDiff, int lastDiff, const CEPoint& ptStart, const CEPoint& ptEnd, bool bCharacter);
 	void DoAutoMerge(int dstPane);
-	bool SanityCheckDiff(DIFFRANGE dr) const;
-	bool WordListCopy(int srcPane, int dstPane, int nDiff, int nFirstWordDiff, int nLastWordDiff, const std::vector<int> *pWordDiffIndice, bool bGroupWithPrevious = false, bool bUpdateView = true);
-	bool PartialListCopy(int srcPane, int dstPane, int nDiff, int firstLine, int lastLine = -1, bool bGroupWithPrevious = false, bool bUpdateView = true);
+	bool SanityCheckDiff(const DIFFRANGE& dr) const;
+	bool HasInvisibleLines(int firstDiff, int lastDiff) const;
+	bool InlineDiffListCopy(int srcPane, int dstPane, int nDiff, int nFirstWordDiff, int nLastWordDiff, const std::vector<int>* pWordDiffIndice, bool bGroupWithPrevious = false, bool bUpdateView = true);
+	bool LineListCopy(int srcPane, int dstPane, int nDiff, int firstLine, int lastLine = -1, bool bGroupWithPrevious = false, bool bUpdateView = true);
+	bool CharacterListCopy(int srcPane, int dstPane, int activePane, int nDiff, const CEPoint& ptStart, const CEPoint& ptEnd, bool bGroupWithPrevious = false, bool bUpdateView = true);
 	bool ListCopy(int srcPane, int dstPane, int nDiff = -1, bool bGroupWithPrevious = false, bool bUpdateView = true);
-	bool TrySaveAs(String& strPath, int &nLastErrorCode, String & sError,
+	std::tuple<CEPoint, CEPoint, CEPoint, CEPoint> GetCharacterRange(int srcPane, int dstPane, int activePane, int nDiff, const CEPoint& ptStart, const CEPoint& ptEnd);
+	bool TransformText(String& text);
+	void ReplaceFullLines(CDiffTextBuffer& dbuf, CDiffTextBuffer& sbuf, CCrystalTextView* pSource, int nLineBegin, int nLineEnd, int nAction = CE_ACTION_UNKNOWN);
+	bool TrySaveAs(String& strPath, int& nLastErrorCode, String& sError,
 		int nBuffer, PackingInfo& infoTempUnpacker);
-	bool DoSave(LPCTSTR szPath, bool &bSaveSuccess, int nBuffer);
-	bool DoSaveAs(LPCTSTR szPath, bool &bSaveSuccess, int nBuffer);
+	bool DoSave(const tchar_t* szPath, bool& bSaveSuccess, int nBuffer);
+	bool DoSaveAs(const tchar_t* szPath, bool& bSaveSuccess, int nBuffer);
 	int RightLineInMovedBlock(int pane, int line);
 	int LeftLineInMovedBlock(int pane, int line);
 	void SetEditedAfterRescan(int nBuffer);
 	bool IsEditedAfterRescan(int nBuffer = -1) const;
 
 	const PackingInfo* GetUnpacker() const override { return &m_infoUnpacker; }
-	void SetUnpacker(const PackingInfo * infoUnpacker) override;
-	void SetPrediffer(const PrediffingInfo * infoPrediffer);
-	void GetPrediffer(PrediffingInfo * infoPrediffer);
-	const PrediffingInfo *GetPrediffer() const override;
-	void AddMergeViews(CMergeEditView * pView[3]);
-	void RemoveMergeViews(int nGroup);
-	void SetLocationView(CLocationView *pLocationView) { m_pLocationView = pLocationView; }
+	void SetUnpacker(const PackingInfo* infoUnpacker) override;
+	void SetPrediffer(const PrediffingInfo* infoPrediffer);
+	void GetPrediffer(PrediffingInfo* infoPrediffer) const;
+	const PrediffingInfo* GetPrediffer() const override;
+	void IgnoreColumnInComparison(int column, const String& panePrefix, bool add);
+	void ResetIgnoredColumnsInComparison();
+	const EditorScriptInfo* GetEditorScript() const override { return &m_editorScriptInfo; };
+	void AddMergeViews(CMergeEditSplitterView* pMergeEditSplitterView, CMergeEditView* pView[3]);
+	void RemoveMergeViews(CMergeEditSplitterView* pMergeEditSplitterView);
+	void SetLocationView(CLocationView* pLocationView) { m_pLocationView = pLocationView; }
 
-	CDirDoc * GetDirDoc() const override { return m_pDirDoc; }
-	void SetDirDoc(CDirDoc * pDirDoc) override;
-	void DirDocClosing(CDirDoc * pDirDoc) override;
+	IDirDoc* GetDirDoc() const override { return m_pDirDoc; }
+	void SetDirDoc(IDirDoc* pDirDoc) override;
+	void DirDocClosing(IDirDoc* pDirDoc) override;
 	bool CloseNow() override;
 	int GetFileCount() const override { return m_filePaths.GetSize(); }
-	String GetPath(int pane) const override { return m_filePaths[pane]; } 
+	String GetPath(int pane) const override { return m_filePaths[pane]; }
 	bool GetReadOnly(int pane) const override { return m_ptBuf[pane]->m_bReadOnly; }
+	CString GetTooltipString() const override;
+	int GetDiffCount() const override { return m_diffList.GetSignificantDiffs();  }
+	int GetTrivialCount() const override { return m_nTrivialDiffs; }
+
 	void SwapFiles(int nFromIndex, int nToIndex);
 
 	CMergeEditView * GetView(int group, int buffer) const { return m_pView[group][buffer]; }
@@ -202,13 +230,20 @@ public:
 	std::vector<CMergeEditView *> GetViewList(int nGroup = -1, int nBuffer = -1) const {
 		std::vector<CMergeEditView *> list;
 		if (nGroup != -1)
+		{
+			list.reserve(m_nBuffers);
 			for (int nBuffer2 = 0; nBuffer2 < m_nBuffers; ++nBuffer2)
 				list.push_back(m_pView[nGroup][nBuffer2]);
+		}
 		else if (nBuffer != -1)
+		{
+			list.reserve(m_nGroups);
 			for (int nGroup2 = 0; nGroup2 < m_nGroups; ++nGroup2)
 				list.push_back(m_pView[nGroup2][nBuffer]);
+		}
 		else
 		{
+			list.reserve(static_cast<std::vector<CMergeEditView *>::size_type>(m_nGroups) * m_nBuffers);
 			for (int nGroup3 = 0; nGroup3 < m_nGroups; nGroup3++)
 				for (int nBuffer3 = 0; nBuffer3 < m_nBuffers; ++nBuffer3)
 					list.push_back(m_pView[nGroup3][nBuffer3]);
@@ -234,6 +269,11 @@ public:
 		for (int nBuffer = 0; nBuffer < m_nBuffers; ++nBuffer)
 			func(m_pView[nGroup][nBuffer]);
 	}
+	template <typename Function>
+	void ForEachGroupView(int nGroup, Function func) {
+		for (int nBuffer = 0; nBuffer < m_nBuffers; ++nBuffer)
+			func(m_pView[nGroup][nBuffer]);
+	}
 	CMergeEditFrame * GetParentFrame();
 
 	void AddSyncPoint();
@@ -241,7 +281,25 @@ public:
 	void ClearSyncPoints();
 	bool HasSyncPoints();
 	std::vector<std::vector<int> > GetSyncPointList();
-	String GetDescription(int pane) const { return m_strDesc[pane]; }
+	String GetDescription(int pane) const override { return m_strDesc[pane]; }
+	void SetDescription(int pane, const String& sText) {
+		if (m_strDesc[pane] != sText)
+		{
+			m_strDesc[pane] = sText;
+			if (m_nBufferType[pane] == BUFFERTYPE::NORMAL)
+				m_nBufferType[pane] = BUFFERTYPE::NORMAL_NAMED;
+		}
+	}
+
+	// ILineDataProvider
+	int GetLineCount() const override;
+	std::string GetLine(int pane, int lineIndex) const override;
+	int GetColumnCount(int pane, int lineIndex) const override;
+	std::string GetColumn(int pane, int lineIndex, int columnIndex) const override;
+	std::string GetColumns(int pane, int lineIndex, const std::vector<int>& columns) const override;
+	int GetRealLineNumber(int pane, int lineIndex) const override;
+	unsigned GetLineFlags(int pane, int lineIndex) const override;
+	unsigned GetLineEol(int pane, int lineIndex) const override;
 
 	// Overrides
 	// ClassWizard generated virtual function overrides
@@ -259,39 +317,117 @@ public:
 	typedef enum { BYTEDIFF, WORDDIFF } DIFFLEVEL;
 	void Showlinediff(CMergeEditView *pView, bool bReversed = false);
 	void AddToSubstitutionFilters(CMergeEditView* pView, bool bReversed = false);
-	std::vector<WordDiff> GetWordDiffArrayInDiffBlock(int nDiff);
-	std::vector<WordDiff> GetWordDiffArray(int nLineIndex);
-	std::vector<WordDiff> GetWordDiffArrayInRange(const int begin[3], const int end[3], int pane1 = -1, int pane2 = -1);
+	void AddToLineFilters(const String& text);
+	void AddToDisplayFilters(const String& text);
+	void AddColumnToDisplayFilters(int pane, int column, int dataType);
+	std::vector<WordDiff> GetWordDiffArrayInDiffBlock(int nDiff, bool ignoreDiffOptions = false);
+	std::vector<WordDiff> GetWordDiffArray(int nLineIndex, bool ignoreDiffOptions = false);
+	std::vector<WordDiff> GetWordDiffArrayInRange(const int begin[3], const int end[3], bool ignoreDiffOptions = false, int pane1 = -1, int pane2 = -1);
 	void ClearWordDiffCache(int nDiff = -1);
 private:
-	void Computelinediff(CMergeEditView *pView, CRect rc[], bool bReversed);
+	void Computelinediff(CMergeEditView *pView, std::pair<CEPoint, CEPoint> rc[], bool bReversed);
 	std::map<int, std::vector<WordDiff> > m_cacheWordDiffs;
 // End MergeDocLineDiffs.cpp
 
 // Implementation in MergeDocEncoding.cpp
 public:
-	bool DoFileEncodingDialog();
+	bool DoFileEncodingDialog(int pane = -1);
 // End MergeDocEncoding.cpp
+
+// Implementation in MergeDocResultPane.cpp (kdiff3-style merge result pane)
+public:
+	CMergeResultView* GetMergeResultView() const { return m_pMergeResultView; }
+	void SetMergeResultView(CMergeResultView* pView) { m_pMergeResultView = pView; }
+	CMergeResultTextBuffer* GetMergeResultBuffer() const { return m_ptResultBuf.get(); }
+	bool IsMergeResultPaneVisible() const;
+	int GetMergeBasePane() const { return m_nMergeBasePane; }
+	bool StartMergeSession(int nBasePane, bool bAutoMerge, bool bWithMessage);
+	bool EndMergeSession();
+	bool GetMergeResultBuildState() const { return m_bResultBuilt; }
+	void UpdateMergePaneHeaders(int nBasePane);
+	void BuildMergeResult();
+	void ApplyAutoMergeToResult();
+	bool IsMergeResultModified() const;
+	/** @brief Result content that has not been written to the output yet */
+	bool IsMergeResultUnsaved() const;
+	int GetResultUnresolvedCount() const;
+	void GetResultUnresolvedCounts(int& nUnresolved, int& nConflicts, int& nWhiteSpaceOnly) const;
+	String GetResultConflictBlockText(int nDiff, bool bWhiteSpaceOnly, int* pnLines) const;
+	static String GetResultPlaceholderText(ResultSegmentState state, bool bWhiteSpaceOnly);
+	String GetResultSegmentDisplayText(const MergeResultSegment& seg, int* pnLines) const;
+	/** @brief Difference still waiting for a decision in the result pane? */
+	bool IsResultDiffPending(int nDiff) const;
+	/** @brief Is the line an unresolved-difference placeholder (not editable)? */
+	bool IsResultPlaceholderLine(int nLine) const;
+	/** @brief Would deleting the given range destroy a placeholder line? */
+	bool IsResultDeleteTouchingPlaceholder(int nStartLine, int nStartPos,
+		int nEndLine, int nEndPos) const;
+	/** @brief Margin provenance marker for a result line ('1'..'3', 'm', '?'), 0 for none */
+	tchar_t GetResultLineMarker(int nLine) const;
+	const MergeResultSegment* GetResultSegmentByLine(int nLine) const;
+	const MergeResultSegment* GetResultSegmentByDiff(int nDiff) const;
+
+	void ResultChooseSource(int nDiff, int srcPane, bool bGroupWithPrevious = false);
+	void ResultChooseSources(int nDiff, const std::vector<int>& srcPanes, bool bGroupWithPrevious = false);
+	void ResultToggleSource(int nDiff, int srcPane, bool bGroupWithPrevious = false);
+	void ResultChooseAllConflicts(int srcPane);
+	bool SaveMergeResult(bool bSaveAs);
+	void OnResultPaneCurrentDiffChanged(int nDiff);
+	// called from CMergeResultTextBuffer on user edits
+	void OnResultBufferInsertedLines(int nLine, int nCount);
+	void OnResultBufferDeletedLines(int nStartLine, int nCount);
+	void OnResultBufferDeletedWholeLines(int nFirstLine, int nCount);
+	void OnResultLineEdited(int nLine);
+	// segment table snapshots kept in sync with the buffer's undo stack
+	void OnResultUndoGroupStart(int nUndoPos);
+	void OnResultUndone(int nUndoPos);
+	void OnResultRedone(int nUndoPos);
+	void OnResultUndoStackCleared();
+private:
+	String GetPaneApparentLinesText(int nPane, int nApparentBegin, int nApparentEnd, int* pnLines) const;
+	int GetResultSegmentIndexByLine(int nLine) const;
+	bool IsResultDiffWhiteSpaceOnly(const DIFFRANGE* pdi) const;
+	CRLFSTYLE PickResultCRLFStyle() const;
+	void PickResultEncoding();
+	String GetResultBufferLinesText(int nStartLine, int nLines) const;
+	String BuildExpandedResultText() const;
+	bool AdjustResultSegmentsAfterLineDeletion(int nRemovedBegin, int nCount);
+	void EnsureNoLinesPlaceholder(int nSegment);
+	std::unique_ptr<CMergeResultTextBuffer> m_ptResultBuf; /**< Merge result buffer (not part of the diff) */
+	CMergeResultView* m_pMergeResultView; /**< Merge result view, or nullptr */
+	std::vector<MergeResultSegment> m_resultSegments; /**< Segments covering the result buffer */
+	std::vector<int> m_resultDiffToSegment; /**< diff index -> segment index or -1 */
+	std::map<int, std::vector<MergeResultSegment>> m_resultSegUndo; /**< table before undo group (key: group start) */
+	std::map<int, std::vector<MergeResultSegment>> m_resultSegRedo; /**< table after undo group (key: group start) */
+	bool m_bResultBuilt; /**< Result buffer has been generated */
+	bool m_bResultSaved; /**< Result has been written to the output since it was built */
+	int  m_nMergeBasePane; /**< Pane to use as the base for auto-merging */
+	bool m_bResultSavedRO[3]; /**< Read-only states before the result pane forced them */
+	String m_strResultSavedDesc[3]; /**< Pane descriptions before the result pane added merge labels */
+	BUFFERTYPE m_nResultSavedBufferType[3]; /**< Buffer types before the result pane forced them */
+	std::optional<DIFFOPTIONS> m_mergeSessionDiffOptions;
+// End MergeDocResultPane.cpp
 
 // Implementation
 public:
-	FileChange IsFileChangedOnDisk(LPCTSTR szPath, DiffFileInfo &dfi,
+	FileChange IsFileChangedOnDisk(const tchar_t* szPath, DiffFileInfo &dfi,
 		bool bSave, int nBuffer);
 	bool PromptAndSaveIfNeeded(bool bAllowCancel);
 	std::vector<int> undoTgt;
-	std::vector<int>::iterator curUndo;
+	size_t curUndo;
 	void FlushAndRescan(bool bForced = false);
 	void SetCurrentDiff(int nDiff);
 	int GetCurrentDiff() const { return m_nCurDiff; }
 	const CurrentWordDiff& GetCurrentWordDiff() const { return m_CurWordDiff; }
-	bool EqualCurrentWordDiff(int nBuffer, const CPoint& ptStart, const CPoint& ptEnd) const
+	bool EqualCurrentWordDiff(int nBuffer, const CEPoint& ptStart, const CEPoint& ptEnd) const
 	{
 		return (m_CurWordDiff.nPane == nBuffer && m_CurWordDiff.ptStart == ptStart && m_CurWordDiff.ptEnd == ptEnd);
 	}
 	virtual ~CMergeDoc();
 	void SetDetectMovedBlocks(bool bDetectMovedBlocks);
 	bool IsMixedEOL(int nBuffer) const;
-	bool GenerateReport(const String& sFileName) const override;
+	bool GenerateReport(ReportContext& reportContext) const override;
+	IMergeDoc::DocumentType GetDocumentType() const override { return m_documentType; }
 	void SetAutoMerged(bool bAutoMerged) { m_bAutoMerged = bAutoMerged; }
 	bool GetAutoMerged() const { return m_bAutoMerged; };
 	bool IsModified() const
@@ -312,15 +448,25 @@ public:
 	std::optional<bool> GetEnableTableEditing() const { return m_bEnableTableEditing; }
 	void SetEnableTableEditing(std::optional<bool> bEnableTableEditing) { m_bEnableTableEditing = bEnableTableEditing; }
 	static TableProps MakeTablePropertiesByFileName(const String& path, const std::optional<bool>& enableTableEditing, bool showDialog = true);
+	const TableProps* GetPreparedTableProperties() const { return m_pTablePropsPrepared.get(); }
 	void SetPreparedTableProperties(const TableProps& props) { m_pTablePropsPrepared.reset(new TableProps(props)); }
+	TableProps GetCurrentTableProperties(int pane) const;
 
-	void SetTextType(int textType);
+	void SetTextType(int textType, int pane = -1);
 	void SetTextType(const String& ext);
-	bool GetChangedSchemeManually() const { return m_bChangedSchemeManually; }
+	void SetTextTypesByFileType(int pane = -1);
+	void SetTextTypeAuto(int pane = -1);
+	bool GetChangedSchemeManually(int pane) const
+	{
+		ASSERT(pane >= 0 && pane < 3);
+		return (pane >= 0 && pane < 3) ? m_bChangedSchemeManually[pane] : false;
+	}
 
 	bool GetAutomaticRescan() const { return m_bAutomaticRescan; }
-	// to customize the mergeview menu
-	HMENU createPrediffersSubmenu(HMENU hMenu);
+	const String& GetSaveAsPath() const { return m_strSaveAsPath; }
+	void SetSaveAsPath(const String& strSaveAsPath) { m_strSaveAsPath = strSaveAsPath; }
+	const String& GetMergeResultSavePath() const { return m_strMergeResultSavePath; }
+	void SetMergeResultSavePath(const String& strSaveAsPath) { m_strMergeResultSavePath = strSaveAsPath; }
 
 // implementation methods
 private:
@@ -328,7 +474,7 @@ private:
 	bool GetByteColoringOption() const;
 	bool IsValidCodepageForMergeEditor(unsigned cp) const;
 	void SanityCheckCodepage(FileLocation & fileinfo);
-	DWORD LoadOneFile(int index, String filename, bool readOnly, const String& strDesc, const FileTextEncoding & encoding);
+	FileLoadResult::flags_t LoadOneFile(int index, const String& filename, bool readOnly, const String& strDesc, const FileTextEncoding & encoding);
 	void SetTableProperties();
 
 // Implementation data
@@ -336,8 +482,9 @@ protected:
 	int m_nCurDiff; /**< Selected diff, 0-based index, -1 if no diff selected */
 	CurrentWordDiff m_CurWordDiff;
 	CMergeEditView * m_pView[3][3]; /**< Pointer to left/middle/right view */
+	CMergeEditSplitterView * m_pMergeEditSplitterView[3];
 	CLocationView * m_pLocationView; /**< Pointer to locationview */
-	CDirDoc * m_pDirDoc;
+	IDirDoc * m_pDirDoc;
 	bool m_bEnableRescan; /**< Automatic rescan enabled/disabled */
 	COleDateTime m_LastRescan; /**< Time of last rescan (for delaying) */ 
 	CDiffWrapper m_diffWrapper;
@@ -347,6 +494,8 @@ protected:
 	BUFFERTYPE m_nBufferType[3];
 	bool m_bEditAfterRescan[3]; /**< Left/middle/right doc edited after rescanning */
 	TempFile m_tempFiles[3]; /**< Temp files for compared files */
+	String m_strSaveAsPath; /**< "3rd path" where output saved if given */
+	String m_strMergeResultSavePath; /**< Save path for the merge result pane */
 	int m_nDiffContext;
 	bool m_bInvertDiffContext;
 	bool m_bMixedEol; /**< Does this document have mixed EOL style? */
@@ -355,6 +504,7 @@ protected:
 	bool m_bAutoMerged;
 	std::optional<bool> m_bEnableTableEditing;
 	std::unique_ptr<TableProps> m_pTablePropsPrepared;
+	std::unique_ptr<CLineFilterHelperMenu> m_pFilterMenu;
 	/**
 	 * Are automatic rescans enabled?
 	 * If automatic rescans are enabled then we rescan files after edit
@@ -363,9 +513,10 @@ protected:
 	 */
 	bool m_bAutomaticRescan;
 	/// active prediffer ID : helper to check the radio button
-	int m_CurrentPredifferID;
-	bool m_bChangedSchemeManually;	/**< `true` if the syntax highlighting scheme is changed manually */
+	bool m_bChangedSchemeManually[3]{};	/**< `true` if the syntax highlighting scheme is changed manually (per pane) */
 	String m_sCurrentHeaderTitle[3];
+	EditorScriptInfo m_editorScriptInfo;
+	LineFilterHelper m_displayFilterHelper;
 
 // friend access
 	friend class RescanSuppress;
@@ -398,29 +549,48 @@ protected:
 	afx_msg void OnUpdateStatusRO(CCmdUI* pCmdUI);
 	afx_msg void OnDiffContext(UINT nID);
 	afx_msg void OnUpdateDiffContext(CCmdUI* pCmdUI);
-	afx_msg void OnToolsGenerateReport();
-	afx_msg void OnToolsGeneratePatch();
 	afx_msg void OnOpenWithUnpacker();
 	afx_msg void OnApplyPrediffer();
+	afx_msg void OnUpdateApplyPrediffer(CCmdUI* pCmdUI);
 	afx_msg void OnBnClickedFileEncoding();
 	afx_msg void OnBnClickedPlugin();
 	afx_msg void OnBnClickedHexView();
+	afx_msg void OnMergeChooseSource(UINT nID);
+	afx_msg void OnUpdateMergeChooseSource(CCmdUI* pCmdUI);
+	afx_msg void OnMergeChooseAllConflicts(UINT nID);
+	afx_msg void OnUpdateMergeChooseAllConflicts(CCmdUI* pCmdUI);
+	afx_msg void OnMergeResultSave();
+	afx_msg void OnMergeResultSaveAs();
+	afx_msg void OnUpdateMergeResultSave(CCmdUI* pCmdUI);
+	afx_msg void OnMergeStartSession();
+	afx_msg void OnUpdateMergeStartSession(CCmdUI* pCmdUI);
+	afx_msg void OnMergeEndSession();
+	afx_msg void OnUpdateMergeEndSession(CCmdUI* pCmdUI);
 	afx_msg void OnOK();
 	afx_msg void OnFileRecompareAsText();
 	afx_msg void OnFileRecompareAsTable();
 	afx_msg void OnUpdateFileRecompareAsText(CCmdUI* pCmdUI);
 	afx_msg void OnUpdateFileRecompareAsTable(CCmdUI* pCmdUI);
 	afx_msg void OnFileRecompareAs(UINT nID);
+	afx_msg void OnUpdateFileRecompareAs(CCmdUI* pCmdUI);
 	template<int srcPane, int dstPane>
 	afx_msg void OnViewSwapPanes();
 	afx_msg void OnUpdateSwapContext(CCmdUI* pCmdUI);
 	afx_msg void OnRefresh();
+	afx_msg void OnUpdateRefresh(CCmdUI* pCmdUI);
 	afx_msg void OnUpdatePrediffer(CCmdUI* pCmdUI);
-	afx_msg void OnPrediffer(UINT nID );
+	afx_msg void OnPrediffer(UINT nID);
+	afx_msg void OnScriptsForCopying(UINT nID);
+	afx_msg void OnUpdateScriptsForCopying(CCmdUI* pCmdUI);
+	afx_msg void OnSelectEditorScriptForCopying();
+	afx_msg void OnViewDisplayFilterBarApply();
+	afx_msg void OnViewDisplayFilterBar();
+	afx_msg void OnFilterMenuCommand(UINT nID);
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 private:
 	void PrimeTextBuffers();
+	std::pair<std::unique_ptr<CDiffContext>, std::unique_ptr<DIFFITEM>> CreateDiffItem() const;
 	void HideLines();
 	void AdjustDiffBlocks();
 	void AdjustDiffBlocks3way();
@@ -432,9 +602,9 @@ private:
 		const DIFFRANGE& diffrange, const DIFFOPTIONS& diffOptions);
 	void FlagTrivialLines();
 	void FlagMovedLines();
-	String GetFileExt(LPCTSTR sFileName, LPCTSTR sDescription) const;
+	String GetFileExt(const tchar_t* sFileName, const tchar_t* sDescription) const;
 	void DoFileSave(int pane);
-	void SetPredifferByMenu(UINT nID);
+	String GetMergePaneRoles() const;
 };
 
 /**
@@ -444,4 +614,3 @@ inline bool CMergeDoc::HasSyncPoints()
 {
 	return m_bHasSyncPoints;
 }
-

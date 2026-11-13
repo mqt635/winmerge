@@ -7,6 +7,8 @@
 #include "IntToIntMap.h"
 #include <algorithm>
 #include "FileTransform.h"
+#include "FileFilterHelper.h"
+#include "7zCommon.h"
 
 class CDiffContext;
 class PathContext;
@@ -52,6 +54,8 @@ enum
 	DIFFIMG_TEXTSAME,
 	DIFFIMG_IMAGEDIFF,
 	DIFFIMG_IMAGESAME,
+	DIFFIMG_WEBPAGEDIFF,
+	DIFFIMG_WEBPAGESAME,
 };
 
 typedef enum {
@@ -104,6 +108,7 @@ struct DirViewFilterSettings
 		show_missing_left_only = getoptbool(OPT_SHOW_MISSING_LEFT_ONLY);
 		show_missing_middle_only = getoptbool(OPT_SHOW_MISSING_MIDDLE_ONLY);
 		show_missing_right_only = getoptbool(OPT_SHOW_MISSING_RIGHT_ONLY);
+		show_empty_folders = getoptbool(OPT_SHOW_EMPTY_FOLDERS);
 		tree_mode = getoptbool(OPT_TREE_MODE);
 	};
 	bool show_skipped;
@@ -119,10 +124,19 @@ struct DirViewFilterSettings
 	bool show_missing_left_only;
 	bool show_missing_middle_only;
 	bool show_missing_right_only;
+	bool show_empty_folders;
 	bool tree_mode;
+	FileFilterHelper displayFilterHelper; /**< File filter helper */
 };
 
 typedef std::map<String, bool> DirViewTreeState;
+
+struct DirViewUIState
+{
+	String focusedItemPath;
+	int focusedIndex = -1;
+	int topIndex = 0;
+};
 
 String NumToStr(int n);
 String FormatFilesAffectedString(int nFilesAffected, int nFilesTotal);
@@ -139,13 +153,15 @@ UPDATEITEM_TYPE UpdateDiffAfterOperation(const FileActionItem & act, CDiffContex
 
 DIFFITEM *FindItemFromPaths(const CDiffContext& ctxt, const PathContext& paths);
 
-bool IsItemCopyable(const DIFFITEM &di, int index);
+bool IsItemCopyable(const DIFFITEM &di, int index, bool copyOnlyDiffItems);
+bool IsItemMovable(const DIFFITEM &di, int index);
 bool IsItemDeletable(const DIFFITEM &di, int index);
 bool IsItemDeletableOnBoth(const CDiffContext& ctxt, const DIFFITEM &di);
 bool AreItemsOpenable(const CDiffContext& ctxt, SELECTIONTYPE selectionType, const DIFFITEM &di1, const DIFFITEM &di2, bool openableForDir = true);
 bool AreItemsOpenable(const CDiffContext& ctxt, const DIFFITEM &di1, const DIFFITEM &di2, const DIFFITEM &di3, bool openableForDir = true);
 bool IsItemOpenableOn(const DIFFITEM &di, int index);
 bool IsItemOpenableOnWith(const DIFFITEM &di, int index);
+bool IsParentFolderOpenable(const DIFFITEM& di, int index);
 bool IsItemCopyableToOn(const DIFFITEM &di, int index);
 bool IsItemNavigableDiff(const CDiffContext& ctxt, const DIFFITEM &di);
 bool IsItemExistAll(const CDiffContext& ctxt, const DIFFITEM &di);
@@ -165,9 +181,11 @@ int GetColImage(const DIFFITEM &di);
 
 void SetDiffStatus(DIFFITEM& di, unsigned  diffcode, unsigned mask);
 void SetDiffCompare(DIFFITEM& di, unsigned diffcode);
-void CopyDiffSideAndProperties(DIFFITEM& di, int src, int dst);
-void UnsetDiffSide(DIFFITEM& di, int index);
+void CopyDiffSideAndProperties(CDiffContext& ctxt, DIFFITEM& di, int src, int dst, int action);
+void UnsetDiffSide(const CDiffContext& ctxt, DIFFITEM& di, int index);
 void UpdateStatusFromDisk(CDiffContext& ctxt, DIFFITEM& di, int index);
+int UpdateCompareFlagsAfterSync(DIFFITEM& di, bool bRecursive);
+void UpdatePaths(int nDirs, DIFFITEM& di);
 void SetDiffCounts(DIFFITEM& di, unsigned diffs, unsigned ignored);
 void SetItemViewFlag(DIFFITEM& di, unsigned flag, unsigned mask);
 void SetItemViewFlag(CDiffContext& ctxt, unsigned flag, unsigned mask);
@@ -177,6 +195,8 @@ bool RenameOnSameDir(const String& szOldFileName, const String& szNewFileName);
 
 void ExpandSubdirs(CDiffContext& ctxt, DIFFITEM& dip);
 void ExpandAllSubdirs(CDiffContext &ctxt);
+void ExpandDifferentSubdirs(CDiffContext &ctxt);
+void ExpandIdenticalSubdirs(CDiffContext &ctxt);
 void CollapseAllSubdirs(CDiffContext &ctxt);
 DirViewTreeState *SaveTreeState(const CDiffContext& ctxt);
 void RestoreTreeState(CDiffContext &ctxt, DirViewTreeState *pTreeState);
@@ -227,7 +247,7 @@ struct DirActions
 	template <SIDE_TYPE src, SIDE_TYPE dst>
 	bool IsItemCopyableOnTo(const DIFFITEM& di) const
 	{
-		return (di.diffcode.diffcode != 0 && !m_RO[SideToIndex(m_ctxt, dst)] && ::IsItemCopyable(di, SideToIndex(m_ctxt, src)));
+		return (di.diffcode.diffcode != 0 && !m_RO[SideToIndex(m_ctxt, dst)] && ::IsItemCopyable(di, SideToIndex(m_ctxt, src), false));
 	}
 
 	template <SIDE_TYPE src>
@@ -249,6 +269,27 @@ struct DirActions
 			return (i == m_ctxt.GetCompareDirs());
 		}
 		return false;
+	}
+
+	/**
+	 * @brief Return whether the specified diff item is renamable.
+	 * @param [in] di Diff item to check
+	 * @return true if the specified diff item is renamable.
+	 */
+	bool IsItemRenamable(const DIFFITEM& di) const
+	{
+		int nDirs = m_ctxt.GetCompareDirs();
+		for (int i = 0; i < nDirs; i++)
+			if (di.diffcode.exists(i) && m_RO[i])
+				return false;
+		return true;
+	}
+
+	template <SIDE_TYPE src, SIDE_TYPE dst>
+	bool IsItemMovableOnTo(const DIFFITEM& di) const
+	{
+		const int idx = SideToIndex(m_ctxt, src);
+		return (di.diffcode.diffcode != 0 && !m_RO[idx] && !m_RO[SideToIndex(m_ctxt, dst)] && ::IsItemMovable(di, idx));
 	}
 
 	template <SIDE_TYPE src>
@@ -297,19 +338,19 @@ struct DirActions
 	template <SIDE_TYPE src>
 	bool IsItemOpenableOn(const DIFFITEM& di) const
 	{
-		return (di.diffcode.diffcode != 0 && ::IsItemOpenableOn(di, SideToIndex(m_ctxt, src)));
+		return ::IsItemOpenableOn(di, SideToIndex(m_ctxt, src));
 	}
 
 	template <SIDE_TYPE src>
 	bool IsItemOpenableOnWith(const DIFFITEM& di) const
 	{
-		return (di.diffcode.diffcode != 0 && ::IsItemOpenableOnWith(di, SideToIndex(m_ctxt, src)));
+		return ::IsItemOpenableOnWith(di, SideToIndex(m_ctxt, src));
 	}
 
 	template <SIDE_TYPE src>
 	bool IsParentFolderOpenable(const DIFFITEM& di) const
 	{
-		return (di.diffcode.diffcode != 0 && di.diffcode.exists(SideToIndex(m_ctxt, src)));
+		return ::IsParentFolderOpenable(di, SideToIndex(m_ctxt, src));
 	}
 
 	bool IsItemFile(const DIFFITEM& di) const
@@ -335,13 +376,31 @@ struct DirActions
 		return ::IsItemNavigableDiff(m_ctxt, di);
 	}
 
-	FileActionScript *CopyItem(FileActionScript *pscript, const std::pair<int, const DIFFITEM *>& it, SIDE_TYPE src, SIDE_TYPE dst) const
+	bool IsItemIdenticalOrSkipped(const DIFFITEM& di) const
+	{
+		if (!di.HasChildren())
+			return (di.diffcode.diffcode != 0 && (di.diffcode.isResultSame() || di.diffcode.isResultFiltered() || di.diffcode.isResultError()));
+		for (DIFFITEM* pdic = di.GetFirstChild(); pdic; pdic = pdic->GetFwdSiblingLink())
+		{
+			if (IsItemIdenticalOrSkipped(*pdic))
+				return true;
+		}
+		return false;
+	}
+
+	FileActionScript *CopyItem(FileActionScript *pscript, const std::pair<int, const DIFFITEM *>& it, bool copyOnlyDiffItems, SIDE_TYPE src, SIDE_TYPE dst) const
 	{
 		const DIFFITEM& di = *it.second;
 		const int srcidx = SideToIndex(m_ctxt, src);
 		const int dstidx = SideToIndex(m_ctxt, dst);
-		if (di.diffcode.diffcode != 0 && !m_RO[dstidx] && IsItemCopyable(di, srcidx))
+		if (di.diffcode.diffcode != 0 && !m_RO[dstidx] && IsItemCopyable(di, srcidx, copyOnlyDiffItems))
 		{
+			if (it.second->HasChildren())
+			{
+				for (DIFFITEM* pdic = di.GetFirstChild(); pdic; pdic = pdic->GetFwdSiblingLink())
+					CopyItem(pscript, { it.first, pdic }, copyOnlyDiffItems, src, dst);
+				return pscript;
+			}
 			FileActionItem act;
 			act.src  = GetItemFileName(m_ctxt, di, srcidx);
 			act.dest = GetItemFileName(m_ctxt, di, dstidx);
@@ -353,7 +412,7 @@ struct DirActions
 			act.context = it.first;
 			act.dirflag = di.diffcode.isDirectory();
 			act.atype = FileAction::ACT_COPY;
-			act.UIResult = FileActionItem::UI_SYNC;
+			act.UIResult = copyOnlyDiffItems ? FileActionItem::UI_COPY_DIFFITEMS : FileActionItem::UI_COPY;
 			act.UIOrigin = srcidx;
 			act.UIDestination = dstidx;
 			pscript->AddActionItem(act);
@@ -362,9 +421,47 @@ struct DirActions
 	}
 
 	template<SIDE_TYPE src, SIDE_TYPE to>
+	FileActionScript *CopyDiffItems(FileActionScript *pscript, const std::pair<int, const DIFFITEM *>& it) const
+	{
+		return CopyItem(pscript, it, true, src, to);
+	}
+
+	template<SIDE_TYPE src, SIDE_TYPE to>
 	FileActionScript *Copy(FileActionScript *pscript, const std::pair<int, const DIFFITEM *>& it) const
 	{
-		return CopyItem(pscript, it, src, to);
+		return CopyItem(pscript, it, false, src, to);
+	}
+
+	FileActionScript *MoveItem(FileActionScript *pscript, const std::pair<int, const DIFFITEM *>& it, SIDE_TYPE src, SIDE_TYPE dst) const
+	{
+		const DIFFITEM& di = *it.second;
+		const int srcidx = SideToIndex(m_ctxt, src);
+		const int dstidx = SideToIndex(m_ctxt, dst);
+		if (di.diffcode.diffcode != 0 && !m_RO[dstidx] && IsItemMovable(di, srcidx))
+		{
+			FileActionItem act;
+			act.src  = GetItemFileName(m_ctxt, di, srcidx);
+			act.dest = GetItemFileName(m_ctxt, di, dstidx);
+			
+			// We must check that paths still exists
+			if (paths::DoesPathExist(act.src) == paths::DOES_NOT_EXIST)
+				throw ContentsChangedException(act.src);
+
+			act.context = it.first;
+			act.dirflag = di.diffcode.isDirectory();
+			act.atype = FileAction::ACT_MOVE;
+			act.UIResult = FileActionItem::UI_MOVE;
+			act.UIOrigin = srcidx;
+			act.UIDestination = dstidx;
+			pscript->AddActionItem(act);
+		}
+		return pscript;
+	}
+
+	template<SIDE_TYPE src, SIDE_TYPE to>
+	FileActionScript *Move(FileActionScript *pscript, const std::pair<int, const DIFFITEM *>& it) const
+	{
+		return MoveItem(pscript, it, src, to);
 	}
 
 	FileActionScript *DeleteItem(FileActionScript *pscript, const std::pair<int, const DIFFITEM *>& it, SIDE_TYPE src) const
@@ -384,6 +481,7 @@ struct DirActions
 			act.dirflag = di.diffcode.isDirectory();
 			act.atype = FileAction::ACT_DEL;
 			act.UIOrigin = index;
+			act.UIDestination = -1; // UIDestination is not referenced
 			act.UIResult = FileActionItem::UI_DEL;
 			pscript->AddActionItem(act);
 		}
@@ -414,6 +512,7 @@ struct DirActions
 				act.dirflag = di.diffcode.isDirectory();
 				act.atype = FileAction::ACT_DEL;
 				act.UIOrigin = i;
+				act.UIDestination = -1; // UIDestination is not referenced
 				act.UIResult = FileActionItem::UI_DEL;
 				pscript->AddActionItem(act);
 			}
@@ -439,6 +538,7 @@ struct DirActions
 					act.dirflag = di.diffcode.isDirectory();
 					act.context = it.first;
 					act.UIOrigin = i;
+					act.UIDestination = -1; // UIDestination is not referenced
 					act.atype = FileAction::ACT_DEL;
 					pscript->AddActionItem(act);
 				}
@@ -468,6 +568,7 @@ struct DirActions
 			act.atype = atype;
 			act.UIResult = (atype == FileAction::ACT_COPY) ? FileActionItem::UI_DONT_CARE : FileActionItem::UI_DEL;
 			act.UIOrigin = index;
+			act.UIDestination = -1; // UIDestination is not referenced
 			pscript->AddActionItem(act);
 		}
 		return pscript;
@@ -500,6 +601,59 @@ struct DirActions
 	const CDiffContext& m_ctxt;
 	const bool *m_RO;
 };
+
+void AddZipItem(const CDiffContext& ctxt, const DIFFITEM& di, int index, bool bDiffsOnly, std::vector<CompressibleItem>& items);
+template<typename Iterator>
+std::vector<CompressibleItem> CreateZipItems(const CDiffContext& ctxt, Iterator first, Iterator last, int index, bool bDiffsOnly)
+{
+	std::vector<CompressibleItem> items;
+
+	for (; first != last; ++first)
+	{
+		const DIFFITEM* pdi = (*first).second;
+		if (pdi != nullptr)
+			AddZipItem(ctxt, *pdi, index, bDiffsOnly, items);
+	}
+
+	std::sort(items.begin(), items.end(),
+		[](const CompressibleItem& a, const CompressibleItem& b)
+		{
+			return a.name < b.name;
+		});
+
+	items.erase(
+		std::unique(items.begin(), items.end(),
+			[](const CompressibleItem& a, const CompressibleItem& b)
+			{
+				return a.name == b.name;
+			}),
+		items.end());
+
+	return items;
+}
+
+struct PatchItem
+{
+	String leftFile;
+	String rightFile;
+	String leftpatch;
+	String rightpatch;
+	int diffStatus = -1; /**< Icon index representing diff status (DIFFIMG_*) */
+};
+
+void AddPatchItem(const CDiffContext& ctxt, const DIFFITEM& di, bool bDiffsOnly, std::vector<PatchItem>& items);
+template<typename Iterator>
+std::vector<PatchItem> CreatePatchItems(const CDiffContext& ctxt, Iterator first, Iterator last, bool bDiffsOnly)
+{
+	std::vector<PatchItem> items;
+	for (; first != last; ++first)
+	{
+		DIFFITEM* pdi = &(*first);
+		if (pdi != nullptr)
+			AddPatchItem(ctxt, *pdi, bDiffsOnly, items);
+	}
+	return items;
+}
 
 struct Counts {
 	Counts() : count(0), total(0) {}
@@ -559,7 +713,15 @@ bool DoItemRename(InputIterator& it, const CDiffContext& ctxt, const String& szN
 	for (int index = 0; index < nDirs; index++)
 	{
 		di.diffFileInfo[index].filename = szNewItemName;
-		if (bRename[index] || paths::DoesPathExist(GetItemFileName(ctxt, di, index)))
+		bool bSetSideFlag = bRename[index];
+		if (!bSetSideFlag)
+		{
+			paths::PATH_EXISTENCE pathExist = paths::DoesPathExist(GetItemFileName(ctxt, di, index));
+			bool bIsDirectory = di.diffcode.isDirectory();
+			if (((pathExist == paths::IS_EXISTING_DIR) && bIsDirectory) || ((pathExist == paths::IS_EXISTING_FILE) && !bIsDirectory))
+				bSetSideFlag = true;
+		}
+		if (bSetSideFlag)
 			di.diffcode.setSideFlag(index);
 	}
 	return true;
@@ -645,7 +807,8 @@ void ApplyFolderNameAndFileName(const InputIterator& begin, const InputIterator&
 	for (InputIterator it = begin; it != end; ++it)
 	{
 		const DIFFITEM& di = *it;
-		if (di.diffcode.diffcode == 0) // Invalid value, this must be special item
+		if (di.diffcode.diffcode == 0 /* Invalid value, this must be special item */ ||
+		    !di.diffcode.exists(index)) 
 			continue;
 		String filename = di.diffFileInfo[index].filename;
 		String currentDir = di.getFilepath(index, ctxt.GetNormalizedPath(index));
